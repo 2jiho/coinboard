@@ -6,7 +6,7 @@
   import { PRESETS } from '../lib/presets.js';
 
   let { settings, status, wake, versionLabel, updateReady,
-    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel, closeButton;
   let tickerInput = $state();
@@ -121,6 +121,13 @@
       <div class="settings-row">
         <label for="admin-burn-in">번인 방지</label>
         <input type="checkbox" role="switch" id="admin-burn-in" checked={settings.burnIn} onchange={event => onBurnIn(event.currentTarget.checked)} />
+      </div>
+      <div class="settings-row">
+        <label for="admin-palette">등락 색</label>
+        <select id="admin-palette" value={settings.palette} onchange={event => onPalette(event.currentTarget.value)}>
+          <option value="green-red">초록 · 빨강</option>
+          <option value="red-blue">빨강 · 파랑</option>
+        </select>
       </div>
     </div>
     <p id="wake-lock-status" role="status" aria-live="polite" hidden={!wakeTrouble}>{wake.message}</p>

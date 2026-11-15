@@ -6,7 +6,7 @@ function memory(initial = {}) {
   return { getItem: key => data.has(key) ? data.get(key) : null, setItem: (key, value) => { data.set(key, String(value)); },
     removeItem: key => { data.delete(key); } };
 }
-const defaults = { ticker: 'BTC', currency: 'KRW', brightness: 100, burnIn: true };
+const defaults = { ticker: 'BTC', currency: 'KRW', brightness: 100, burnIn: true, palette: 'green-red' };
 test('defaults when storage is empty, missing or throws', () => {
   assert.deepEqual(createSettings(memory()).get(), defaults);
   assert.deepEqual(createSettings(null).get(), defaults);
@@ -15,16 +15,16 @@ test('defaults when storage is empty, missing or throws', () => {
 });
 test('loads valid fields, ignores invalid ones, removes obsolete rate key', () => {
   const store = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'eth', currency: 'EUR', brightness: 5 }), 'btc-last-exchange-rate': '1' });
-  assert.deepEqual(createSettings(store).get(), { ticker: 'ETH', currency: 'KRW', brightness: 100, burnIn: true });
+  assert.deepEqual(createSettings(store).get(), { ticker: 'ETH', currency: 'KRW', brightness: 100, burnIn: true, palette: 'green-red' });
   assert.equal(store.getItem('btc-last-exchange-rate'), null);
   const full = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'XRP', currency: 'USDT', brightness: 55 }) });
-  assert.deepEqual(createSettings(full).get(), { ticker: 'XRP', currency: 'USDT', brightness: 55, burnIn: true });
+  assert.deepEqual(createSettings(full).get(), { ticker: 'XRP', currency: 'USDT', brightness: 55, burnIn: true, palette: 'green-red' });
 });
 test('update persists the merged settings', () => {
   const store = memory(); const settings = createSettings(store);
   assert.deepEqual(settings.update({ currency: 'USDT', brightness: 40 }), { saved: true });
-  assert.deepEqual(JSON.parse(store.getItem('coinboard-settings')), { ticker: 'BTC', currency: 'USDT', brightness: 40, burnIn: true });
-  assert.deepEqual(createSettings(store).get(), { ticker: 'BTC', currency: 'USDT', brightness: 40, burnIn: true });
+  assert.deepEqual(JSON.parse(store.getItem('coinboard-settings')), { ticker: 'BTC', currency: 'USDT', brightness: 40, burnIn: true, palette: 'green-red' });
+  assert.deepEqual(createSettings(store).get(), { ticker: 'BTC', currency: 'USDT', brightness: 40, burnIn: true, palette: 'green-red' });
 });
 test('a failed write still applies for this run', () => {
   const settings = createSettings({ getItem: () => null, setItem() { throw new Error('quota'); }, removeItem() {} });
@@ -45,7 +45,7 @@ test('normalizeTicker trims and upper-cases valid tickers and rejects the rest',
 test('settings saved under the old btc-kiosk name are carried over once', () => {
   const store = memory({ 'btc-kiosk-settings': JSON.stringify({ ticker: 'ETH', currency: 'USDT', brightness: 60 }) });
   const settings = createSettings(store);
-  assert.deepEqual(settings.get(), { ticker: 'ETH', currency: 'USDT', brightness: 60, burnIn: true });
+  assert.deepEqual(settings.get(), { ticker: 'ETH', currency: 'USDT', brightness: 60, burnIn: true, palette: 'green-red' });
   settings.update({ brightness: 70 });
   assert.equal(JSON.parse(store.getItem('coinboard-settings')).brightness, 70);
   assert.equal(store.getItem('btc-kiosk-settings'), null);
@@ -67,4 +67,13 @@ test('the removed debug setting is neither kept nor written back', () => {
   assert.equal('debug' in settings.get(), false);
   settings.update({ brightness: 80 });
   assert.equal('debug' in JSON.parse(store.getItem('coinboard-settings')), false);
+});
+test('the up/down colours are green and red unless the red-and-blue pair was chosen', () => {
+  assert.equal(createSettings(memory()).get().palette, 'green-red');
+  const store = memory(); const settings = createSettings(store);
+  assert.deepEqual(settings.update({ palette: 'red-blue' }), { saved: true });
+  assert.equal(createSettings(store).get().palette, 'red-blue');
+  for (const odd of ['purple', 1, null, '']) {
+    assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ palette: odd }) })).get().palette, 'green-red', String(odd));
+  }
 });

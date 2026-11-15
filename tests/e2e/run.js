@@ -285,7 +285,15 @@ async function board(browser, base) {
   await page.locator('#admin-brightness').fill('50');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', brightness: 50, burnIn: true });
+  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', brightness: 50, burnIn: true, palette: 'green-red' });
+  // Up and down colours: green and red, or the Korean red and blue.
+  const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
+  await page.locator('#admin-palette').selectOption('red-blue');
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(255, 69, 58)');
+  assert.equal((await saved(page)).palette, 'red-blue');
+  await page.locator('#admin-palette').selectOption('green-red');
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
   // Burn-in protection keeps the board near the middle; switched off, exactly in the middle.
   const drift = () => page.locator('#drift').evaluate(el => (el.style.transform.match(/-?[\d.]+(?=px)/g) || []).map(Number));
   await page.clock.runFor(62000);
@@ -351,6 +359,23 @@ async function board(browser, base) {
   await page.mouse.move(500, 300);
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(4000); await live(page);
   assert.equal(await level(), 'ok');
+  // Each digit is its own piece, so only the ones that change roll over.
+  const digits = () => page.locator('#price-text .digit').allTextContents();
+  assert.deepEqual(await digits(), ['7', '0', ',', '0', '0', '0']);
+  await page.evaluate(() => { for (const el of document.querySelectorAll('#price-text .digit')) el.dataset.seen = '1'; });
+  await page.evaluate(() => sockets.at(-1).emit({ c: '70010.00' }));
+  assert.equal(await text(page, '#price-main'), '70,010');
+  assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
+  assert.match(await page.locator('#price-text .digit').nth(4).getAttribute('class'), /\bup\b/);
+  // A jump of half a percent within a minute lights the edge of the screen for a moment.
+  assert.equal(await page.locator('#stage').getAttribute('data-surge'), null);
+  await page.evaluate(() => sockets.at(-1).emit({ c: '70500.00' }));
+  assert.equal(await page.locator('#stage').getAttribute('data-surge'), 'up');
+  await page.waitForTimeout(400); await page.screenshot({ path: path.join(evidence, 'board-surge.png') });
+  await page.clock.runFor(3500);
+  assert.equal(await page.locator('#stage').getAttribute('data-surge'), null);
+  await page.evaluate(() => sockets.at(-1).emit({ c: '70000.10' }));
+  assert.equal(await page.locator('#stage').getAttribute('data-surge'), null, 'quiet for a minute after a surge');
   // Malformed prices never reach the board.
   await page.evaluate(() => sockets.at(-1).emit({ c: 'Infinity' }));
   assert.equal(await text(page, '#price-main'), '70,000');

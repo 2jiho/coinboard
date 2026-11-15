@@ -62,6 +62,7 @@
   $effect(() => {
     document.body.classList.toggle('controls-visible', controlsVisible);
     document.body.classList.toggle('settings-open', panelOpen);
+    document.body.dataset.palette = settings.palette;
   });
   // The "N초 후" countdowns only matter while something is wrong.
   $effect(() => {
@@ -155,6 +156,7 @@
     onBrightnessPreview={value => { previewBrightness = value; }}
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
     onBurnIn={burnIn => save({ burnIn })}
+    onPalette={palette => save({ palette })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}
     onUpdate={() => updater.reload()}
