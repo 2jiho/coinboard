@@ -2,8 +2,6 @@
 import { EXCHANGES } from "./exchanges/index.js";
 
 const KEY = "coinboard-settings";
-// The project was called btc-price-kiosk. Same origin, so old settings are still readable.
-const OLD_KEY = "btc-kiosk-settings";
 const TICKER = /^[A-Z0-9]{1,20}$/;
 export function normalizeTicker(text) {
   if (typeof text !== "string") return null;
@@ -13,7 +11,7 @@ export function normalizeTicker(text) {
 export function createSettings(storage) {
   const settings = { ticker: "BTC", currency: "KRW", brightness: 100, burnIn: true, palette: "green-red" };
   try {
-    const saved = JSON.parse(storage.getItem(KEY) || storage.getItem(OLD_KEY));
+    const saved = JSON.parse(storage.getItem(KEY));
     if (saved && typeof saved === "object") {
       const ticker = normalizeTicker(saved.ticker);
       if (ticker) settings.ticker = ticker;
@@ -26,8 +24,6 @@ export function createSettings(storage) {
       const brightness = Number(saved.brightness);
       if (Number.isFinite(brightness) && brightness >= 10 && brightness <= 100) settings.brightness = brightness;
     }
-    // Remove the obsolete converted-rate storage from previous installations.
-    storage.removeItem("btc-last-exchange-rate");
   } catch (error) { /* Unreadable storage: run on defaults. */ }
   function get() {
     return { ticker: settings.ticker, currency: settings.currency, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette };
@@ -37,7 +33,7 @@ export function createSettings(storage) {
     ["ticker", "currency", "brightness", "burnIn", "palette"].forEach((key) => {
       if (patch[key] !== undefined) settings[key] = patch[key];
     });
-    try { storage.setItem(KEY, JSON.stringify(settings)); storage.removeItem(OLD_KEY); return { saved: true }; }
+    try { storage.setItem(KEY, JSON.stringify(settings)); return { saved: true }; }
     catch (error) { return { saved: false }; }
   }
   return { get, update, normalizeTicker };

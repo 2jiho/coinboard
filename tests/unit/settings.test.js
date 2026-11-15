@@ -13,10 +13,9 @@ test('defaults when storage is empty, missing or throws', () => {
   assert.deepEqual(createSettings({ getItem() { throw new Error('denied'); }, setItem() {}, removeItem() {} }).get(), defaults);
   assert.deepEqual(createSettings(memory({ 'coinboard-settings': '{broken' })).get(), defaults);
 });
-test('loads valid fields, ignores invalid ones, removes obsolete rate key', () => {
-  const store = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'eth', currency: 'EUR', brightness: 5 }), 'btc-last-exchange-rate': '1' });
+test('loads valid fields, ignores invalid ones', () => {
+  const store = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'eth', currency: 'EUR', brightness: 5 }) });
   assert.deepEqual(createSettings(store).get(), { ticker: 'ETH', currency: 'KRW', brightness: 100, burnIn: true, palette: 'green-red' });
-  assert.equal(store.getItem('btc-last-exchange-rate'), null);
   const full = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'XRP', currency: 'USDT', brightness: 55 }) });
   assert.deepEqual(createSettings(full).get(), { ticker: 'XRP', currency: 'USDT', brightness: 55, burnIn: true, palette: 'green-red' });
 });
@@ -41,16 +40,6 @@ test('normalizeTicker trims and upper-cases valid tickers and rejects the rest',
   assert.equal(settings.normalizeTicker(' eth '), 'ETH');
   assert.equal(settings.normalizeTicker('1INCH'), '1INCH');
   for (const bad of ['', '   ', '비트', 'BTC-USD', 'A'.repeat(21), null, undefined]) assert.equal(settings.normalizeTicker(bad), null);
-});
-test('settings saved under the old btc-kiosk name are carried over once', () => {
-  const store = memory({ 'btc-kiosk-settings': JSON.stringify({ ticker: 'ETH', currency: 'USDT', brightness: 60 }) });
-  const settings = createSettings(store);
-  assert.deepEqual(settings.get(), { ticker: 'ETH', currency: 'USDT', brightness: 60, burnIn: true, palette: 'green-red' });
-  settings.update({ brightness: 70 });
-  assert.equal(JSON.parse(store.getItem('coinboard-settings')).brightness, 70);
-  assert.equal(store.getItem('btc-kiosk-settings'), null);
-  const both = memory({ 'btc-kiosk-settings': JSON.stringify({ ticker: 'ETH' }), 'coinboard-settings': JSON.stringify({ ticker: 'XRP' }) });
-  assert.equal(createSettings(both).get().ticker, 'XRP');
 });
 test('burn-in protection is on unless it was switched off', () => {
   assert.equal(createSettings(memory()).get().burnIn, true);
