@@ -120,6 +120,12 @@ async function board(browser, base) {
   assert.equal(await page.evaluate(() => sockets.length), 1);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   assert.equal(await page.locator('#admin-panel').count(), 0);
+  // The board is set in Pretendard, shipped with the app: the same letterforms on every device.
+  await page.evaluate(() => document.fonts.ready);
+  assert.match(await page.locator('#price-main').evaluate(el => getComputedStyle(el).fontFamily), /^"?Pretendard"?,/);
+  assert.equal(await page.evaluate(() => document.fonts.check('600 200px Pretendard', '9800만')), true, 'the font is loaded, Hangul included');
+  assert.deepEqual(requests.filter(url => /\.woff2?$/.test(url)).filter(url => !url.startsWith(base)), [], 'fonts come from the app itself');
+  assert.ok(requests.some(url => url.startsWith(base) && url.endsWith('.woff2')), 'a font file was loaded');
   // No words under the price: one small dot in the corner says how things are.
   assert.equal(await page.locator('#status-overlay, #overlay-title, #notice').count(), 0);
   const level = () => page.locator('#status-dot').getAttribute('data-level');

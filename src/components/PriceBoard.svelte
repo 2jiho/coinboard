@@ -116,6 +116,8 @@
     boardObserver.observe(container); priceObserver.observe(priceText); priceObserver.observe(priceLine);
     window.addEventListener('resize', fit);
     fit(); fitPrice();
+    // The board's own font arrives a moment after the first paint; measure again then.
+    document.fonts?.ready.then(() => { fit(); fitPrice(); });
     return () => { boardObserver.disconnect(); priceObserver.disconnect(); window.removeEventListener('resize', fit); };
   });
 
