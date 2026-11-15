@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMarketFeed } from '../../src/lib/feed.js';
+import { createMarketFeed, describeMarket } from '../../src/lib/feed.js';
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function fixture(extra = {}) {
   let time = 1800000000000, id = 0;
@@ -50,13 +50,13 @@ test('Upbit KRW-BTC subscription and binary ticker use actual KRW and signed dai
   assert.deepEqual(JSON.parse(f.sockets[0].sent[0])[1], { type: 'ticker', codes: ['KRW-BTC'] });
   assert.equal(f.state().kind, 'waiting'); await f.message(f.tick(), undefined, true);
   assert.equal(f.ticks[0].price, 98000000); assert.equal(f.ticks[0].change, -2.5);
-  assert.equal(f.ticks[0].selection.changeLabel, '전일 대비'); assert.equal(f.state().kind, 'live');
+  assert.equal(f.ticks[0].selection.changeLabel, '1D'); assert.equal(f.state().kind, 'live');
 });
 test('Binance pushed ticker uses USDT and 24h change; no price requests or JSON ping', async () => {
   const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open();
   assert.equal(f.sockets[0].url, 'wss://stream.binance.com:443/ws/btcusdt@ticker');
   await f.message(f.tick('USDT')); assert.equal(f.ticks[0].price, 70000.1);
-  assert.equal(f.ticks[0].selection.currency, 'USDT'); assert.equal(f.ticks[0].selection.changeLabel, '24h');
+  assert.equal(f.ticks[0].selection.currency, 'USDT'); assert.equal(f.ticks[0].selection.changeLabel, '24H');
   assert.deepEqual(f.sockets[0].sent, []);
 });
 test('switch clears data and ignores delayed Blob decode and old socket events', async () => {
@@ -187,4 +187,30 @@ test('a ticker that has delivered prices is not suspect after timeouts; switchin
   const g = fixture(); g.feed.select('USDT', 'NOPE'); g.sockets[0].open(); g.advance(15000);
   g.advance(g.state().retryAt - g.now()); g.sockets[1].open(); g.advance(15000); assert.equal(g.state().tickerSuspect, true);
   g.feed.select('USDT', 'BTC'); assert.equal(g.state().tickerSuspect, false);
+});
+test('Binance error replies in either shape stop retries', async () => {
+  for (const reply of [{ code: -1121, msg: 'Invalid symbol.' }, { error: { code: 2, msg: 'Invalid request' } }, { error: { name: 'INVALID_PARAM' } }]) {
+    const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open();
+    await f.message(reply); assert.equal(f.state().kind, 'error', JSON.stringify(reply));
+    f.advance(60000); assert.equal(f.sockets.length, 1);
+  }
+});
+test('describeMarket names a market the way each part of the app needs it', () => {
+  assert.deepEqual(describeMarket('KRW', 'BTC'), { currency: 'KRW', ticker: 'BTC', exchange: '업비트', label: 'UPBIT', market: 'KRW-BTC', pair: 'KRW-BTC', changeLabel: '1D' });
+  assert.deepEqual(describeMarket('USDT', 'ETH'), { currency: 'USDT', ticker: 'ETH', exchange: '바이낸스', label: 'BINANCE', market: 'ETHUSDT', pair: 'ETH/USDT', changeLabel: '24H' });
+});
+test('every state says why in a code as well as in words', async () => {
+  const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open();
+  assert.equal(f.state().cause, null);
+  f.advance(15000); assert.equal(f.state().kind, 'backoff'); assert.equal(f.state().cause, 'timeout');
+  f.advance(f.state().retryAt - f.now()); f.sockets[1].open(); await f.message(f.tick('USDT'));
+  assert.equal(f.state().kind, 'live'); assert.equal(f.state().cause, null);
+  f.advance(15000); assert.equal(f.state().cause, 'stale'); assert.match(f.state().reason, /시세 업데이트 지연/);
+  f.advance(f.state().retryAt - f.now()); f.sockets[2].onclose(); assert.equal(f.state().cause, 'closed');
+  f.advance(f.state().retryAt - f.now()); f.sockets[3].onerror(); assert.equal(f.state().cause, 'network');
+  f.advance(f.state().retryAt - f.now()); f.sockets[4].open(); await f.message({ e: 'serverShutdown' }); assert.equal(f.state().cause, 'restart');
+  f.advance(f.state().retryAt - f.now()); f.sockets[5].open(); await f.message({ code: -1121, msg: 'Invalid symbol.' });
+  assert.equal(f.state().kind, 'error'); assert.equal(f.state().cause, 'exchange-error');
+  f.feed.setOnline(false); assert.equal(f.state().cause, 'offline');
+  f.feed.setOnline(true); f.feed.setActive(false); assert.equal(f.state().cause, 'hidden');
 });

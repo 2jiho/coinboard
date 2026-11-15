@@ -9,9 +9,9 @@
   import { createWakeLock } from './lib/wake-lock.js';
   import { createUpdater } from './lib/updater.js';
   import { describeState } from './lib/status.js';
+  import { createQuietControls } from './lib/quiet-controls.js';
 
   const version = __APP_VERSION__;
-  const CONTROLS = '#settings-toggle, #admin-panel';
   // Storage can throw on access (private mode): run on defaults without it.
   function storage(name) { try { return window[name]; } catch { return null; } }
   const store = createSettings(storage('localStorage'));
@@ -23,18 +23,24 @@
   let now = $state(Date.now());
   let visible = $state(document.visibilityState === 'visible');
   let wake = $state({ kind: 'pending', message: '', canRetry: false });
-  let cacheLabel = $state('확인 중');
+  let cache = $state({ state: 'waiting', version: null });
   let updateReady = $state(false);
   let controlsVisible = $state(false);
   let panelOpen = $state(false);
   let toast = $state('');
   let toggleButton;
-  let feed, wakeLock, updater, toastTimer, controlsTimer, cursorTimer, revealOnlyClick = false;
+  let feed, wakeLock, updater, controls, toastTimer, cursorTimer;
 
   const status = $derived(describeState(feedState, now));
+  // The installed offline copy normally matches the page. Say so only when it
+  // does not: that is a board still showing an older page.
+  const versionLabel = $derived(cache.state === 'unsupported' ? `버전 ${version} · 오프라인 실행 미지원`
+    : cache.state === 'unknown' ? `버전 ${version} · 설치된 사본 확인 불가`
+    : cache.state === 'known' && cache.version !== version ? `버전 ${version} · 설치된 사본 ${cache.version}`
+    : `버전 ${version}`);
   // Only a lost or refused lock is worth a line on the board; a device without
   // the feature is reported in the settings panel alone.
-  const notice = $derived(wake.kind === 'released' || wake.kind === 'failed' ? '화면 유지 꺼짐' : '');
+  const notice = $derived(wake.kind === 'released' || wake.kind === 'failed' ? 'SCREEN MAY SLEEP' : '');
 
   $effect(() => {
     document.body.classList.toggle('controls-visible', controlsVisible);
@@ -64,26 +70,15 @@
   }
   function changeSelection(patch) { save(patch); applySelection(); }
 
-  function controlsInUse() {
-    return panelOpen || !!(document.activeElement && document.activeElement.closest(CONTROLS));
-  }
-  function scheduleControlsHide() {
-    clearTimeout(controlsTimer); controlsTimer = null;
-    if (document.visibilityState !== 'visible' || controlsInUse()) return;
-    controlsTimer = setTimeout(() => {
-      controlsTimer = null;
-      if (!controlsInUse()) controlsVisible = false;
-    }, 5000);
-  }
-  function revealControls() { controlsVisible = true; scheduleControlsHide(); }
-  function openPanel() { panelOpen = true; revealControls(); }
+  function openPanel() { panelOpen = true; controls.reveal(); controls.touch(); }
   // returnFocus is false for a tap outside, which is a way of leaving.
   async function closePanel(returnFocus) {
     panelOpen = false;
     previewBrightness = null;
+    controls.touch();
     await flushed();
     if (returnFocus) toggleButton.focus();
-    scheduleControlsHide();
+    controls.settle();
     updater.settingsClosed();
   }
 
@@ -92,40 +87,29 @@
       active: visible, online: navigator.onLine,
       onTick(next) { if (next.selection.currency === settings.currency && next.selection.ticker === settings.ticker) tick = next; },
       onState(next) { feedState = next; },
-      onError(error) { if (settings.debug) console.warn('시세 메시지 오류:', error); },
     });
     applySelection();
     wakeLock = createWakeLock({ navigator, document, window, onChange(next) { wake = next; } });
     updater = createUpdater({
       navigator, location: window.location, document, version, workerUrl: './sw.js',
-      storage: storage('sessionStorage'), clock: { setInterval: window.setInterval.bind(window) },
+      storage: storage('sessionStorage'), clock: { setInterval: window.setInterval.bind(window) }, window,
       isSettingsOpen: () => panelOpen,
-      onCacheVersion(text) { cacheLabel = text; }, onUpdateReady() { updateReady = true; },
+      onCacheVersion(next) { cache = next; }, onUpdateReady() { updateReady = true; },
     });
     updater.start();
 
+    // When the settings button shows, and what a tap outside the panel does.
+    controls = createQuietControls({
+      document, controls: '#settings-toggle, #admin-panel', panel: '#admin-panel',
+      isPanelOpen: () => panelOpen,
+      onVisible(value) { controlsVisible = value; },
+      onOutsideTap() { closePanel(false); },
+      onPanelIdle() { closePanel(false); },
+    });
+
     function setVisible(value) { visible = value; feed.setActive(value); }
     const listeners = [
-      [document, 'pointerdown', event => {
-        revealOnlyClick = !controlsVisible;
-        // Revealing beneath a finger must not activate the newly visible button
-        // on pointerup/click or leave it focused after that first tap.
-        if (revealOnlyClick) event.preventDefault();
-        if (panelOpen && !event.target.closest('#admin-panel')) closePanel(false);
-        else if (!event.target.closest(CONTROLS) && controlsInUse() && !panelOpen) document.activeElement.blur();
-        revealControls();
-      }],
-      [document, 'click', event => {
-        if (revealOnlyClick && event.detail > 0) { revealOnlyClick = false; event.preventDefault(); event.stopImmediatePropagation(); }
-      }, true],
-      [document, 'pointercancel', () => { revealOnlyClick = false; }],
-      [document, 'keydown', event => { if (event.key === 'Tab' || event.key === 'Enter' || event.key === ' ') revealControls(); }, true],
-      [document, 'focusin', event => { if (event.target.closest(CONTROLS)) revealControls(); }],
-      [document, 'focusout', () => { queueMicrotask(scheduleControlsHide); }],
-      [document, 'visibilitychange', () => {
-        setVisible(document.visibilityState === 'visible');
-        if (visible) scheduleControlsHide(); else { clearTimeout(controlsTimer); controlsTimer = null; }
-      }],
+      [document, 'visibilitychange', () => setVisible(document.visibilityState === 'visible')],
       [window, 'pagehide', () => setVisible(false)],
       [window, 'pageshow', () => setVisible(document.visibilityState === 'visible')],
       [window, 'online', () => feed.setOnline(true)],
@@ -139,20 +123,21 @@
     for (const [target, name, handler, capture] of listeners) target.addEventListener(name, handler, capture);
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
-      clearTimeout(toastTimer); clearTimeout(controlsTimer); clearTimeout(cursorTimer);
-      feed.dispose(); wakeLock.dispose();
+      clearTimeout(toastTimer); clearTimeout(cursorTimer);
+      controls.dispose(); feed.dispose(); wakeLock.dispose();
     };
   });
 </script>
 
 {#if panelOpen}
-  <SettingsPanel {settings} {status} {wake} {version} {cacheLabel} {updateReady}
+  <div id="scrim"></div>
+  <SettingsPanel {settings} {status} {wake} {versionLabel} {updateReady}
     onClose={closePanel}
     onCurrency={currency => { if (currency !== settings.currency) changeSelection({ currency }); }}
     onTicker={ticker => changeSelection({ ticker })}
     onBrightnessPreview={value => { previewBrightness = value; }}
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
-    onDebug={debug => save({ debug })}
+    onBurnIn={burnIn => save({ burnIn })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}
     onUpdate={() => updater.reload()} />

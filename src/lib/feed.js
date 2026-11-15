@@ -1,41 +1,66 @@
 // Public market data only. No keys, price polling, or currency conversion.
+// What is specific to an exchange lives in ./exchanges; this file owns the
+// connection: when to connect, when to give up, when a price counts as live.
+import { upbit } from "./exchanges/upbit.js";
+import { binance } from "./exchanges/binance.js";
+
+const EXCHANGES = { KRW: upbit, USDT: binance };
+
+// Why the feed is not live, as a code. The words are for the settings panel;
+// anything that decides behaviour or the board's wording uses the code.
+const REASONS = {
+  "rate-wait": "연결 요청 간격 대기",
+  "connect-failed": "연결 생성 실패",
+  timeout: "시세 수신 시간 초과",
+  stale: "시세 업데이트 지연",
+  "subscribe-failed": "구독 요청 실패",
+  "heartbeat-failed": "연결 유지 요청 실패",
+  "rate-limited": "요청 한도 초과",
+  restart: "거래소 연결 재시작",
+  network: "네트워크 연결 오류",
+  closed: "거래소 연결 끊김",
+  hidden: "앱 복귀 시 새 시세를 확인합니다",
+  offline: "네트워크 연결을 확인하세요",
+};
+
+// One market, named the way each part of the app needs it.
+export function describeMarket(currency, ticker) {
+  const exchange = EXCHANGES[currency];
+  return { currency, ticker, exchange: exchange.name, label: exchange.label,
+    market: exchange.market(ticker), pair: exchange.pair(ticker), changeLabel: exchange.changeLabel };
+}
+
 export function createMarketFeed(options) {
   options = options || {};
-  var WS = options.WebSocket || globalThis.WebSocket;
-  var clock = options.clock || {
+  const WS = options.WebSocket || globalThis.WebSocket;
+  const clock = options.clock || {
     now: Date.now, setTimeout: globalThis.setTimeout.bind(globalThis), clearTimeout: globalThis.clearTimeout.bind(globalThis),
     setInterval: globalThis.setInterval.bind(globalThis), clearInterval: globalThis.clearInterval.bind(globalThis),
   };
-  var onTick = options.onTick || function () {};
-  var onState = options.onState || function () {};
-  var random = options.random || Math.random;
-  var staleMs = options.staleMs || 15000;
-  var selection = null, socket = null, generation = 0, last = null;
-  var retryTimer = null, healthTimer = null, heartbeatTimer = null;
-  var failures = 0, active = options.active !== false, online = options.online !== false, disposed = false;
+  const onTick = options.onTick || (() => {});
+  const onState = options.onState || (() => {});
+  const random = options.random || Math.random;
+  const staleMs = options.staleMs || 15000;
+  let selection = null, socket = null, generation = 0, last = null;
+  let retryTimer = null, healthTimer = null, heartbeatTimer = null;
+  let failures = 0, active = options.active !== false, online = options.online !== false, disposed = false;
   // Connections in a row that timed out before this selection ever sent a price.
-  var silentAttempts = 0, everTicked = false;
-  var lastAttempt = { KRW: -Infinity, USDT: -Infinity };
-  var store = options.attemptStore;
+  let silentAttempts = 0, everTicked = false;
+  const lastAttempt = { KRW: -Infinity, USDT: -Infinity };
+  let store = options.attemptStore;
   if (store === undefined) { try { store = globalThis.sessionStorage; } catch (_) {} }
   if (store) {
-    ["KRW", "USDT"].forEach(function (currency) {
+    ["KRW", "USDT"].forEach((currency) => {
       try {
-        var value = Number(store.getItem("coinboard-connect-" + currency));
+        const value = Number(store.getItem(`coinboard-connect-${currency}`));
         if (value > 0 && value <= clock.now() && value > clock.now() - 60000) lastAttempt[currency] = value;
       } catch (_) {}
     });
   }
 
-  function describe(currency, ticker) {
-    return { currency: currency, ticker: ticker,
-      exchange: currency === "KRW" ? "업비트" : "바이낸스",
-      market: currency === "KRW" ? "KRW-" + ticker : ticker + "USDT",
-      changeLabel: currency === "KRW" ? "전일 대비" : "24h",
-    };
-  }
-  function emit(kind, reason, retryAt) {
-    onState({ kind: kind, reason: reason || "", retryAt: retryAt || null, selection: selection, last: last,
+  // cause: a key of REASONS, "exchange-error", or null when nothing is wrong.
+  function emit(kind, cause, retryAt, detail) {
+    onState({ kind, cause: cause || null, reason: detail || REASONS[cause] || "", retryAt: retryAt || null, selection, last,
       tickerSuspect: !everTicked && silentAttempts >= 2 });
   }
   function clearTimers() {
@@ -47,7 +72,7 @@ export function createMarketFeed(options) {
   function disconnect() {
     generation++;
     clearTimers();
-    var old = socket;
+    const old = socket;
     socket = null;
     if (old) {
       old.onopen = old.onmessage = old.onerror = old.onclose = null;
@@ -56,124 +81,98 @@ export function createMarketFeed(options) {
   }
   function eligible() { return !disposed && active && online && !!selection; }
   function rateWait() {
-    // Browsers send Origin: Upbit limits these requests to one per 10 seconds.
-    // Binance: at least 2 seconds between attempts (<300 attempts / 5 min).
-    var minimum = selection.currency === "KRW" ? 10000 : 2000;
+    const minimum = EXCHANGES[selection.currency].minConnectInterval;
     return Math.max(0, lastAttempt[selection.currency] + minimum - clock.now());
   }
-  function schedule(delay, reason) {
-    if (!eligible()) { emit(!online ? "offline" : "paused", reason); return; }
+  function schedule(delay, cause) {
+    if (!eligible()) { emit(!online ? "offline" : "paused", cause); return; }
     delay = Math.max(delay || 0, rateWait());
     if (delay === 0) { connect(); return; }
-    var token = generation;
-    emit("backoff", reason || "연결 요청 간격 대기", clock.now() + delay);
-    retryTimer = clock.setTimeout(function () {
+    const token = generation;
+    emit("backoff", cause || "rate-wait", clock.now() + delay);
+    retryTimer = clock.setTimeout(() => {
       retryTimer = null;
       if (token === generation && eligible()) connect();
     }, delay);
   }
-  function fail(reason, minimumDelay) {
+  function fail(cause, minimumDelay) {
     disconnect();
-    var backoff = Math.min(30000, 1000 * Math.pow(2, Math.min(failures++, 5)));
-    schedule(Math.max(minimumDelay || 0, backoff + Math.floor(random() * backoff * 0.25)), reason);
+    const backoff = Math.min(30000, 1000 * Math.pow(2, Math.min(failures++, 5)));
+    schedule(Math.max(minimumDelay || 0, backoff + Math.floor(random() * backoff * 0.25)), cause);
   }
   async function decode(data) {
     if (typeof data === "string") return JSON.parse(data);
     if (data && typeof data.text === "function") return JSON.parse(await data.text());
     return JSON.parse(new TextDecoder().decode(data));
   }
-  function number(value) {
-    if (typeof value !== "number" && (typeof value !== "string" || value.trim() === "")) return NaN;
-    return Number(value);
-  }
   function connect() {
     if (!eligible()) return;
     if (rateWait() > 0) { schedule(0); return; }
-    var current = selection;
-    var token = generation;
-    var startedAt = clock.now(), gotTick = false;
+    const current = selection, exchange = EXCHANGES[current.currency];
+    const token = generation;
+    let startedAt = clock.now(), gotTick = false;
     // Liveness is judged by when this device received something, never by
     // comparing the exchange's clock with ours. Exchange event times only
     // order ticks within one connection.
-    var lastMessageAt = startedAt, lastEventTime = -Infinity;
+    let lastMessageAt = startedAt, lastEventTime = -Infinity;
     lastAttempt[current.currency] = startedAt;
     if (store) {
-      try { store.setItem("coinboard-connect-" + current.currency, String(startedAt)); } catch (_) {}
+      try { store.setItem(`coinboard-connect-${current.currency}`, String(startedAt)); } catch (_) {}
     }
     emit("connecting");
-    var connection;
+    let connection;
     try {
-      connection = new WS(current.currency === "KRW" ? "wss://api.upbit.com/websocket/v1" :
-        "wss://stream.binance.com:443/ws/" + current.market.toLowerCase() + "@ticker");
+      connection = new WS(exchange.url(current.market));
       connection.binaryType = "arraybuffer";
-    } catch (error) { fail("연결 생성 실패: " + error.name); return; }
+    } catch (error) { fail("connect-failed"); return; }
     socket = connection;
     function isCurrent() { return token === generation && socket === connection && eligible(); }
-    healthTimer = clock.setInterval(function () {
+    healthTimer = clock.setInterval(() => {
       if (!isCurrent()) return;
       if (!gotTick && clock.now() - startedAt >= staleMs) {
         silentAttempts++;
-        fail("시세 수신 시간 초과");
+        fail("timeout");
       } else if (gotTick && clock.now() - lastMessageAt >= staleMs) {
-        fail("시세 업데이트 지연");
+        fail("stale");
       }
     }, 1000);
-    connection.onopen = function () {
+    connection.onopen = () => {
       if (!isCurrent()) return;
       emit("waiting");
-      if (current.currency === "KRW") {
-        try {
-          connection.send(JSON.stringify([
-            { ticket: "coinboard-" + startedAt + "-" + token },
-            { type: "ticker", codes: [current.market] }, { format: "DEFAULT" },
-          ]));
-          // Upbit only sends a ticker when a trade happens. After the first
-          // text PING it sends {"status":"UP"} every 10 seconds, which shows the
-          // connection is alive while the market is quiet.
-          connection.send("PING");
-        } catch (error) { fail("구독 요청 실패"); return; }
-        heartbeatTimer = clock.setInterval(function () {
+      try {
+        exchange.subscribe(current.market, `${startedAt}-${token}`).forEach((frame) => { connection.send(frame); });
+        if (exchange.heartbeat) connection.send(exchange.heartbeat);
+      } catch (error) { fail("subscribe-failed"); return; }
+      if (exchange.heartbeat) {
+        heartbeatTimer = clock.setInterval(() => {
           if (isCurrent() && connection.readyState === WS.OPEN) {
-            try { connection.send("PING"); } catch (_) { fail("연결 유지 요청 실패"); }
+            try { connection.send(exchange.heartbeat); } catch (_) { fail("heartbeat-failed"); }
           }
-        }, 10000);
+        }, exchange.heartbeatMs);
       }
-      // Binance protocol PING/PONG is handled by the browser, not JSON ping.
     };
-    connection.onmessage = async function (event) {
+    connection.onmessage = async (event) => {
       if (!isCurrent()) return;
       try {
-        var data = await decode(event.data);
+        const data = await decode(event.data);
         if (!isCurrent()) return; // Includes a Blob decoding across a switch.
-        if (data.error || (data.code !== undefined && data.msg)) {
-          var code = data.error ? data.error.name : String(data.code);
-          if (code === "TOO_MANY_REQUEST") { fail("요청 한도 초과", 30000); return; }
+        const message = exchange.read(data, current.market);
+        if (!message) return;
+        if (message.type === "error") {
+          if (message.code === "TOO_MANY_REQUEST") { fail("rate-limited", 30000); return; }
           disconnect();
-          emit("error", "거래소 오류: " + code + " · 지원하는 티커를 확인하세요");
+          emit("error", "exchange-error", null, `거래소 오류: ${message.code} · 지원하는 티커를 확인하세요`);
           return;
         }
-        if (data.e === "serverShutdown") { fail("거래소 연결 재시작"); return; }
-        if (data.status === "UP") {
-          // Binance has no such message; its liveness stays tick-based.
-          if (current.currency === "KRW") lastMessageAt = clock.now();
-          return;
-        }
-        var price, change, eventTime;
-        if (current.currency === "KRW") {
-          if (data.type !== "ticker" || data.code !== current.market) return;
-          price = number(data.trade_price);
-          change = number(data.signed_change_rate) * 100;
-          eventTime = number(data.timestamp);
-        } else {
-          if (data.e !== "24hrTicker" || data.s !== current.market) return;
-          price = number(data.c); change = number(data.P); eventTime = number(data.E);
-        }
+        if (message.type === "restart") { fail("restart"); return; }
+        if (message.type === "alive") { lastMessageAt = clock.now(); return; }
+        const price = message.price, change = message.change, eventTime = message.eventTime;
         if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(change) ||
             !Number.isFinite(eventTime) || eventTime <= 0) return;
         if (eventTime < lastEventTime) return;
         lastEventTime = eventTime;
         lastMessageAt = clock.now();
-        last = { price: price, change: change, eventTime: eventTime, receivedAt: lastMessageAt, selection: current };
+        last = { price, change, eventTime, receivedAt: lastMessageAt, selection: current };
         gotTick = everTicked = true; silentAttempts = 0;
         onTick(last);
         failures = 0;
@@ -183,15 +182,15 @@ export function createMarketFeed(options) {
         if (isCurrent() && options.onError) options.onError(error);
       }
     };
-    connection.onerror = function () { if (isCurrent()) fail("네트워크 연결 오류"); };
-    connection.onclose = function () { if (isCurrent()) fail("거래소 연결 끊김"); };
+    connection.onerror = () => { if (isCurrent()) fail("network"); };
+    connection.onclose = () => { if (isCurrent()) fail("closed"); };
   }
   function select(currency, ticker) {
     ticker = (ticker || "BTC").toUpperCase();
     if (!["KRW", "USDT"].includes(currency) || !/^[A-Z0-9]{1,20}$/.test(ticker)) throw new Error("Invalid market selection");
     if (selection && selection.currency === currency && selection.ticker === ticker) return;
     disconnect();
-    selection = describe(currency, ticker); last = null; failures = 0;
+    selection = describeMarket(currency, ticker); last = null; failures = 0;
     silentAttempts = 0; everTicked = false;
     schedule(0);
   }
@@ -199,17 +198,17 @@ export function createMarketFeed(options) {
     value = !!value;
     if (value === active || disposed) return;
     active = value; disconnect();
-    if (active) schedule(0); else emit("paused", "앱 복귀 시 새 시세를 확인합니다");
+    if (active) schedule(0); else emit("paused", "hidden");
   }
   function setOnline(value) {
     value = !!value;
     if (value === online || disposed) return;
     online = value; disconnect();
-    if (online) schedule(0); else emit("offline", "네트워크 연결을 확인하세요");
+    if (online) schedule(0); else emit("offline", "offline");
   }
   return {
-    select: select, setActive: setActive, setOnline: setOnline,
-    retry: function () { if (eligible()) { disconnect(); schedule(0); } },
-    dispose: function () { disposed = true; disconnect(); },
+    select, setActive, setOnline,
+    retry() { if (eligible()) { disconnect(); schedule(0); } },
+    dispose() { disposed = true; disconnect(); },
   };
 }

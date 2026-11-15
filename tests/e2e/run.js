@@ -83,6 +83,8 @@ async function until(page, predicate, arg) {
   }
   throw new Error('Condition not met within 30s');
 }
+// The board floats slowly, so it is tapped by position, not by element.
+const tapBoard = page => page.touchscreen.tap(Math.round(page.viewportSize().width / 2), Math.round(page.viewportSize().height / 2));
 const text = (page, selector) => page.locator(selector).textContent();
 const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('coinboard-settings')));
 async function open(page) {
@@ -106,14 +108,22 @@ async function board(browser, base) {
   await page.clock.install(); await page.goto(base); await live(page);
 
   // The board at rest: price only, nothing to press.
-  assert.equal(await text(page, '#price-main'), '₩98,000,000');
-  assert.equal(await text(page, '#change'), '-2.50%');
-  assert.equal(await text(page, '#change-label'), '전일 대비');
-  assert.equal(await text(page, '#price-source'), '업비트 · KRW-BTC');
+  assert.equal(await text(page, '#price-main'), '9800만');
+  assert.equal(await text(page, '#change'), '▼ 2.50%');
+  assert.equal(await text(page, '#change-label'), '1D');
+  // The head line names the coin and the currency; the price line is digits only.
+  assert.equal(await text(page, '#coin'), 'BTC'); assert.equal(await text(page, '#unit'), 'KRW');
+  assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
   assert.equal(await page.evaluate(() => sockets.length), 1);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   assert.equal(await page.locator('#admin-panel').count(), 0);
   assert.equal(await page.locator('#status-overlay').count(), 0);
+  // The exchange and market are for screen readers only; they take no room on the board.
+  const sourceBox = await page.locator('#price-source').boundingBox();
+  assert.ok(sourceBox.width <= 3 && sourceBox.height <= 3, 'source line is not drawn');
+  // Nothing on the board itself is in Korean.
+  // (억 and 만 in a won price are the one exception.)
+  assert.doesNotMatch((await text(page, '#container')).replace(/[억만]/g, ''), /[가-힣]/);
   await page.screenshot({ path: path.join(evidence, 'board.png') });
 
   // Keyboard: Tab reveals and focuses the button, Enter opens, focus is kept inside.
@@ -124,12 +134,31 @@ async function board(browser, base) {
   await page.keyboard.press('Enter');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
   await page.keyboard.press('Shift+Tab');
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-debug');
+  // The last stop in the panel is the link to the source repository.
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-repo');
+  const repo = page.locator('#admin-repo');
+  assert.equal(await repo.getAttribute('href'), 'https://github.com/2jiho/coinboard');
+  assert.equal(await repo.getAttribute('target'), '_blank');
+  assert.match(await repo.getAttribute('rel'), /noopener/);
+  // Just the GitHub mark, with its name kept for screen readers.
+  assert.equal(await repo.locator('svg').count(), 1);
+  assert.equal((await repo.textContent()).trim(), '');
+  assert.equal(await repo.getAttribute('aria-label'), 'GitHub 저장소');
+  await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
+  const mark = await repo.boundingBox();
+  assert.ok(mark.width >= 44 && mark.height >= 44, 'the icon is still a full-size touch target');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
-  assert.deepEqual(await page.locator('#admin-panel h3').allTextContents(), ['시세', '화면', '앱']);
+  // A healthy board has nothing to report: no headings, no status lines, no extra input.
+  assert.equal(await page.locator('#admin-panel h3').count(), 0);
+  for (const quiet of ['#status-indicator', '#overlay-msg', '#wake-lock-status', '#admin-symbol', '#market-retry', '#wake-lock-retry', '#app-update']) {
+    assert.equal(await page.locator(quiet).isVisible(), false, quiet + ' is hidden while all is well');
+  }
+  assert.equal(await page.locator('#admin-debug').count(), 0);
   assert.equal(await text(page, '#status-indicator'), '업비트 · 실시간 연결됨');
-  await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION} · 캐시 ${VERSION}`);
+  // The installed copy matches the page, so only one version is shown.
+  await until(page, async () => !!navigator.serviceWorker.controller);
+  await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION}`);
   assert.equal(await page.locator('#app-update').isVisible(), false);
 
   // Wake lock: a system release is recovered; a failed recovery shows under the price.
@@ -141,7 +170,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#notice').count(), 0);
   await page.clock.runFor(10000);
   await page.evaluate(() => { navigator.wakeLock.request = () => Promise.reject(Object.assign(new Error('Denied'), { name: 'NotAllowedError' })); return testSentinel.release(); });
-  await page.waitForFunction(() => document.getElementById('notice')?.textContent === '화면 유지 꺼짐');
+  await page.waitForFunction(() => document.getElementById('notice')?.textContent === 'SCREEN MAY SLEEP');
   assert.equal(await page.locator('#overlay-title').count(), 0);
   await page.evaluate(() => { navigator.wakeLock.request = window.realWakeRequest; });
   await page.getByRole('button', { name: '화면 켜짐 유지 다시 시도' }).click();
@@ -150,20 +179,21 @@ async function board(browser, base) {
 
   // Currency applies at once and the old amount is cleared first.
   await page.evaluate(() => { suppressTicks = true; });
-  await page.getByRole('button', { name: 'USDT · 바이낸스', exact: true }).click();
+  await page.locator('#admin-currency').selectOption('USDT');
   assert.equal(await text(page, '#price-main'), '—');
-  assert.equal(await text(page, '#price-source'), '바이낸스 · BTC/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
-  assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
-  assert.equal(await text(page, '#change'), '+2.50%');
-  assert.equal(await text(page, '#change-label'), '24h');
+  assert.equal(await text(page, '#price-main'), '70,000');
+  assert.equal(await text(page, '#change'), '▲ 2.50%');
+  assert.equal(await text(page, '#change-label'), '24H');
+  assert.equal(await text(page, '#unit'), 'USDT');
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
   // Escape closes and returns focus; the button hides again when idle.
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#admin-panel').count(), 0);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'settings-toggle');
-  await page.locator('#price-main').tap(); await page.clock.fastForward(6000);
+  await tapBoard(page); await page.clock.fastForward(6000);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   // The tap that reveals the button must not press it.
   const corner = { x: 1024 - 40, y: 768 - 40 };
@@ -173,45 +203,93 @@ async function board(browser, base) {
   await page.screenshot({ path: path.join(evidence, 'board-button.png') });
   await page.touchscreen.tap(corner.x, corner.y);
   assert.equal(await page.locator('#admin-panel').isVisible(), true);
+  await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
   await page.screenshot({ path: path.join(evidence, 'settings.png') });
 
+  // Any other coin: "직접 입력…" opens a field for its ticker.
+  // Coin and currency are two one-line choices.
+  assert.deepEqual(await page.locator('#admin-coin option').allTextContents(), ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', '직접 입력…']);
+  assert.deepEqual(await page.locator('#admin-currency option').allTextContents(), ['원화 · 업비트', 'USDT · 바이낸스']);
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'BTC');
+  await page.locator('#admin-coin').selectOption('__other');
+  assert.equal(await page.locator('#admin-symbol').isVisible(), true);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-symbol');
   // Invalid tickers are refused in place; nothing changes.
   for (const bad of ['bad!', '비트', '   ']) {
     await page.locator('#admin-symbol').fill(bad); await page.locator('#admin-symbol-apply').click();
     assert.equal(await page.locator('#admin-symbol-error').isVisible(), true, bad);
   }
   assert.equal(await text(page, '#admin-symbol-error'), '영문·숫자 1~20자로 입력하세요');
-  assert.equal(await text(page, '#price-source'), '바이낸스 · BTC/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   assert.equal((await saved(page)).ticker, 'BTC');
   // Enter applies; lower case and stray spaces are tidied.
   await page.locator('#admin-symbol').fill(' eth '); await page.locator('#admin-symbol').press('Enter');
   assert.equal(await page.locator('#admin-symbol-error').isVisible(), false);
-  assert.equal(await page.locator('#admin-symbol').inputValue(), 'ETH');
+  // ETH is on the list, so the choice shows it and the field folds away.
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
+  assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   assert.equal((await saved(page)).ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
-  assert.equal(await text(page, '#price-source'), '바이낸스 · ETH/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
+  // Choosing a listed coin switches to it at once.
+  await page.locator('#admin-coin').selectOption('XRP');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · XRP/USDT');
+  await page.locator('#admin-coin').selectOption('ETH');
+  assert.equal((await saved(page)).ticker, 'ETH');
+  await page.clock.runFor(3000); await live(page);
+  // The coin's own icon ships with the app; no outside server is asked.
+  await page.waitForFunction(() => { const icon = document.getElementById('icon'); return icon && icon.complete && icon.naturalWidth > 0; });
+  assert.match(await page.locator('#icon').getAttribute('src'), /^\.\/coins\/eth\.svg$/);
   // Text typed but not applied is thrown away when the panel closes.
-  await page.locator('#admin-symbol').fill('XRP'); await page.locator('#admin-close').click();
-  await open(page); assert.equal(await page.locator('#admin-symbol').inputValue(), 'ETH');
-  // Brightness and debug apply and save without an apply button.
+  await page.locator('#admin-coin').selectOption('__other');
+  await page.locator('#admin-symbol').fill('LINK'); await page.locator('#admin-close').click();
+  await open(page); assert.equal(await page.locator('#admin-symbol').isVisible(), false);
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
+  // Brightness applies and saves without an apply button.
   await page.locator('#admin-brightness').fill('50');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  await page.locator('#admin-debug').check();
-  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', debug: true, brightness: 50 });
+  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', brightness: 50, burnIn: true });
+  // Burn-in protection keeps the board near the middle; switched off, exactly in the middle.
+  const drift = () => page.locator('#drift').evaluate(el => (el.style.transform.match(/-?[\d.]+(?=px)/g) || []).map(Number));
+  await page.clock.runFor(62000);
+  const [movedX, movedY] = await drift();
+  await page.locator('#admin-burn-in').uncheck();
+  // Still: no sideways offset; the vertical one only lifts the price line to the middle.
+  const [stillX, stillY] = await drift();
+  assert.equal(stillX, 0);
+  assert.ok(Math.abs(movedX) <= 1024 * 0.03 && Math.abs(movedY - stillY) <= 768 * 0.03, `drift stays near the centre: ${movedX}, ${movedY - stillY}`);
+  assert.ok(movedX !== 0 || movedY !== stillY, 'the board does move');
+  assert.equal((await saved(page)).burnIn, false);
+  await page.clock.runFor(62000);
+  assert.deepEqual(await drift(), [stillX, stillY]);
+  // With the board still, the price line sits exactly at mid-height of the screen.
+  const middle = await page.locator('#price-main').evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  assert.ok(Math.abs(middle.y - 384) < 1.5, `price at mid-height: ${middle.y}`);
+  await page.locator('#admin-burn-in').check();
   // A tap outside the panel closes it and keeps what was applied.
   await page.touchscreen.tap(20, 20);
   assert.equal(await page.locator('#admin-panel').count(), 0);
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   // Settings survive a reload.
   await page.reload(); await page.clock.runFor(3000); await live(page);
-  assert.equal(await text(page, '#price-source'), '바이낸스 · ETH/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
-  await open(page); await page.locator('#admin-debug').uncheck(); await page.locator('#admin-brightness').fill('100');
+  await open(page); await page.locator('#admin-brightness').fill('100');
   await page.locator('#admin-close').click();
   // Focus stays on the button after closing; a tap elsewhere lets it hide again.
-  await page.locator('#price-main').tap(); await page.clock.fastForward(6000);
+  await tapBoard(page); await page.clock.fastForward(6000);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
+
+  // A panel nobody is touching closes itself after two minutes.
+  await open(page);
+  await page.clock.runFor(110000);
+  assert.equal(await page.locator('#admin-panel').isVisible(), true);
+  await page.locator('#admin-brightness').focus(); await page.keyboard.press('Shift');
+  await page.clock.runFor(110000);
+  assert.equal(await page.locator('#admin-panel').isVisible(), true, 'a key press keeps it open');
+  await page.clock.runFor(11000);
+  assert.equal(await page.locator('#admin-panel').count(), 0);
 
   // Background: sockets close; coming back waits for a fresh price.
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
@@ -222,8 +300,8 @@ async function board(browser, base) {
   await page.evaluate(() => { suppressTicks = false; sockets.at(-1).emit(); }); await live(page);
   // Silence is shown as a delay with the last price kept on screen.
   await page.evaluate(() => { suppressTicks = true; }); await page.clock.fastForward(16000);
-  await page.waitForFunction(() => /시세 지연 · 마지막 가격/.test(document.getElementById('overlay-title')?.textContent || ''));
-  assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
+  await page.waitForFunction(() => /DELAYED · LAST PRICE/.test(document.getElementById('overlay-title')?.textContent || ''));
+  assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   await page.screenshot({ path: path.join(evidence, 'board-delay.png') });
@@ -231,24 +309,35 @@ async function board(browser, base) {
   assert.equal(await page.locator('#overlay-title').count(), 0);
   // Malformed prices never reach the board.
   await page.evaluate(() => sockets.at(-1).emit({ c: 'Infinity' }));
-  assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
+  assert.equal(await text(page, '#price-main'), '70,000');
 
   // A ticker the exchange never answers for.
   await open(page);
   await page.evaluate(() => { suppressTicks = true; });
+  await page.locator('#admin-coin').selectOption('__other');
   await page.locator('#admin-symbol').fill('NOPE'); await page.locator('#admin-symbol-apply').click();
+  // A coin that is not on the list joins the choice as itself; the field folds away.
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'NOPE');
+  assert.equal(await page.locator('#admin-coin option').first().textContent(), 'NOPE');
+  assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   await page.clock.runFor(40000);
-  assert.equal(await text(page, '#overlay-title'), '티커 확인 필요');
+  assert.equal(await text(page, '#overlay-title'), 'CHECK TICKER');
+  // A coin without an icon simply has none: its ticker is already in the head line.
+  assert.equal(await page.locator('#icon').count(), 0);
+  assert.equal(await text(page, '#coin'), 'NOPE');
   assert.match(await text(page, '#overlay-msg'), /지원하지 않는 티커일 수 있습니다/);
+  // Now there is something to report, so the status lines show.
+  assert.equal(await page.locator('#status-indicator').isVisible(), true);
+  assert.equal(await page.locator('#overlay-msg').isVisible(), true);
   // Being offline is the more useful thing to say than doubting the ticker.
   await context.setOffline(true);
-  await page.waitForFunction(() => /^오프라인/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
   await context.setOffline(false);
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(35000); await live(page);
   assert.equal(await page.locator('#overlay-title').count(), 0);
   // An exchange error stops retrying and offers a manual reconnect.
   await page.evaluate(() => sockets.at(-1).onmessage({ data: JSON.stringify({ error: { name: 'INVALID_PARAM' } }) }));
-  await page.waitForFunction(() => /^시세 오류/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /^ERROR/.test(document.getElementById('overlay-title')?.textContent || ''));
   await page.getByRole('button', { name: '시세 다시 연결' }).click();
   await page.clock.runFor(3000); await live(page);
 
@@ -256,14 +345,15 @@ async function board(browser, base) {
   flags.nextWorker = true;
   await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
   await page.waitForFunction(() => document.getElementById('app-update') && !document.getElementById('app-update').hidden);
-  await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION} · 캐시 ${NEXT_VERSION}`);
+  await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION} · 설치된 사본 ${NEXT_VERSION}`);
   await page.evaluate(() => { window.beforeReload = true; });
   await page.locator('#admin-close').click();
   await page.waitForFunction(() => !window.beforeReload && !!document.getElementById('container'));
   assert.equal(await page.evaluate(() => sessionStorage.getItem('coinboard-auto-reload')), NEXT_VERSION);
   flags.nextWorker = false;
 
-  assert.equal(requests.some(url => /frankfurter|currency-api/.test(url)), false);
+  // Everything the board loads comes from its own address.
+  assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:')), []);
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS board: rest state, keyboard, wake lock recovery, currency/ticker, immediate settings, delay/suspect/offline/error, automatic update');
@@ -293,12 +383,12 @@ async function lockedStorage(browser, base) {
   });
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
-  assert.equal(await text(page, '#price-main'), '₩98,000,000');
+  assert.equal(await text(page, '#price-main'), '9800만');
   await open(page);
-  await page.getByRole('button', { name: 'USDT · 바이낸스', exact: true }).click();
+  await page.locator('#admin-currency').selectOption('USDT');
   assert.match(await text(page, '#toast'), /저장하지 못했습니다/);
   await live(page);
-  assert.equal(await text(page, '#price-source'), '바이낸스 · BTC/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');
@@ -310,7 +400,7 @@ async function carriedSettings(browser, base) {
     if (!localStorage.getItem('coinboard-settings')) localStorage.setItem('btc-kiosk-settings', JSON.stringify({ ticker: 'ETH', currency: 'USDT', debug: false, brightness: 60 }));
   });
   const page = await context.newPage(); await page.goto(base); await live(page);
-  assert.equal(await text(page, '#price-source'), '바이낸스 · ETH/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(60%)');
   await context.close();
   console.log('PASS carried settings: settings saved by btc-price-kiosk are picked up');
@@ -329,13 +419,15 @@ async function offlineShell(browser, base) {
     return (await (await caches.open(name)).keys()).map(request => new URL(request.url).pathname.replace('/coinboard/', ''));
   }, VERSION);
   const built = fs.readdirSync(dist, { recursive: true }).map(file => String(file).split(path.sep).join('/'))
-    .filter(file => fs.statSync(path.join(dist, file)).isFile() && file !== 'sw.js');
+    .filter(file => fs.statSync(path.join(dist, file)).isFile() && file !== 'sw.js')
+    // Of the coin icons, only the preset coins are installed up front.
+    .filter(file => !file.startsWith('coins/') || ['btc', 'eth', 'xrp', 'sol', 'doge', 'ada'].includes(path.basename(file, '.svg')));
   assert.deepEqual(cached.sort(), built.sort());
   await context.setOffline(true);
   for (const entry of ['', 'index.html', '?source=home']) {
     await page.goto(base + entry);
-    await page.waitForFunction(() => /^오프라인/.test(document.getElementById('overlay-title')?.textContent || ''));
-    assert.equal(await text(page, '#price-source'), '업비트 · KRW-BTC');
+    await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
+    assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
     assert.equal(await text(page, '#price-main'), '—');
   }
   await context.close();
@@ -357,8 +449,38 @@ async function layouts(browser, base) {
     { name: 'short-landscape', width: 1024, height: 360, top: 0, right: 24, bottom: 20, left: 24 },
   ]) {
     await page.setViewportSize({ width: s.width, height: s.height });
-    await page.evaluate(s => { for (const side of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty('--safe-' + side, s[side] + 'px'); }, s);
-    await page.locator('#price-main').tap();
+    await page.evaluate(s => { for (const side of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty('--safe-' + side, s[side] + 'px');
+      // On a device the insets change with a rotation, which also fires resize.
+      window.dispatchEvent(new Event('resize')); }, s);
+    // The board fills the screen in one direction and never leaves it.
+    await page.waitForFunction(() => document.getElementById('container').style.transform.startsWith('scale('));
+    const area = { width: s.width - s.left - s.right, height: s.height - s.top - s.bottom };
+    const face = await page.locator('#container').boundingBox();
+    assert.ok(face.x >= 0 && face.y >= 0 && face.x + face.width <= s.width && face.y + face.height <= s.height, s.name + ' board on screen');
+    // Height is counted from the price line outwards, since that line is what is centred.
+    const reach = await page.evaluate(() => { const b = document.getElementById('container').getBoundingClientRect(), p = document.getElementById('price-main').getBoundingClientRect(); const mid = p.top + p.height / 2; return 2 * Math.max(mid - b.top, b.bottom - mid); });
+    const fills = Math.max(face.width / (area.width * 0.86), reach / (area.height * 0.62));
+    assert.ok(fills > 0.98 && fills < 1.02, s.name + ' board fills the screen: ' + fills);
+    // Head, price and change are always stacked, with the price the largest line.
+    const box = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, midX: r.left + r.width / 2, midY: r.top + r.height / 2, height: r.height }; }, id);
+    const [head, priceLine, foot, icon] = [await box('board-head'), await box('price-main'), await box('board-foot'), await box('icon')];
+    assert.ok(head.top < priceLine.top && priceLine.top < foot.top, s.name + ' stacked');
+    assert.ok(priceLine.height > head.height * 1.8 && priceLine.height > foot.height * 1.8, s.name + ' price dominates');
+    if (s.height > s.width) {
+      // Portrait: the icon sits on top and everything is centred.
+      assert.ok(icon.top < head.top, s.name + ' icon on top');
+      for (const row of [icon, head, foot]) assert.ok(Math.abs(row.midX - priceLine.midX) < 2, s.name + ' centred');
+    } else {
+      // Landscape: a large icon to the left, level with the price; the text lines share a left edge.
+      assert.ok(icon.right < priceLine.left, s.name + ' icon to the left');
+      assert.ok(Math.abs(icon.midY - priceLine.midY) < 2, s.name + ' icon level with the price');
+      assert.ok(icon.height > priceLine.height * 0.7, s.name + ' icon is large');
+      assert.ok(Math.abs(head.left - priceLine.left) < 2 && Math.abs(foot.left - priceLine.left) < 2, s.name + ' text left-aligned');
+    }
+    // The price line is at mid-height of the usable screen.
+    assert.ok(Math.abs(priceLine.midY - (s.top + (s.height - s.top - s.bottom) / 2)) <= s.height * 0.03 + 2, s.name + ' price at mid-height');
+    if (['ipad-portrait', 'ipad-landscape', 'phone'].includes(s.name)) await page.screenshot({ path: path.join(evidence, `board-${s.name}.png`) });
+    await tapBoard(page);
     const toggle = await page.locator('#settings-toggle').boundingBox();
     assert.equal(toggle.width, 48); assert.equal(toggle.height, 48);
     assert.equal(toggle.y + toggle.height, s.height - s.bottom - 16, s.name + ' button bottom');
@@ -366,13 +488,16 @@ async function layouts(browser, base) {
     await page.locator('#settings-toggle').tap();
     // The worst case for height: every optional button showing.
     await page.evaluate(() => { for (const id of ['wake-lock-retry', 'app-update', 'market-retry']) document.getElementById(id).hidden = false; });
+    await page.locator('#admin-coin').selectOption('__other');
+    // Measure the sheet where it comes to rest, not partway through its entrance.
+    await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
     const dialog = await page.locator('#admin-panel').boundingBox();
     const inside = box => {
       assert.ok(box.x >= s.left + 15, s.name + ' left'); assert.ok(box.x + box.width <= s.width - s.right - 15, s.name + ' right');
       assert.ok(box.y >= Math.max(48, s.top + 16) - 1, s.name + ' top'); assert.ok(box.y + box.height <= s.height - s.bottom - 15, s.name + ' bottom');
     };
     inside(dialog);
-    await page.locator('#admin-debug').scrollIntoViewIfNeeded();
+    await page.locator('#admin-repo').scrollIntoViewIfNeeded();
     inside(await page.locator('#admin-close').boundingBox());
     if (s.name.startsWith('ipad-') && !s.name.endsWith('zero')) await page.screenshot({ path: path.join(evidence, `settings-${s.name}.png`) });
     records.push({ ...s, toggle, dialog });
@@ -382,7 +507,7 @@ async function layouts(browser, base) {
   }
   fs.writeFileSync(path.join(evidence, 'layouts.json'), JSON.stringify(records, null, 2));
   await context.close();
-  console.log('PASS layout: 8 sizes and safe-area sets; 48px button in the corner, panel inside the safe area, close button reachable after scrolling');
+  console.log('PASS layout: 8 sizes and safe-area sets; board scaled to fill and stacked in portrait, 48px button in the corner, panel inside the safe area, close button reachable after scrolling');
 }
 
 async function liveExchanges(browser, base) {
@@ -390,7 +515,7 @@ async function liveExchanges(browser, base) {
   const page = await context.newPage(); await page.goto(base);
   await page.keyboard.press('Tab'); await page.locator('#settings-toggle').click();
   for (const currency of ['KRW', 'USDT']) {
-    await page.locator(`[data-currency="${currency}"]`).click();
+    await page.locator('#admin-currency').selectOption(currency);
     try {
       await page.waitForFunction(() => document.getElementById('status-indicator').className === 'connected', null, { timeout: 25000 });
       console.log('LIVE PASS', currency, await text(page, '#price-main'), await text(page, '#price-source'));

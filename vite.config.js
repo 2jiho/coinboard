@@ -2,10 +2,15 @@ import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import { PRESETS } from './src/lib/presets.js';
 
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-const CSP = "default-src 'self'; connect-src 'self' https://cdn.jsdelivr.net wss://api.upbit.com wss://stream.binance.com:443; " +
-  "script-src 'self'; style-src 'self'; img-src 'self' https://cdn.jsdelivr.net data:; manifest-src 'self';";
+const CSP = "default-src 'self'; connect-src 'self' wss://api.upbit.com wss://stream.binance.com:443; " +
+  "script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self';";
+// Coin icons live in public/coins (CC0, from the cryptocurrency-icons project).
+// All of them are published with the app; only the preset coins' icons are
+// installed up front, the rest are fetched when a coin is first shown.
+const installedIcons = new Set(PRESETS.map(ticker => `coins/${ticker.toLowerCase()}.svg`));
 
 // Writes dist/sw.js from src/sw.js with the app version and the list of built
 // files. Because both are baked in, every release changes the worker's bytes,
@@ -24,7 +29,9 @@ function serviceWorker() {
     },
     closeBundle() {
       const files = walk(outDir).map(file => relative(outDir, file).split(sep).join('/'))
-        .filter(file => file !== 'sw.js' && !file.endsWith('.map')).sort();
+        .filter(file => file !== 'sw.js' && !file.endsWith('.map'))
+        // Of the coin icons only the preset coins are installed up front.
+        .filter(file => !file.startsWith('coins/') || installedIcons.has(file)).sort();
       const source = readFileSync(new URL('./src/sw.js', import.meta.url), 'utf8')
         .replace('"__APP_VERSION__"', JSON.stringify(version))
         .replace('"__SHELL_FILES__"', JSON.stringify(files));
