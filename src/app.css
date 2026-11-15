@@ -127,7 +127,12 @@ body[data-palette="red-blue"] {
   color: #f2f2f7; font-size: 12px; font-weight: 500; line-height: 1.5; letter-spacing: 0.03em; text-align: left; white-space: pre-line;
   visibility: hidden; opacity: 0; transition: opacity 0.15s; pointer-events: none;
 }
-#status-dot:hover #status-tip, #status-dot.show #status-tip { visibility: visible; opacity: 1; }
+#status-dot.show #status-tip { visibility: visible; opacity: 1; }
+/* Hover only where there is something to hover with: a touch screen keeps
+   "hovering" over the last thing tapped, which would pin the detail open. */
+@media (hover: hover) {
+  #status-dot:hover #status-tip { visibility: visible; opacity: 1; }
+}
 body.settings-open #status-dot { visibility: hidden; }
 
 /* ---- Settings: a dark sheet in the manner of a system settings screen ---- */

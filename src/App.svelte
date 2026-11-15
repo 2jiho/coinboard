@@ -53,13 +53,18 @@
     const market = describeMarket(settings.currency, settings.ticker);
     return [`${market.label} · ${market.pair}`, status.title, wakeLost ? 'SCREEN MAY SLEEP' : ''].filter(Boolean).join('\n');
   });
-  // Touch has no hover: a tap on the dot shows the detail for a few seconds.
+  // A mouse shows the detail by hovering, and that is all: a click pins nothing.
+  // Touch has no hover, so a tap opens it; it closes after a few seconds, on a
+  // second tap, or on a tap anywhere else.
   let tipShown = $state(false);
   let tipTimer;
-  function showTip() {
+  function hideTip() { clearTimeout(tipTimer); tipShown = false; }
+  function tapDot(event) {
+    if (event.pointerType === 'mouse') return;
+    if (tipShown) { hideTip(); return; }
     tipShown = true;
     clearTimeout(tipTimer);
-    tipTimer = setTimeout(() => { tipShown = false; }, 4000);
+    tipTimer = setTimeout(hideTip, 4000);
   }
 
   $effect(() => {
@@ -131,6 +136,7 @@
     function setVisible(value) { visible = value; feed.setActive(value); }
     const listeners = [
       [document, 'visibilitychange', () => setVisible(document.visibilityState === 'visible')],
+      [document, 'pointerdown', event => { if (tipShown && !event.target.closest('#status-dot')) hideTip(); }],
       [window, 'pagehide', () => setVisible(false)],
       [window, 'pageshow', () => setVisible(document.visibilityState === 'visible')],
       [window, 'online', () => feed.setOnline(true)],
@@ -169,5 +175,5 @@
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
 </button>
 <div id="toast" class:show={!!toast} role="status">{toast}</div>
-<div id="status-dot" data-level={level} class:show={tipShown} role="img" aria-label={tip} onpointerdown={showTip}><span id="status-tip">{tip}</span></div>
+<div id="status-dot" data-level={level} class:show={tipShown} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
 <PriceBoard {settings} {tick} {status} brightness={previewBrightness ?? settings.brightness} active={visible} />

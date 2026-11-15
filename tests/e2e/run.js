@@ -125,11 +125,6 @@ async function board(browser, base) {
   assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE');
   const dotBox = await page.locator('#status-dot').boundingBox();
   assert.ok(dotBox.x < 60 && dotBox.y + dotBox.height > 768 - 60, 'dot is in the bottom-left corner');
-  // Its detail shows on hover (or a tap), not otherwise.
-  assert.equal(await page.locator('#status-tip').isVisible(), false);
-  await page.locator('#status-dot').hover();
-  assert.equal(await page.locator('#status-tip').isVisible(), true);
-  await page.mouse.move(500, 300);
   assert.equal(await page.locator('#status-tip').isVisible(), false);
   // The exchange and market are for screen readers only; they take no room on the board.
   const sourceBox = await page.locator('#price-source').boundingBox();
@@ -354,9 +349,9 @@ async function board(browser, base) {
   // Trouble changes the dot, never the board's size.
   assert.equal(await sizeOf(), sizeWhenLive, 'board keeps its size when there is trouble');
   // Let the dot finish changing colour, and show its detail, for the picture.
-  await page.locator('#status-dot').hover(); await page.waitForTimeout(450);
+  await page.touchscreen.tap(40, 768 - 40); await page.waitForTimeout(450);
   await page.screenshot({ path: path.join(evidence, 'board-delay.png') });
-  await page.mouse.move(500, 300);
+  await page.touchscreen.tap(500, 300);
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(4000); await live(page);
   assert.equal(await level(), 'ok');
   // Each digit is its own piece, so only the ones that change roll over.
@@ -473,6 +468,33 @@ async function carriedSettings(browser, base) {
   console.log('PASS carried settings: settings saved by btc-price-kiosk are picked up');
 }
 
+async function statusTipOnTouch(browser, base) {
+  // A tablet: touch only, nothing can hover.
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true }); await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.clock.install(); await page.goto(base); await live(page);
+  assert.equal(await page.evaluate(() => matchMedia('(hover: none)').matches), true, 'this context cannot hover');
+  const shown = () => page.locator('#status-tip').isVisible();
+  const dot = await page.locator('#status-dot').boundingBox();
+  const tapDot = () => page.touchscreen.tap(dot.x + dot.width / 2, dot.y + dot.height / 2);
+  assert.equal(await shown(), false);
+  // A tap opens the detail; it closes by itself after a few seconds.
+  await tapDot(); assert.equal(await shown(), true);
+  await page.clock.runFor(3900); assert.equal(await shown(), true);
+  await page.clock.runFor(200); assert.equal(await shown(), false, 'closes by itself');
+  // A second tap closes it at once.
+  await tapDot(); assert.equal(await shown(), true);
+  await tapDot(); assert.equal(await shown(), false, 'second tap closes');
+  // So does a tap anywhere else.
+  await tapDot(); assert.equal(await shown(), true);
+  await page.touchscreen.tap(600, 200); assert.equal(await shown(), false, 'tap elsewhere closes');
+  // And it does not come back on its own.
+  await page.clock.runFor(10000); assert.equal(await shown(), false);
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS status detail on touch: tap opens; closes by itself, on a second tap, or on a tap elsewhere');
+}
+
 async function coinList(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   let asked = 0;
@@ -484,6 +506,18 @@ async function coinList(browser, base) {
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
   assert.equal(asked, 0, 'the list is not fetched until someone wants to type a ticker');
+  // This context has a mouse and no touch.
+  // The status detail shows while the mouse is over the dot, not otherwise.
+  assert.equal(await page.locator('#status-tip').isVisible(), false);
+  await page.locator('#status-dot').hover();
+  assert.equal(await page.locator('#status-tip').isVisible(), true);
+  await page.mouse.move(500, 300);
+  assert.equal(await page.locator('#status-tip').isVisible(), false);
+  // With a mouse, hovering is the whole of it: a click does not pin the detail open.
+  await page.locator('#status-dot').click();
+  await page.mouse.move(500, 300);
+  assert.equal(await page.locator('#status-tip').isVisible(), false, 'a mouse click leaves nothing behind');
+
   await open(page);
   await page.locator('#admin-coin').selectOption('__other');
   // The field completes from the coins the exchange really lists.
@@ -644,7 +678,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://localhost:${server.address().port}/coinboard/`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 try {
-  for (const scenario of [board, idleUpdate, lockedStorage, carriedSettings, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, statusTipOnTouch, idleUpdate, lockedStorage, carriedSettings, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;
