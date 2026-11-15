@@ -90,15 +90,25 @@ body {
 body[data-palette="red-blue"] {
   --up: #ff453a; --down: #4b8dff; --up-flash: #ffd6d2; --down-flash: #d3e3ff;
 }
-/* A changed digit rolls in: from below when the price rose, from above when it fell. */
-#price-text .digit { display: inline-block; }
-/* Gently: a short distance, never fully invisible, and slow to settle. */
-#price-text .digit.up { animation: roll-up 1.2s cubic-bezier(0.33, 0, 0.2, 1); }
-#price-text .digit.down { animation: roll-down 1.2s cubic-bezier(0.33, 0, 0.2, 1); }
-@keyframes roll-up { from { transform: translateY(0.08em); opacity: 0.5; } }
-@keyframes roll-down { from { transform: translateY(-0.08em); opacity: 0.5; } }
+/* A changed digit pushes the old one out of its window, like a counter wheel,
+   and the movement goes the way the price went: up when it rose, down when it
+   fell. Each digit has a window (.slot) that hides whatever is past its edges.
+   The old digit is drawn by ::before, one window-height ahead of the new one,
+   so a single movement carries both: the new digit in, the old one out. */
+#price-text .slot { display: inline-block; clip-path: inset(0); }
+#price-text .digit { display: inline-block; position: relative; }
+#price-text .digit[data-old]::before { content: attr(data-old); position: absolute; left: 0; }
+/* Price up: the new digit rises from below; the old one leaves by the top. */
+#price-text .digit.up::before { top: -100%; }
+#price-text .digit.up { animation: push-up 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
+/* Price down: the new digit descends from above; the old one leaves by the bottom. */
+#price-text .digit.down::before { top: 100%; }
+#price-text .digit.down { animation: push-down 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes push-up { from { transform: translateY(100%); } }
+@keyframes push-down { from { transform: translateY(-100%); } }
 @media (prefers-reduced-motion: reduce) {
   #price-text .digit { animation: none; }
+  #price-text .digit[data-old]::before { content: none; }
 }
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */
