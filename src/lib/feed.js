@@ -1,10 +1,7 @@
 // Public market data only. No keys, price polling, or currency conversion.
 // What is specific to an exchange lives in ./exchanges; this file owns the
 // connection: when to connect, when to give up, when a price counts as live.
-import { upbit } from "./exchanges/upbit.js";
-import { binance } from "./exchanges/binance.js";
-
-const EXCHANGES = { KRW: upbit, USDT: binance };
+import { EXCHANGES } from "./exchanges/index.js";
 
 // Why the feed is not live, as a code. The words are for the settings panel;
 // anything that decides behaviour or the board's wording uses the code.

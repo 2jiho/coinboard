@@ -117,7 +117,20 @@ async function board(browser, base) {
   assert.equal(await page.evaluate(() => sockets.length), 1);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   assert.equal(await page.locator('#admin-panel').count(), 0);
-  assert.equal(await page.locator('#status-overlay').count(), 0);
+  // No words under the price: one small dot in the corner says how things are.
+  assert.equal(await page.locator('#status-overlay, #overlay-title, #notice').count(), 0);
+  const level = () => page.locator('#status-dot').getAttribute('data-level');
+  const tip = () => text(page, '#status-tip');
+  assert.equal(await level(), 'ok');
+  assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE');
+  const dotBox = await page.locator('#status-dot').boundingBox();
+  assert.ok(dotBox.x < 60 && dotBox.y + dotBox.height > 768 - 60, 'dot is in the bottom-left corner');
+  // Its detail shows on hover (or a tap), not otherwise.
+  assert.equal(await page.locator('#status-tip').isVisible(), false);
+  await page.locator('#status-dot').hover();
+  assert.equal(await page.locator('#status-tip').isVisible(), true);
+  await page.mouse.move(500, 300);
+  assert.equal(await page.locator('#status-tip').isVisible(), false);
   // The exchange and market are for screen readers only; they take no room on the board.
   const sourceBox = await page.locator('#price-source').boundingBox();
   assert.ok(sourceBox.width <= 3 && sourceBox.height <= 3, 'source line is not drawn');
@@ -167,25 +180,48 @@ async function board(browser, base) {
   await page.clock.runFor(10000);
   await page.evaluate(() => testSentinel.release());
   await page.waitForFunction(() => wakeRequests === 2 && document.getElementById('wake-lock-status').textContent.includes('활성'));
-  assert.equal(await page.locator('#notice').count(), 0);
+  assert.equal(await level(), 'ok');
   await page.clock.runFor(10000);
   await page.evaluate(() => { navigator.wakeLock.request = () => Promise.reject(Object.assign(new Error('Denied'), { name: 'NotAllowedError' })); return testSentinel.release(); });
-  await page.waitForFunction(() => document.getElementById('notice')?.textContent === 'SCREEN MAY SLEEP');
-  assert.equal(await page.locator('#overlay-title').count(), 0);
+  await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'warn');
+  assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE\nSCREEN MAY SLEEP');
   await page.evaluate(() => { navigator.wakeLock.request = window.realWakeRequest; });
   await page.getByRole('button', { name: '화면 켜짐 유지 다시 시도' }).click();
   await page.waitForFunction(() => wakeRequests === 3 && document.getElementById('wake-lock-status').textContent.includes('활성'));
-  assert.equal(await page.locator('#notice').count(), 0);
+  assert.equal(await level(), 'ok');
 
   // Currency applies at once and the old amount is cleared first.
+  // The board is one fixed size: a shorter or longer price, or none yet, does not resize it.
+  const boardSize = () => page.locator('#container').evaluate(el => el.style.transform);
+  const steadySize = await boardSize();
   await page.evaluate(() => { suppressTicks = true; });
   await page.locator('#admin-currency').selectOption('USDT');
   assert.equal(await text(page, '#price-main'), '—');
+  assert.equal(await boardSize(), steadySize, 'no price yet: same size');
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await text(page, '#change'), '▲ 2.50%');
   assert.equal(await text(page, '#change-label'), '24H');
+  assert.equal(await boardSize(), steadySize, 'a different price: same size');
+  // A much longer price than usual shrinks inside its own zone; nothing else changes size.
+  const zoneOf = id => page.locator(id).evaluate(el => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height }; });
+  const [zoneBefore, changeBefore] = [await zoneOf('#price-main'), await zoneOf('#change')];
+  await page.evaluate(() => sockets.at(-1).emit({ c: '0.000012345678' }));
+  assert.equal(await text(page, '#price-main'), '0.00001235');
+  assert.equal(await boardSize(), steadySize, 'a very long price: same board size');
+  await page.waitForFunction(() => document.getElementById('price-text').style.transform !== 'scale(1)');
+  const longText = await zoneOf('#price-text');
+  assert.ok(longText.left >= zoneBefore.left - 1 && longText.right <= zoneBefore.right + 1, 'the long price fits its zone');
+  assert.ok(longText.height < zoneBefore.height * 0.9, 'and is drawn smaller to do so');
+  const same = (a, b) => Math.abs(a - b) < 0.5;
+  assert.ok(same((await zoneOf('#price-main')).height, zoneBefore.height), 'price zone keeps its height');
+  assert.ok(same((await zoneOf('#change')).height, changeBefore.height), 'change keeps its size');
+  await page.evaluate(() => sockets.at(-1).emit());
+  assert.equal(await text(page, '#price-main'), '70,000');
+  // A usual price goes back to full size.
+  await page.waitForFunction(() => document.getElementById('price-text').style.transform === 'scale(1)');
+  assert.equal(await boardSize(), steadySize, 'back to the usual size');
   assert.equal(await text(page, '#unit'), 'USDT');
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
@@ -249,7 +285,15 @@ async function board(browser, base) {
   await page.locator('#admin-brightness').fill('50');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', brightness: 50, burnIn: true });
+  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', brightness: 50, burnIn: true, palette: 'green-red' });
+  // Up and down colours: green and red, or the Korean red and blue.
+  const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
+  await page.locator('#admin-palette').selectOption('red-blue');
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(255, 69, 58)');
+  assert.equal((await saved(page)).palette, 'red-blue');
+  await page.locator('#admin-palette').selectOption('green-red');
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
   // Burn-in protection keeps the board near the middle; switched off, exactly in the middle.
   const drift = () => page.locator('#drift').evaluate(el => (el.style.transform.match(/-?[\d.]+(?=px)/g) || []).map(Number));
   await page.clock.runFor(62000);
@@ -299,14 +343,32 @@ async function board(browser, base) {
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
   await page.evaluate(() => { suppressTicks = false; sockets.at(-1).emit(); }); await live(page);
   // Silence is shown as a delay with the last price kept on screen.
+  const sizeOf = () => page.locator('#container').evaluate(el => el.style.transform);
+  const sizeWhenLive = await sizeOf();
   await page.evaluate(() => { suppressTicks = true; }); await page.clock.fastForward(16000);
-  await page.waitForFunction(() => /DELAYED · LAST PRICE/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /DELAYED · LAST PRICE/.test(document.getElementById('status-tip').textContent));
+  assert.equal(await level(), 'warn');
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
+  // Trouble changes the dot, never the board's size.
+  assert.equal(await sizeOf(), sizeWhenLive, 'board keeps its size when there is trouble');
+  // Let the dot finish changing colour, and show its detail, for the picture.
+  await page.locator('#status-dot').hover(); await page.waitForTimeout(450);
   await page.screenshot({ path: path.join(evidence, 'board-delay.png') });
+  await page.mouse.move(500, 300);
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(4000); await live(page);
-  assert.equal(await page.locator('#overlay-title').count(), 0);
+  assert.equal(await level(), 'ok');
+  // Each digit is its own piece, so only the ones that change roll over.
+  const digits = () => page.locator('#price-text .digit').allTextContents();
+  assert.deepEqual(await digits(), ['7', '0', ',', '0', '0', '0']);
+  await page.evaluate(() => { for (const el of document.querySelectorAll('#price-text .digit')) el.dataset.seen = '1'; });
+  await page.evaluate(() => sockets.at(-1).emit({ c: '70010.00' }));
+  assert.equal(await text(page, '#price-main'), '70,010');
+  assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
+  assert.match(await page.locator('#price-text .digit').nth(4).getAttribute('class'), /\bup\b/);
+  await page.evaluate(() => sockets.at(-1).emit());
+  assert.equal(await text(page, '#price-main'), '70,000');
   // Malformed prices never reach the board.
   await page.evaluate(() => sockets.at(-1).emit({ c: 'Infinity' }));
   assert.equal(await text(page, '#price-main'), '70,000');
@@ -321,7 +383,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#admin-coin option').first().textContent(), 'NOPE');
   assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   await page.clock.runFor(40000);
-  assert.equal(await text(page, '#overlay-title'), 'CHECK TICKER');
+  assert.match(await tip(), /\nCHECK TICKER$/); assert.equal(await level(), 'warn');
   // A coin without an icon simply has none: its ticker is already in the head line.
   assert.equal(await page.locator('#icon').count(), 0);
   assert.equal(await text(page, '#coin'), 'NOPE');
@@ -331,13 +393,15 @@ async function board(browser, base) {
   assert.equal(await page.locator('#overlay-msg').isVisible(), true);
   // Being offline is the more useful thing to say than doubting the ticker.
   await context.setOffline(true);
-  await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /\nOFFLINE/.test(document.getElementById('status-tip').textContent));
+  assert.equal(await level(), 'bad');
   await context.setOffline(false);
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(35000); await live(page);
-  assert.equal(await page.locator('#overlay-title').count(), 0);
+  assert.equal(await level(), 'ok');
   // An exchange error stops retrying and offers a manual reconnect.
   await page.evaluate(() => sockets.at(-1).onmessage({ data: JSON.stringify({ error: { name: 'INVALID_PARAM' } }) }));
-  await page.waitForFunction(() => /^ERROR/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /\nERROR/.test(document.getElementById('status-tip').textContent));
+  assert.equal(await level(), 'bad');
   await page.getByRole('button', { name: '시세 다시 연결' }).click();
   await page.clock.runFor(3000); await live(page);
 
@@ -352,8 +416,11 @@ async function board(browser, base) {
   assert.equal(await page.evaluate(() => sessionStorage.getItem('coinboard-auto-reload')), NEXT_VERSION);
   flags.nextWorker = false;
 
-  // Everything the board loads comes from its own address.
-  assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:')), []);
+  // Everything the board loads comes from its own address; the only calls out
+  // are the exchanges' coin lists, asked for when the ticker field is opened.
+  const LISTS = ['https://api.upbit.com/v1/market/all', 'https://api.binance.com/api/v3/ticker/price'];
+  assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:') && !LISTS.includes(url)), []);
+  assert.ok(requests.filter(url => LISTS.includes(url)).length <= 8, 'coin lists are asked for a handful of times, not polled');
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS board: rest state, keyboard, wake lock recovery, currency/ticker, immediate settings, delay/suspect/offline/error, automatic update');
@@ -406,6 +473,45 @@ async function carriedSettings(browser, base) {
   console.log('PASS carried settings: settings saved by btc-price-kiosk are picked up');
 }
 
+async function coinList(browser, base) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
+  let asked = 0;
+  await context.route('https://api.upbit.com/v1/market/all', route => {
+    asked++;
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify([{ market: 'KRW-BTC' }, { market: 'KRW-ETH' }, { market: 'KRW-LINK' }, { market: 'BTC-ETH' }]) });
+  });
+  const page = await context.newPage(); const problems = watch(page);
+  await page.goto(base); await live(page);
+  assert.equal(asked, 0, 'the list is not fetched until someone wants to type a ticker');
+  await open(page);
+  await page.locator('#admin-coin').selectOption('__other');
+  // The field completes from the coins the exchange really lists.
+  await page.waitForFunction(() => document.querySelectorAll('#ticker-list option').length === 3);
+  assert.deepEqual(await page.locator('#ticker-list option').evaluateAll(options => options.map(option => option.value)), ['BTC', 'ETH', 'LINK']);
+  assert.equal(await page.locator('#admin-symbol').getAttribute('list'), 'ticker-list');
+  // A ticker the exchange does not list is refused at once, with the reason.
+  await page.locator('#admin-symbol').fill('nope'); await page.locator('#admin-symbol').press('Enter');
+  assert.equal(await text(page, '#admin-symbol-error'), '업비트 원화 시장에 없는 티커입니다');
+  assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
+  // One it does list is applied.
+  await page.locator('#admin-symbol').fill('link'); await page.locator('#admin-symbol').press('Enter');
+  assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-LINK');
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'LINK');
+  // Opening the field again does not ask the exchange again.
+  await page.locator('#admin-coin').selectOption('__other');
+  await page.waitForFunction(() => document.querySelectorAll('#ticker-list option').length === 3);
+  assert.equal(asked, 1);
+  // The other exchange's list could not be had (blocked here): any ticker is let through, as before.
+  await page.locator('#admin-currency').selectOption('USDT');
+  await page.locator('#admin-coin').selectOption('__other');
+  await page.locator('#admin-symbol').fill('nope'); await page.locator('#admin-symbol').press('Enter');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · NOPE/USDT');
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS coin list: completion and checking from the exchange, fetched once on demand, optional when unavailable');
+}
+
 async function offlineShell(browser, base) {
   const context = await browser.newContext(); await scripted(context);
   const page = await context.newPage(); await page.goto(base); await live(page);
@@ -426,7 +532,7 @@ async function offlineShell(browser, base) {
   await context.setOffline(true);
   for (const entry of ['', 'index.html', '?source=home']) {
     await page.goto(base + entry);
-    await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
+    await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'bad' && /\nOFFLINE/.test(document.getElementById('status-tip').textContent));
     assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
     assert.equal(await text(page, '#price-main'), '—');
   }
@@ -469,13 +575,17 @@ async function layouts(browser, base) {
     if (s.height > s.width) {
       // Portrait: the icon sits on top and everything is centred.
       assert.ok(icon.top < head.top, s.name + ' icon on top');
-      for (const row of [icon, head, foot]) assert.ok(Math.abs(row.midX - priceLine.midX) < 2, s.name + ' centred');
+      for (const row of [icon, head, foot, await box('price-text')]) assert.ok(Math.abs(row.midX - priceLine.midX) < 2, s.name + ' centred');
+      assert.ok(Math.abs(priceLine.midX - (s.left + (s.width - s.left - s.right) / 2)) <= s.width * 0.03 + 2, s.name + ' centred on the screen');
     } else {
       // Landscape: a large icon to the left, level with the price; the text lines share a left edge.
       assert.ok(icon.right < priceLine.left, s.name + ' icon to the left');
       assert.ok(Math.abs(icon.midY - priceLine.midY) < 2, s.name + ' icon level with the price');
-      assert.ok(icon.height > priceLine.height * 0.7, s.name + ' icon is large');
+      // The icon is as tall as the digits: 152 of the 232 design pixels the price zone is high.
+      assert.ok(Math.abs(icon.height / priceLine.height - 152 / 232) < 0.02, s.name + ' icon matches the digits in height');
       assert.ok(Math.abs(head.left - priceLine.left) < 2 && Math.abs(foot.left - priceLine.left) < 2, s.name + ' text left-aligned');
+      const digits = await box('price-text');
+      assert.ok(Math.abs(digits.left - head.left) < 2, s.name + ' digits start at the same left edge');
     }
     // The price line is at mid-height of the usable screen.
     assert.ok(Math.abs(priceLine.midY - (s.top + (s.height - s.top - s.bottom) / 2)) <= s.height * 0.03 + 2, s.name + ' price at mid-height');
@@ -534,7 +644,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://localhost:${server.address().port}/coinboard/`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 try {
-  for (const scenario of [board, idleUpdate, lockedStorage, carriedSettings, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, idleUpdate, lockedStorage, carriedSettings, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;

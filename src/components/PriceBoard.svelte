@@ -1,11 +1,13 @@
 <script>
-  // The board itself: icon, price, source, change, and one quiet line of trouble.
-  // It is laid out at a fixed design size and scaled to fill the screen.
+  // The board itself: icon, coin and currency, price, change.
+  // Every part has a zone of fixed size, and the whole is scaled to the screen,
+  // so the board is the same size whatever the price. A price too long for its
+  // zone is drawn smaller inside that zone; nothing else moves.
   import { onMount } from 'svelte';
   import { priceParts, change as formatChange, direction } from '../lib/format.js';
   import { describeMarket } from '../lib/feed.js';
 
-  let { settings, tick, status, notice, brightness, active } = $props();
+  let { settings, tick, status, brightness, active } = $props();
 
   // Burn-in protection moves the board only a little: far enough to rest the
   // pixels, not far enough to look off-centre. A share of each screen side.
@@ -31,21 +33,31 @@
   const market = $derived(describeMarket(settings.currency, settings.ticker));
   const tone = value => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
 
-  // Flash the price green or red for half a second when it moves.
+  // When the price moves, which way: changed digits roll in from that side and
+  // the price flashes its colour for half a second. This runs before the screen
+  // is updated, so new digits are born knowing their direction.
   let flash = $state(0);
+  let trend = $state(0);
   let lastPrice = null, flashTimer;
-  $effect(() => {
+  $effect.pre(() => {
     const next = tick ? tick.price : null;
-    if (next === null) { clearTimeout(flashTimer); flash = 0; lastPrice = null; return; }
+    if (next === null) { clearTimeout(flashTimer); flash = 0; trend = 0; lastPrice = null; return; }
     if (lastPrice !== null && next !== lastPrice) {
-      flash = next > lastPrice ? 1 : -1;
+      trend = flash = next > lastPrice ? 1 : -1;
       clearTimeout(flashTimer);
       flashTimer = setTimeout(() => { flash = 0; }, 500);
     }
     lastPrice = next;
   });
 
-  let container, priceLine;
+  let container, priceLine, priceText;
+  // 1 normally; less when the price is wider than its zone.
+  let priceScale = $state(1);
+  function fitPrice() {
+    if (!priceLine || !priceText) return;
+    const zone = priceLine.clientWidth, wanted = priceText.offsetWidth;
+    priceScale = wanted > zone ? zone / wanted : 1;
+  }
   // The price line, not the whole block, is what sits in the middle of the
   // screen: lift is how far the block must move for that to be true.
   let lift = $state(0);
@@ -79,12 +91,14 @@
     offset = { x: within(offset.x, room.x), y: within(offset.y, room.y) };
   }
   onMount(() => {
-    // The board's own size changes when the text gets longer or shorter.
-    const observer = new ResizeObserver(fit);
-    observer.observe(container);
+    // The zones are fixed, so the board is refitted only when the screen (or the
+    // orientation, which changes the zones) does; the price is refitted in its
+    // zone whenever its text changes width.
+    const boardObserver = new ResizeObserver(fit), priceObserver = new ResizeObserver(fitPrice);
+    boardObserver.observe(container); priceObserver.observe(priceText); priceObserver.observe(priceLine);
     window.addEventListener('resize', fit);
-    fit();
-    return () => { observer.disconnect(); window.removeEventListener('resize', fit); };
+    fit(); fitPrice();
+    return () => { boardObserver.disconnect(); priceObserver.disconnect(); window.removeEventListener('resize', fit); };
   });
 
   // Burn-in protection: once a minute pick a new spot close to the centre; the
@@ -110,18 +124,12 @@
       {/if}
       <div id="board-text">
         <p id="board-head"><span id="coin">{settings.ticker}</span><span id="unit">{settings.currency}</span></p>
-        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true">{#each parts.pieces as piece, index}{index ? ' ' : ''}{piece.number}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</p>
+        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true"><span id="price-text" bind:this={priceText} style:transform="scale({priceScale})">{#each parts.pieces as piece, index}{index ? ' ' : ''}{#each [...piece.number] as char, place (place)}{#key char}<span class="digit {tone(trend)}">{char}</span>{/key}{/each}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</span></p>
         <p id="price-source">{market.label} · {market.pair}</p>
         <p id="board-foot">
           <span id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{#if changeArrow}<span class="arrow">{changeArrow}</span>{/if}{changeNumber}</span>
           <span id="change-label">{market.changeLabel}</span>
         </p>
-        {#if status.titleShown || notice}
-          <div id="status-overlay">
-            {#if status.titleShown}<p id="overlay-title">{status.title}</p>{/if}
-            {#if notice}<p id="notice">{notice}</p>{/if}
-          </div>
-        {/if}
       </div>
     </div>
   </div>

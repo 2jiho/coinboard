@@ -7,6 +7,8 @@ input, button {
   user-select: text;
 }
 :root {
+  /* Up and down, and their brighter flash on the price itself. */
+  --up: #30d158; --down: #ff453a; --up-flash: #7ee2a0; --down-flash: #ff8a80;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -39,7 +41,7 @@ body {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 64px;
+  gap: 52px;
   width: max-content;
   white-space: nowrap;
   transform-origin: center;
@@ -50,8 +52,11 @@ body {
 /* Landscape: a large icon on the left and three left-aligned lines beside it.
    One scale: head 56, price 200, change 72. The price is the only large
    thing; everything else is there to explain it. */
-#icon { width: 200px; height: 200px; flex: none; }
-#board-text { display: flex; flex-direction: column; align-items: flex-start; }
+/* As tall as the price's digits (about three quarters of the 200px type), so
+   icon and number share a top and a bottom line. */
+#icon { width: 152px; height: 152px; flex: none; }
+/* Fixed zones: the text column is one width whatever it holds. */
+#board-text { display: flex; flex-direction: column; align-items: flex-start; width: 720px; }
 #board-head { display: flex; align-items: center; gap: 18px; font-size: 56px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
 #coin { color: #f2f2f7; }
 #unit { color: #8e8e93; font-weight: 500; }
@@ -59,26 +64,71 @@ body {
 @media (orientation: portrait) {
   #container { flex-direction: column; gap: 40px; }
   #icon { width: 150px; height: 150px; }
-  #board-text { align-items: center; }
+  #board-text { align-items: center; width: 780px; }
 }
-/* Line height leaves room for the comma's tail above the change line. */
-#price-main { margin-top: 16px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; color: #fff; transition: color 0.5s ease-out; }
+/* The price zone: full width of the column and one fixed height (the line
+   height leaves room for the comma's tail above the change line). */
+#price-main { align-self: stretch; text-align: left; margin-top: 16px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; color: #fff; transition: color 0.5s ease-out; }
+/* The price itself; scaled down from its left edge when it is too long for the zone. */
+#price-text { display: inline-block; transform-origin: left center; }
 /* 억 and 만 are units, so they are smaller and quieter than the figures. */
 #price-main .mark { margin-left: 0.04em; font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: #a1a1a6; }
-#price-main.up { color: #7ee2a0; transition: none; }
-#price-main.down { color: #ff8a80; transition: none; }
+#price-main.up { color: var(--up-flash); transition: none; }
+#price-main.down { color: var(--down-flash); transition: none; }
 /* The exchange and market are not drawn. They stay in the page for screen readers. */
 #price-source { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 #board-foot { display: flex; align-items: baseline; gap: 22px; margin-top: 26px; font-size: 72px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
 /* The change is plain coloured text with a small arrow: no badge around it. */
 #change { color: #d1d1d6; transition: color 0.4s; }
-#change.up { color: #30d158; }
-#change.down { color: #ff6961; }
+#change.up { color: var(--up); }
+#change.down { color: var(--down); }
 #change .arrow { display: inline-block; margin-right: 0.22em; font-size: 0.62em; transform: translateY(-0.12em); }
 #change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
-#status-overlay { display: flex; flex-direction: column; align-items: inherit; gap: 4px; margin-top: 26px; }
-#overlay-title, #notice { color: #d6928c; font-size: 30px; font-weight: 500; line-height: 1.3; letter-spacing: 0.04em; }
 #container.price-unavailable #price-main { opacity: 0.55; }
+/* The Korean convention: up is red, down is blue. */
+body[data-palette="red-blue"] {
+  --up: #ff453a; --down: #4b8dff; --up-flash: #ff8a80; --down-flash: #8fb8ff;
+}
+/* A changed digit rolls in: from below when the price rose, from above when it fell. */
+#price-text .digit { display: inline-block; }
+#price-text .digit.up { animation: roll-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+#price-text .digit.down { animation: roll-down 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes roll-up { from { transform: translateY(0.3em); opacity: 0; } }
+@keyframes roll-down { from { transform: translateY(-0.3em); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  #price-text .digit { animation: none; }
+}
+/* Portrait again, after the rules it overrides: the price is centred in its
+   zone and shrinks towards its centre. */
+@media (orientation: portrait) {
+  #price-main { text-align: center; }
+  #price-text { transform-origin: center; }
+}
+
+/* The status dot: a 10px light in the bottom-left corner inside a full-size
+   touch target, with the detail in a small card on hover or tap. */
+#status-dot {
+  position: fixed; z-index: 1400;
+  left: calc(18px + var(--safe-left)); bottom: calc(18px + var(--safe-bottom));
+  width: 44px; height: 44px;
+}
+#status-dot::before {
+  content: ""; position: absolute; left: 17px; top: 17px; width: 10px; height: 10px; border-radius: 50%;
+  background: #8e8e93; transition: background 0.3s, opacity 0.3s;
+}
+/* All is well: present, but faint. */
+#status-dot[data-level="ok"]::before { background: #30d158; opacity: 0.5; }
+#status-dot[data-level="warn"]::before { background: #ffd60a; }
+#status-dot[data-level="bad"]::before { background: #ff453a; }
+#status-tip {
+  position: absolute; left: 12px; bottom: 100%;
+  width: max-content; max-width: 70vw; padding: 9px 12px; border-radius: 10px;
+  background: rgba(44, 44, 46, 0.96); border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f2f2f7; font-size: 12px; font-weight: 500; line-height: 1.5; letter-spacing: 0.03em; text-align: left; white-space: pre-line;
+  visibility: hidden; opacity: 0; transition: opacity 0.15s; pointer-events: none;
+}
+#status-dot:hover #status-tip, #status-dot.show #status-tip { visibility: visible; opacity: 1; }
+body.settings-open #status-dot { visibility: hidden; }
 
 /* ---- Settings: a dark sheet in the manner of a system settings screen ---- */
 :root {

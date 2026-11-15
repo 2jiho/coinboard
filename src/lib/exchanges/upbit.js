@@ -15,6 +15,9 @@ export const upbit = {
   heartbeat: "PING",
   heartbeatMs: 10000,
   market(ticker) { return `KRW-${ticker}`; },
+  // Every market Upbit lists; the KRW ones are "KRW-<ticker>".
+  listUrl: "https://api.upbit.com/v1/market/all",
+  listedTicker(entry) { return typeof entry.market === "string" && entry.market.startsWith("KRW-") ? entry.market.slice(4) : null; },
   // How the market is written for people.
   pair(ticker) { return `KRW-${ticker}`; },
   url() { return "wss://api.upbit.com/websocket/v1"; },

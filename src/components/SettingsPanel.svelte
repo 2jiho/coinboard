@@ -6,23 +6,34 @@
   import { PRESETS } from '../lib/presets.js';
 
   let { settings, status, wake, versionLabel, updateReady,
-    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onRetryFeed, onRetryWake, onUpdate } = $props();
+    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel, closeButton;
   let tickerInput = $state();
   // What is being typed or dragged, before it is applied.
   let tickerText = $state('');
-  let tickerError = $state(false);
+  // '' when fine, otherwise the message to show.
+  let tickerError = $state('');
+  // The coins the exchange lists, once known: for completion and for checking
+  // a typed ticker. null while unknown, in which case anything is let through.
+  let listed = $state(null);
+  const EXCHANGE_NAMES = { KRW: '업비트 원화', USDT: '바이낸스 USDT' };
+  $effect(() => {
+    if (!otherOpen) return;
+    const currency = settings.currency;
+    listed = null;
+    loadTickers(currency).then((tickers) => { if (otherOpen && settings.currency === currency) listed = tickers; });
+  });
   let brightness = $state(untrack(() => settings.brightness));
   // Coin is a one-line choice: the listed coins, the current coin if it is not
   // one of them, and "직접 입력…", which opens a field for any other ticker.
   const OTHER = '__other';
-  const listed = $derived(PRESETS.includes(settings.ticker));
+  const preset = $derived(PRESETS.includes(settings.ticker));
   let otherOpen = $state(false);
   // Worth a line only when something is wrong.
   const wakeTrouble = $derived(['unsupported', 'released', 'failed'].includes(wake.kind));
   async function chooseCoin(value) {
-    tickerError = false;
+    tickerError = '';
     if (value !== OTHER) { otherOpen = false; if (value !== settings.ticker) onTicker(value); return; }
     otherOpen = true; tickerText = '';
     await tick();
@@ -31,8 +42,9 @@
 
   function applyTicker() {
     const ticker = normalizeTicker(tickerText);
-    if (!ticker) { tickerError = true; return; }
-    tickerError = false;
+    if (!ticker) { tickerError = '영문·숫자 1~20자로 입력하세요'; return; }
+    if (listed && !listed.includes(ticker)) { tickerError = `${EXCHANGE_NAMES[settings.currency]} 시장에 없는 티커입니다`; return; }
+    tickerError = '';
     tickerText = ticker;
     if (ticker !== settings.ticker) onTicker(ticker);
     otherOpen = false;
@@ -64,7 +76,7 @@
       <div class="settings-row">
         <label for="admin-coin">코인</label>
         <select id="admin-coin" value={otherOpen ? OTHER : settings.ticker} onchange={event => chooseCoin(event.currentTarget.value)}>
-          {#if !listed}<option value={settings.ticker}>{settings.ticker}</option>{/if}
+          {#if !preset}<option value={settings.ticker}>{settings.ticker}</option>{/if}
           {#each PRESETS as preset}<option value={preset}>{preset}</option>{/each}
           <option value={OTHER}>직접 입력…</option>
         </select>
@@ -74,9 +86,10 @@
           <label for="admin-symbol">티커</label>
           <div class="ticker-row">
             <input type="text" id="admin-symbol" bind:this={tickerInput} placeholder="예: LINK" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
-              enterkeyhint="done" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
-              bind:value={tickerText} oninput={() => { tickerError = false; }}
+              enterkeyhint="done" list="ticker-list" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
+              bind:value={tickerText} oninput={() => { tickerError = ''; }}
               onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
+            <datalist id="ticker-list">{#each listed || [] as ticker}<option value={ticker}></option>{/each}</datalist>
             <button id="admin-symbol-apply" type="button" onclick={applyTicker}>변경</button>
           </div>
         </div>
@@ -89,7 +102,7 @@
         </select>
       </div>
     </div>
-    <p id="admin-symbol-error" role="alert" hidden={!tickerError}>영문·숫자 1~20자로 입력하세요</p>
+    <p id="admin-symbol-error" role="alert" hidden={!tickerError}>{tickerError}</p>
     <p id="status-indicator" class={status.tone} role="status" aria-live="polite" hidden={status.tone === 'connected'}>{status.text}</p>
     <p id="overlay-msg" hidden={!status.detail}>{status.detail}</p>
     <button id="market-retry" type="button" hidden={!status.canRetry} onclick={onRetryFeed}>시세 다시 연결</button>
@@ -108,6 +121,13 @@
       <div class="settings-row">
         <label for="admin-burn-in">번인 방지</label>
         <input type="checkbox" role="switch" id="admin-burn-in" checked={settings.burnIn} onchange={event => onBurnIn(event.currentTarget.checked)} />
+      </div>
+      <div class="settings-row">
+        <label for="admin-palette">등락 색</label>
+        <select id="admin-palette" value={settings.palette} onchange={event => onPalette(event.currentTarget.value)}>
+          <option value="green-red">초록 · 빨강</option>
+          <option value="red-blue">빨강 · 파랑</option>
+        </select>
       </div>
     </div>
     <p id="wake-lock-status" role="status" aria-live="polite" hidden={!wakeTrouble}>{wake.message}</p>
