@@ -47,12 +47,14 @@ async function scripted(context) {
         const streams = this.combined ? url.split('streams=')[1].split('/') : url.includes('upbit') ? ['krw-btc@'] : [url.split('/ws/')[1]];
         this.markets = streams.map(stream => stream.split('@')[0].toUpperCase());
         window.sockets.push(this);
-        setTimeout(() => {
+        // holdOpen keeps a connection connecting until release() is called.
+        this.release = () => {
           if (this.readyState === 3) return;
           this.readyState = 1; this.onopen?.();
           if (!url.includes('upbit')) this.emit();
           this.timer = setInterval(() => this.emit(), 1000);
-        }, 0);
+        };
+        setTimeout(() => { if (!window.holdOpen) this.release(); }, 0);
       }
       // quote(values) makes every following ticker carry those values; quote() goes back to the usual ones.
       quote(values = null) { this.fixed = values; this.emit(); }
@@ -393,7 +395,7 @@ async function board(browser, base) {
   // Leaving the page altogether does close the connection; coming back waits for a fresh price.
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 0);
-  await page.evaluate(() => { suppressTicks = true; window.dispatchEvent(new Event('pageshow')); });
+  await page.evaluate(() => { suppressTicks = true; window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); });
   await page.clock.runFor(3000);
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
   await page.evaluate(() => { suppressTicks = false; sockets.at(-1).emit(); }); await live(page);
@@ -591,7 +593,7 @@ async function gridBoard(browser, base) {
   assert.equal(await page.locator('#grid').getAttribute('data-count'), '2');
   // Upbit carries both coins on one connection, after its ten-second pace; BTC keeps its price meanwhile.
   assert.deepEqual(await cellPrices(), ['9800만', '—']);
-  await page.clock.runFor(10100); await priced(2);
+  await page.clock.runFor(11100); await priced(2);
   assert.deepEqual(await openUrls(), ['wss://api.upbit.com/websocket/v1']);
   assert.deepEqual(JSON.parse(await page.evaluate(() => sent.filter(frame => frame !== 'PING').at(-1)))[1].codes, ['KRW-BTC', 'KRW-ETH']);
   assert.deepEqual(await cellPrices(), ['9800만', '500.0만']);
@@ -615,7 +617,7 @@ async function gridBoard(browser, base) {
   assert.equal(await page.locator('#admin-symbol-error').isVisible(), false);
 
   // Mixed markets: one connection per market kind, each carrying its coins.
-  await page.clock.runFor(10100); await priced(3);
+  await page.clock.runFor(11100); await priced(3);
   assert.deepEqual((await openUrls()).sort(), ['wss://api.upbit.com/websocket/v1', 'wss://fstream.binance.com/market/stream?streams=solusdt@ticker/btcusdt@ticker']);
   assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'SOLUSDTPERP', 'BTCUSDTPERP']);
   assert.deepEqual(await cellPrices(), ['9800만', '180.3', '70,000']);
@@ -653,7 +655,7 @@ async function gridBoard(browser, base) {
   await open(page); await addAsset();
   assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP', 'ETH:USDT-PERP']);
   await page.keyboard.press('Escape');
-  await page.clock.runFor(10100); await page.clock.runFor(17000);
+  await page.clock.runFor(11100); await page.clock.runFor(17000);
   assert.deepEqual(await page.locator('.cell').evaluateAll(els => els.map(el => el.classList.contains('price-unavailable'))), [false, false, false, true]);
   assert.equal(await page.locator('#status-dot').getAttribute('data-level'), 'warn');
   assert.equal(await text(page, '#status-tip'), 'BTCKRW · LIVE\nSOLUSDTPERP · LIVE\nBTCUSDTPERP · LIVE\nETHUSDTPERP · CHECK TICKER');
@@ -711,7 +713,7 @@ async function gridBoard(browser, base) {
   assert.deepEqual(await assets(), ['BTC:KRW']);
   assert.equal(await page.locator('#grid').count(), 0);
   await page.keyboard.press('Escape');
-  await page.clock.runFor(10100); await live(page);
+  await page.clock.runFor(11100); await live(page);
   assert.equal(await text(page, '#price-main'), '9800만');
   assert.deepEqual(await openUrls(), ['wss://api.upbit.com/websocket/v1']);
 
@@ -725,6 +727,34 @@ async function gridBoard(browser, base) {
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS grid: add, edit, reorder, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one');
+}
+
+// The page's own load events (pageshow, visibilitychange) must not cut a
+// connection that is still being made: that wastes one of Upbit's requests
+// and leaves the board waiting out the next eleven seconds.
+async function firstConnection(browser, base) {
+  const context = await browser.newContext(); await scripted(context);
+  await context.addInitScript(() => { window.holdOpen = true; });
+  const page = await context.newPage(); await page.clock.install(); await page.goto(base);
+  await page.waitForFunction(() => sockets.length === 1);
+  await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(300);
+  assert.deepEqual(await page.evaluate(() => sockets.map(socket => socket.readyState)), [0], 'still connecting, not cut');
+  await page.evaluate(() => { window.holdOpen = false; sockets[0].release(); });
+  await live(page);
+  assert.equal(await page.evaluate(() => sockets.length), 1);
+  // Hidden with pagehide and shown again with no pageshow after it (as a
+  // device may do when switching apps): the feed comes back on.
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 0);
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.clock.runFor(11100); await live(page);
+  assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
+  await context.close();
+  console.log('PASS first connection: loading the page does not cut the connection being made; shown again, it reconnects');
 }
 
 async function idleUpdate(browser, base) {
@@ -972,7 +1002,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://localhost:${server.address().port}/coinboard/`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 try {
-  for (const scenario of [board, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;

@@ -250,6 +250,9 @@ export function createMarketFeed(options) {
     select, setActive, setOnline,
     // Whether the connection is delivering prices.
     get live() { return connection.kind === "live"; },
+    // Whether it is waiting to try again (after a failure or an exchange
+    // error), as opposed to working or already connecting.
+    get stalled() { return connection.kind === "backoff" || connection.kind === "error"; },
     retry() { if (eligible()) { disconnect(); schedule(0); } },
     dispose() { disposed = true; disconnect(); },
   };
@@ -278,9 +281,10 @@ export function createBoardFeed(options) {
     },
     setActive(value) { active = !!value; for (const feed of feeds.values()) feed.setActive(value); },
     setOnline(value) { online = !!value; for (const feed of feeds.values()) feed.setOnline(value); },
-    // Only connections that are not delivering: a working one is left alone,
-    // which matters most for Upbit's one request in ten seconds.
-    retry() { for (const feed of feeds.values()) if (!feed.live) feed.retry(); },
+    // Only connections waiting to try again. One that works, or one that is
+    // connecting right now, is left alone: closing it would spend one of
+    // Upbit's requests for nothing and wait out the next ten seconds.
+    retry() { for (const feed of feeds.values()) if (feed.stalled) feed.retry(); },
     dispose() { for (const feed of feeds.values()) feed.dispose(); feeds.clear(); },
   };
 }

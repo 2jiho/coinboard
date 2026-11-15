@@ -72,8 +72,8 @@ test('rapid repeated switches obey source limits and connect only final selectio
   const f = fixture(); f.feed.select('KRW', 'BTC'); f.feed.select('USDT', 'BTC');
   for (let n = 0; n < 100; n++) { f.feed.select('KRW', 'BTC'); f.feed.select('USDT', 'BTC'); }
   f.feed.select('KRW', 'BTC'); assert.equal(f.sockets.length, 2);
-  f.advance(9999); assert.equal(f.sockets.length, 2); f.advance(1); assert.equal(f.sockets.length, 3);
-  assert.equal(f.sockets[2].createdAt - f.sockets[0].createdAt, 10000);
+  f.advance(10999); assert.equal(f.sockets.length, 2); f.advance(1); assert.equal(f.sockets.length, 3);
+  assert.equal(f.sockets[2].createdAt - f.sockets[0].createdAt, 11000);
   assert.equal(f.sockets.filter(s => s.readyState !== 3).length, 1);
 });
 test('network errors schedule one capped backoff; old close cannot duplicate it', () => {
@@ -118,7 +118,7 @@ test('constructor failure and reload cooldown do not loop', () => {
   const broken = fixture({ WebSocket: class { constructor() { throw new Error('Blocked'); } } });
   broken.feed.select('KRW', 'BTC'); assert.equal(broken.timers.size, 1); assert.equal(broken.state().kind, 'backoff');
   const f = fixture({ attemptStore: { getItem: () => '1800000000000', setItem() {} } });
-  f.feed.select('KRW', 'BTC'); assert.equal(f.sockets.length, 0); f.advance(10000); assert.equal(f.sockets.length, 1);
+  f.feed.select('KRW', 'BTC'); assert.equal(f.sockets.length, 0); f.advance(11000); assert.equal(f.sockets.length, 1);
 });
 test('Upbit quiet market: UP replies keep the connection for 60s without a new trade', async () => {
   const f = fixture(); f.feed.select('KRW', 'BTC'); f.sockets[0].open(); await f.message(f.tick());
@@ -309,4 +309,14 @@ test('the same coins in another order keep the connection; only the order of sta
   f.states.length = 0; f.advance(16000); await f.message({ status: 'UP' });
   f.feed.setOnline(false);
   assert.deepEqual(f.states.slice(-2).map(s => s.selection.ticker), ['ETH', 'BTC']);
+});
+test('retrying the board leaves a connection that is still connecting alone, and retries one waiting to', () => {
+  const sockets = [];
+  class Socket { static OPEN = 1; constructor(url) { this.url = url; this.readyState = 0; sockets.push(this); } send() {} close() { this.readyState = 3; this.onclose?.(); } }
+  const board = createBoardFeed({ WebSocket: Socket, attemptStore: null, random: () => 0 });
+  board.select([{ currency: 'USDT', ticker: 'BTC' }]);
+  board.retry(); assert.equal(sockets.length, 1); assert.equal(sockets[0].readyState, 0, 'not closed while connecting');
+  sockets[0].onerror();
+  board.retry(); assert.equal(sockets.length, 1, 'waiting out the pace, as before');
+  board.dispose();
 });
