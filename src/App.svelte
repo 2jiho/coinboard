@@ -9,9 +9,9 @@
   import { createWakeLock } from './lib/wake-lock.js';
   import { createUpdater } from './lib/updater.js';
   import { describeState } from './lib/status.js';
+  import { createQuietControls } from './lib/quiet-controls.js';
 
   const version = __APP_VERSION__;
-  const CONTROLS = '#settings-toggle, #admin-panel';
   // Storage can throw on access (private mode): run on defaults without it.
   function storage(name) { try { return window[name]; } catch { return null; } }
   const store = createSettings(storage('localStorage'));
@@ -29,8 +29,7 @@
   let panelOpen = $state(false);
   let toast = $state('');
   let toggleButton;
-  let feed, wakeLock, updater, toastTimer, controlsTimer, cursorTimer, panelTimer, revealOnlyClick = false;
-  const PANEL_IDLE_MS = 120000;
+  let feed, wakeLock, updater, controls, toastTimer, cursorTimer;
 
   const status = $derived(describeState(feedState, now));
   // The installed offline copy normally matches the page. Say so only when it
@@ -71,33 +70,15 @@
   }
   function changeSelection(patch) { save(patch); applySelection(); }
 
-  function controlsInUse() {
-    return panelOpen || !!(document.activeElement && document.activeElement.closest(CONTROLS));
-  }
-  function scheduleControlsHide() {
-    clearTimeout(controlsTimer); controlsTimer = null;
-    if (document.visibilityState !== 'visible' || controlsInUse()) return;
-    controlsTimer = setTimeout(() => {
-      controlsTimer = null;
-      if (!controlsInUse()) controlsVisible = false;
-    }, 5000);
-  }
-  function revealControls() { controlsVisible = true; scheduleControlsHide(); }
-  // A panel left open would hold back automatic updates and leave the board
-  // half covered, so it closes itself after two minutes without a touch.
-  function keepPanel() {
-    clearTimeout(panelTimer);
-    if (panelOpen) panelTimer = setTimeout(() => closePanel(false), PANEL_IDLE_MS);
-  }
-  function openPanel() { panelOpen = true; revealControls(); keepPanel(); }
+  function openPanel() { panelOpen = true; controls.reveal(); controls.touch(); }
   // returnFocus is false for a tap outside, which is a way of leaving.
   async function closePanel(returnFocus) {
     panelOpen = false;
-    clearTimeout(panelTimer);
     previewBrightness = null;
+    controls.touch();
     await flushed();
     if (returnFocus) toggleButton.focus();
-    scheduleControlsHide();
+    controls.settle();
     updater.settingsClosed();
   }
 
@@ -118,30 +99,18 @@
     });
     updater.start();
 
+    // When the settings button shows, and what a tap outside the panel does.
+    controls = createQuietControls({
+      document, controls: '#settings-toggle, #admin-panel', panel: '#admin-panel',
+      isPanelOpen: () => panelOpen,
+      onVisible(value) { controlsVisible = value; },
+      onOutsideTap() { closePanel(false); },
+      onPanelIdle() { closePanel(false); },
+    });
+
     function setVisible(value) { visible = value; feed.setActive(value); }
     const listeners = [
-      [document, 'pointerdown', event => {
-        keepPanel();
-        revealOnlyClick = !controlsVisible;
-        // Revealing beneath a finger must not activate the newly visible button
-        // on pointerup/click or leave it focused after that first tap.
-        if (revealOnlyClick) event.preventDefault();
-        if (panelOpen && !event.target.closest('#admin-panel')) closePanel(false);
-        else if (!event.target.closest(CONTROLS) && controlsInUse() && !panelOpen) document.activeElement.blur();
-        revealControls();
-      }],
-      [document, 'click', event => {
-        if (revealOnlyClick && event.detail > 0) { revealOnlyClick = false; event.preventDefault(); event.stopImmediatePropagation(); }
-      }, true],
-      [document, 'pointercancel', () => { revealOnlyClick = false; }],
-      [document, 'keydown', event => { keepPanel(); if (event.key === 'Tab' || event.key === 'Enter' || event.key === ' ') revealControls(); }, true],
-      [document, 'input', keepPanel, true],
-      [document, 'focusin', event => { if (event.target.closest(CONTROLS)) revealControls(); }],
-      [document, 'focusout', () => { queueMicrotask(scheduleControlsHide); }],
-      [document, 'visibilitychange', () => {
-        setVisible(document.visibilityState === 'visible');
-        if (visible) scheduleControlsHide(); else { clearTimeout(controlsTimer); controlsTimer = null; }
-      }],
+      [document, 'visibilitychange', () => setVisible(document.visibilityState === 'visible')],
       [window, 'pagehide', () => setVisible(false)],
       [window, 'pageshow', () => setVisible(document.visibilityState === 'visible')],
       [window, 'online', () => feed.setOnline(true)],
@@ -155,8 +124,8 @@
     for (const [target, name, handler, capture] of listeners) target.addEventListener(name, handler, capture);
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
-      clearTimeout(toastTimer); clearTimeout(controlsTimer); clearTimeout(cursorTimer); clearTimeout(panelTimer);
-      feed.dispose(); wakeLock.dispose();
+      clearTimeout(toastTimer); clearTimeout(cursorTimer);
+      controls.dispose(); feed.dispose(); wakeLock.dispose();
     };
   });
 </script>

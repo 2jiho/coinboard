@@ -59,6 +59,8 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/lib/feed.js` | 거래소 WebSocket 연결, 재연결, 생존 판정 |
 | `src/lib/exchanges/` | 거래소별 주소, 구독 메시지, 메시지 해석(업비트, 바이낸스) |
 | `src/lib/status.js` | 연결 상태를 화면 문구로 바꿉니다 |
+| `src/lib/quiet-controls.js` | 설정 버튼의 표시·숨김, 첫 탭 보호, 방치된 설정 창 닫기 |
+| `src/lib/presets.js` | 설정 창의 코인 버튼 목록 |
 | `src/lib/format.js` | 가격·등락률 문자열 |
 | `src/lib/settings.js` | 설정 불러오기·검증·저장 |
 | `src/lib/wake-lock.js` | 화면 켜짐 유지 |
