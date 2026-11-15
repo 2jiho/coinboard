@@ -111,7 +111,8 @@ const text = (page, selector) => page.locator(selector).textContent();
 const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('coinboard-settings')));
 async function open(page) {
   if (await page.locator('#admin-panel').isVisible()) return;
-  if (!await page.locator('#settings-toggle').isVisible()) await page.keyboard.press('Tab');
+  // Shown, or on its way out (a fade): Tab brings it back for good.
+  if (!await page.evaluate(() => document.body.classList.contains('controls-visible'))) await page.keyboard.press('Tab');
   await page.locator('#settings-toggle').click();
   assert.equal(await page.locator('#admin-panel').isVisible(), true);
 }
@@ -286,8 +287,19 @@ async function board(browser, base) {
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#admin-panel').count(), 0);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'settings-toggle');
+  // On iOS two quick taps must stay two taps (no double-tap zoom), and a long press presses (no text selection).
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).touchAction), 'manipulation');
+  assert.equal(await page.locator('#settings-toggle').evaluate(el => getComputedStyle(el).userSelect), 'none');
+  // A press on the button just as it starts to fade out opens settings; it is not taken for a tap to reveal it.
+  await tapBoard(page); await page.clock.fastForward(5000);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('controls-visible')), false);
+  const fading = await page.locator('#settings-toggle').boundingBox();
+  await page.touchscreen.tap(fading.x + 24, fading.y + 24);
+  assert.equal(await page.locator('#admin-panel').isVisible(), true, 'pressed while fading');
+  await page.keyboard.press('Escape');
   await tapBoard(page); await page.clock.fastForward(6000);
-  assert.equal(await page.locator('#settings-toggle').isVisible(), false);
+  // It fades out over 0.6 s (real time, not the test clock).
+  await page.locator('#settings-toggle').waitFor({ state: 'hidden', timeout: 3000 });
   // The tap that reveals the button must not press it.
   const corner = { x: 1024 - 40, y: 768 - 40 };
   await page.touchscreen.tap(corner.x, corner.y);
@@ -383,7 +395,8 @@ async function board(browser, base) {
   await page.locator('#admin-close').click();
   // Focus stays on the button after closing; a tap elsewhere lets it hide again.
   await tapBoard(page); await page.clock.fastForward(6000);
-  assert.equal(await page.locator('#settings-toggle').isVisible(), false);
+  // It fades out over 0.6 s (real time, not the test clock).
+  await page.locator('#settings-toggle').waitFor({ state: 'hidden', timeout: 3000 });
 
   // A panel nobody is touching closes itself after two minutes.
   await open(page);
@@ -427,7 +440,7 @@ async function board(browser, base) {
   assert.equal(await level(), 'warn');
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
-  assert.equal(await page.locator('#settings-toggle').isVisible(), false);
+  await page.locator('#settings-toggle').waitFor({ state: 'hidden', timeout: 3000 });
   // Trouble changes the dot, never the board's size.
   assert.equal(await sizeOf(), sizeWhenLive, 'board keeps its size when there is trouble');
   // Let the dot finish changing colour, and show its detail, for the picture.
