@@ -1,0 +1,166 @@
+* {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, button {
+  -webkit-user-select: text;
+  user-select: text;
+}
+:root {
+  --reference-size: calc(min(1vw, 2vh));
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  background-color: #000;
+  color: #ffffff;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  margin: 0;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#icon {
+  height: calc(var(--reference-size) * 15);
+  margin-right: calc(var(--reference-size) * 5);
+}
+#price-main {
+  margin: 0;
+  font-size: calc(var(--reference-size) * 5);
+  margin-right: calc(var(--reference-size) * 5);
+}
+#price-source {
+  color: #aaa;
+  margin: 0;
+  font-size: calc(var(--reference-size) * 2);
+  margin-right: calc(var(--reference-size) * 5);
+}
+#change {
+  margin: 0;
+  font-size: calc(var(--reference-size) * 3);
+}
+#change-label {
+  margin: 0;
+  font-size: calc(var(--reference-size) * 2);
+  color: gray;
+}
+#admin-panel {
+  position: fixed;
+  --panel-top: max(48px, calc(var(--safe-top) + 16px));
+  --panel-bottom: calc(var(--safe-bottom) + 16px);
+  top: calc(var(--panel-top) + (100vh - var(--panel-top) - var(--panel-bottom)) / 2);
+  top: calc(var(--panel-top) + (100dvh - var(--panel-top) - var(--panel-bottom)) / 2);
+  left: calc(var(--safe-left) + (100vw - var(--safe-left) - var(--safe-right)) / 2);
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - var(--safe-left) - var(--safe-right) - 32px));
+  max-height: calc(100vh - var(--panel-top) - var(--panel-bottom));
+  max-height: calc(100dvh - var(--panel-top) - var(--panel-bottom));
+  background: #171717;
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+  z-index: 2000;
+  text-align: left;
+  box-shadow: 0 12px 48px #0009;
+}
+#admin-panel > * { flex-shrink: 0; }
+.settings-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: -20px; background: #171717; z-index: 1; }
+#admin-panel h2 { margin: 0; font-size: 18px; font-weight: 500; }
+#admin-panel button, #settings-toggle { border: 0; border-radius: 12px; background: #282828; color: #ddd; font: inherit; min-height: 44px; padding: 10px 14px; cursor: pointer; }
+#admin-panel button:hover { background: #333; }
+#admin-panel button:disabled { opacity: 0.5; cursor: default; }
+#admin-close { width: 44px; padding: 10px !important; background: transparent !important; }
+#admin-panel svg, #settings-toggle svg { width: 22px; height: 22px; display: block; margin: auto; }
+.settings-section { display: flex; flex-direction: column; gap: 10px; }
+#admin-panel h3 { margin: 0; font-size: 12px; font-weight: 500; color: #777; }
+.settings-section + .settings-section { border-top: 1px solid #262626; padding-top: 16px; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+#admin-panel label { color: #aaa; font-size: 13px; }
+.ticker-row { display: flex; align-items: center; gap: 8px; }
+#admin-symbol[aria-invalid="true"] { outline: 2px solid #b88d8d; }
+#admin-symbol-error { color: #c99191; font-size: 12px; margin: 0; text-align: right; }
+#admin-debug { width: 22px; height: 22px; margin: 0; accent-color: #b9b9b9; }
+#admin-symbol { width: 96px; min-height: 44px; padding: 10px; box-sizing: border-box; border: 0; border-radius: 9px; background: #252525; color: #eee; font: inherit; }
+.brightness-row { display: flex; align-items: center; gap: 8px; }
+.brightness-row input { width: 140px; accent-color: #b9b9b9; }
+#brightness-value { font-size: 12px; min-width: 34px; text-align: right; }
+#currency-controls { display: flex; gap: 6px; padding: 4px; border-radius: 14px; background: #101010; }
+#currency-controls button { flex: 1; color: #888; background: transparent; }
+#currency-controls button[aria-pressed="true"] { background: #303030; color: #fff; }
+#currency-controls span { display: block; font-size: 11px; color: #999; margin-top: 3px; }
+#status-indicator, #overlay-msg, #wake-lock-status { font-size: 12px; line-height: 1.6; color: #888; margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+#status-indicator.error { color: #c99191; }
+#app-version { color: #666; font-size: 11px; margin: 0; }
+#icon-fallback {
+  display: flex;
+  height: calc(var(--reference-size) * 15);
+  width: calc(var(--reference-size) * 15);
+  justify-content: center;
+  align-items: center;
+  font-size: calc(var(--reference-size) * 4);
+  font-weight: bold;
+  color: #fff;
+  background: #333;
+  border-radius: 50%;
+  margin-right: calc(var(--reference-size) * 5);
+}
+/* Toast notification for admin UX */
+#toast {
+  position: fixed;
+  bottom: calc(20px + var(--safe-bottom));
+  left: calc(var(--safe-left) + (100vw - var(--safe-left) - var(--safe-right)) / 2);
+  max-width: calc(100vw - var(--safe-left) - var(--safe-right) - 64px);
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 3000;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+#toast.show { opacity: 1; }
+#settings-toggle {
+  position: fixed;
+  bottom: calc(16px + var(--safe-bottom));
+  right: calc(16px + var(--safe-right));
+  width: 48px;
+  height: 48px;
+  padding: 12px;
+  border-radius: 50%;
+  background: #181818;
+  color: #999;
+  z-index: 1500;
+}
+button:focus-visible, input:focus-visible { outline: 2px solid #aaa; outline-offset: 3px; }
+body:not(.controls-visible) #settings-toggle,
+body.settings-open #settings-toggle { visibility: hidden; pointer-events: none; }
+#status-overlay { display: flex; flex-direction: column; align-items: center; margin-top: 8px; }
+#overlay-title { color: #b88d8d; font-size: 12px; line-height: 1.5; margin: 0; }
+#notice { color: #b88d8d; font-size: 12px; line-height: 1.5; margin: 0; }
+#container.price-unavailable #price-main { opacity: 0.55; }
+[hidden] { display: none !important; }
