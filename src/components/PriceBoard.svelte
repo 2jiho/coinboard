@@ -22,11 +22,6 @@
   const parts = $derived(tick ? priceParts(tick.selection.currency, tick.price) : { pieces: [{ number: '—', mark: '' }], unit: '' });
   const changeText = $derived(tick ? formatChange(tick.change) : '—');
   const changeDirection = $derived(tick ? direction(tick.change) : 0);
-  // The day's range, and where the price sits in it (0 at the low, 100 at the high).
-  const range = $derived(settings.range && tick && tick.high !== null && tick.low !== null ? {
-    low: priceParts(tick.selection.currency, tick.low), high: priceParts(tick.selection.currency, tick.high),
-    at: tick.high > tick.low ? Math.max(0, Math.min(100, Math.round((tick.price - tick.low) / (tick.high - tick.low) * 100))) : 50,
-  } : null);
   // "▼ 2.50%" is drawn as a small arrow and the number; together they read the same.
   const changeArrow = $derived(changeText.includes(' ') ? changeText.split(' ')[0] : '');
   const changeNumber = $derived(changeArrow ? changeText.slice(changeArrow.length) : changeText);
@@ -103,9 +98,6 @@
   });
 </script>
 
-<!-- A price as its numbers and their 억/만 marks. -->
-{#snippet amount(value)}{#each value.pieces as piece, index}{index ? ' ' : ''}{piece.number}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}{/snippet}
-
 <div id="stage">
   <div id="drift" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
     <div id="container" bind:this={container} class:price-unavailable={status.unavailable}
@@ -116,19 +108,12 @@
       {/if}
       <div id="board-text">
         <p id="board-head"><span id="coin">{settings.ticker}</span><span id="unit">{settings.currency}</span></p>
-        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true">{@render amount(parts)}</p>
+        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true">{#each parts.pieces as piece, index}{index ? ' ' : ''}{piece.number}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</p>
         <p id="price-source">{source}</p>
         <p id="board-foot">
           <span id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{#if changeArrow}<span class="arrow">{changeArrow}</span>{/if}{changeNumber}</span>
           <span id="change-label">{settings.currency === 'KRW' ? '1D' : '24H'}</span>
         </p>
-        {#if range}
-          <p id="range" aria-label="Day range">
-            <span id="range-low"><span class="end">L</span>{' '}{@render amount(range.low)}</span>
-            <span id="range-track"><span id="range-dot" style:left="{range.at}%"></span></span>
-            <span id="range-high"><span class="end">H</span>{' '}{@render amount(range.high)}</span>
-          </p>
-        {/if}
         {#if status.titleShown || notice}
           <div id="status-overlay">
             {#if status.titleShown}<p id="overlay-title">{status.title}</p>{/if}

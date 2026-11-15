@@ -20,7 +20,6 @@ export const binance = {
     if (data.code !== undefined && data.msg) return { type: "error", code: String(data.code) };
     if (data.e === "serverShutdown") return { type: "restart" };
     if (data.e !== "24hrTicker" || data.s !== market) return null;
-    // h/l: the range over the same rolling 24 hours as the change.
-    return { type: "tick", price: number(data.c), change: number(data.P), eventTime: number(data.E), high: number(data.h), low: number(data.l) };
+    return { type: "tick", price: number(data.c), change: number(data.P), eventTime: number(data.E) };
   },
 };

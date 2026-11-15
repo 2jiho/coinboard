@@ -170,7 +170,6 @@
     onBrightnessPreview={value => { previewBrightness = value; }}
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
     onBurnIn={burnIn => save({ burnIn })}
-    onRange={range => save({ range })}
     onDebug={debug => save({ debug })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}

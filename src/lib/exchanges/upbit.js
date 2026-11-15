@@ -22,8 +22,6 @@ export const upbit = {
     if (data.error) return { type: "error", code: data.error.name };
     if (data.status === "UP") return { type: "alive" };
     if (data.type !== "ticker" || data.code !== market) return null;
-    // high_price/low_price: the day's range since 09:00 KST, the same day the change is measured over.
-    return { type: "tick", price: number(data.trade_price), change: number(data.signed_change_rate) * 100, eventTime: number(data.timestamp),
-      high: number(data.high_price), low: number(data.low_price) };
+    return { type: "tick", price: number(data.trade_price), change: number(data.signed_change_rate) * 100, eventTime: number(data.timestamp) };
   },
 };

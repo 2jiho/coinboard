@@ -49,8 +49,8 @@ async function scripted(context) {
       emit(values = {}) {
         if (this.readyState !== 1 || window.suppressTicks) return;
         const upbit = this.url.includes('upbit');
-        const data = upbit ? { type: 'ticker', code: this.market, trade_price: 98000000, signed_change_rate: -0.025, high_price: 99000000, low_price: 97000000, timestamp: Date.now(), ...values }
-          : { e: '24hrTicker', s: this.market, c: '70000.10', P: '2.5', h: '71000.00', l: '69000.00', E: Date.now(), ...values };
+        const data = upbit ? { type: 'ticker', code: this.market, trade_price: 98000000, signed_change_rate: -0.025, timestamp: Date.now(), ...values }
+          : { e: '24hrTicker', s: this.market, c: '70000.10', P: '2.5', E: Date.now(), ...values };
         this.onmessage?.({ data: upbit ? new TextEncoder().encode(JSON.stringify(data)).buffer : JSON.stringify(data) });
       }
       send(text) {
@@ -111,8 +111,6 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '9800만');
   assert.equal(await text(page, '#change'), '▼ 2.50%');
   assert.equal(await text(page, '#change-label'), '1D');
-  // The day's range is an extra, off unless asked for.
-  assert.equal(await page.locator('#range').count(), 0);
   // The head line names the coin and the currency; the price line is digits only.
   assert.equal(await text(page, '#coin'), 'BTC'); assert.equal(await text(page, '#unit'), 'KRW');
   assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
@@ -172,16 +170,6 @@ async function board(browser, base) {
   assert.equal(await text(page, '#change'), '▲ 2.50%');
   assert.equal(await text(page, '#change-label'), '24H');
   assert.equal(await text(page, '#unit'), 'USDT');
-  // Switched on, the day's range appears under the change: low and high at the
-  // ends, a dot where the price is between them.
-  await page.locator('#admin-range').check();
-  assert.equal(await text(page, '#range-low'), 'L 69,000'); assert.equal(await text(page, '#range-high'), 'H 71,000');
-  assert.equal(await page.locator('#range-dot').evaluate(el => el.style.left), '50%');
-  const [changeTop, rangeTop] = await page.evaluate(() => ['board-foot', 'range'].map(id => document.getElementById(id).getBoundingClientRect().top));
-  assert.ok(rangeTop > changeTop, 'range under the change');
-  assert.equal((await saved(page)).range, true);
-  await page.locator('#admin-range').uncheck();
-  assert.equal(await page.locator('#range').count(), 0);
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
   // Escape closes and returns focus; the button hides again when idle.
@@ -234,7 +222,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
   await page.locator('#admin-debug').check();
-  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', debug: true, brightness: 50, burnIn: true, range: false });
+  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', debug: true, brightness: 50, burnIn: true });
   // Burn-in protection keeps the board near the middle; switched off, exactly in the middle.
   const drift = () => page.locator('#drift').evaluate(el => (el.style.transform.match(/-?[\d.]+(?=px)/g) || []).map(Number));
   await page.clock.runFor(62000);

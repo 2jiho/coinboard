@@ -9,7 +9,7 @@ export function normalizeTicker(text) {
   return TICKER.test(ticker) ? ticker : null;
 }
 export function createSettings(storage) {
-  var settings = { ticker: "BTC", currency: "KRW", debug: false, brightness: 100, burnIn: true, range: false };
+  var settings = { ticker: "BTC", currency: "KRW", debug: false, brightness: 100, burnIn: true };
   try {
     var saved = JSON.parse(storage.getItem(KEY) || storage.getItem(OLD_KEY));
     if (saved && typeof saved === "object") {
@@ -19,8 +19,6 @@ export function createSettings(storage) {
       settings.debug = saved.debug === true;
       // On unless it was explicitly switched off.
       settings.burnIn = saved.burnIn !== false;
-      // Off unless it was explicitly switched on.
-      settings.range = saved.range === true;
       var brightness = Number(saved.brightness);
       if (Number.isFinite(brightness) && brightness >= 10 && brightness <= 100) settings.brightness = brightness;
     }
@@ -28,11 +26,11 @@ export function createSettings(storage) {
     storage.removeItem("btc-last-exchange-rate");
   } catch (error) { /* Unreadable storage: run on defaults. */ }
   function get() {
-    return { ticker: settings.ticker, currency: settings.currency, debug: settings.debug, brightness: settings.brightness, burnIn: settings.burnIn, range: settings.range };
+    return { ticker: settings.ticker, currency: settings.currency, debug: settings.debug, brightness: settings.brightness, burnIn: settings.burnIn };
   }
   // Callers pass validated values; a failed write still applies for this run.
   function update(patch) {
-    ["ticker", "currency", "debug", "brightness", "burnIn", "range"].forEach(function (key) {
+    ["ticker", "currency", "debug", "brightness", "burnIn"].forEach(function (key) {
       if (patch[key] !== undefined) settings[key] = patch[key];
     });
     try { storage.setItem(KEY, JSON.stringify(settings)); storage.removeItem(OLD_KEY); return { saved: true }; }
