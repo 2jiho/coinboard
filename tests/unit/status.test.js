@@ -15,7 +15,7 @@ test('backoff counts down and keeps the last price in view', () => {
   const s = describeState({ kind: 'backoff', reason: '시세 업데이트 지연', retryAt: 9000, selection, last }, 6000);
   assert.equal(s.text, '업비트 · 시세 업데이트 지연 · 재연결 3초 후'); assert.equal(s.tone, 'error');
   assert.equal(s.title, 'DELAYED · LAST PRICE'); assert.equal(s.titleShown, true);
-  assert.equal(s.detail, '마지막 시세: 98,000,000 KRW · 5초 전\n시세 업데이트 지연');
+  assert.equal(s.detail, '마지막 시세: 9800만 KRW · 5초 전\n시세 업데이트 지연');
 });
 test('first connection shows no title until something is wrong', () => {
   assert.equal(describeState({ kind: 'connecting', reason: '', selection, last: null }, 0).titleShown, false);

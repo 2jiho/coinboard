@@ -108,9 +108,11 @@ async function board(browser, base) {
   await page.clock.install(); await page.goto(base); await live(page);
 
   // The board at rest: price only, nothing to press.
-  assert.equal(await text(page, '#price-main'), '98,000,000 KRW');
+  assert.equal(await text(page, '#price-main'), '9800만');
   assert.equal(await text(page, '#change'), '▼ 2.50%');
   assert.equal(await text(page, '#change-label'), '1D');
+  // The head line names the coin and the currency; the price line is digits only.
+  assert.equal(await text(page, '#coin'), 'BTC'); assert.equal(await text(page, '#unit'), 'KRW');
   assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
   assert.equal(await page.evaluate(() => sockets.length), 1);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
@@ -118,9 +120,10 @@ async function board(browser, base) {
   assert.equal(await page.locator('#status-overlay').count(), 0);
   // The exchange and market are for screen readers only; they take no room on the board.
   const sourceBox = await page.locator('#price-source').boundingBox();
-  assert.ok(sourceBox.width <= 1 && sourceBox.height <= 1, 'source line is not drawn');
+  assert.ok(sourceBox.width <= 3 && sourceBox.height <= 3, 'source line is not drawn');
   // Nothing on the board itself is in Korean.
-  assert.doesNotMatch(await text(page, '#container'), /[가-힣]/);
+  // (억 and 만 in a won price are the one exception.)
+  assert.doesNotMatch((await text(page, '#container')).replace(/[억만]/g, ''), /[가-힣]/);
   await page.screenshot({ path: path.join(evidence, 'board.png') });
 
   // Keyboard: Tab reveals and focuses the button, Enter opens, focus is kept inside.
@@ -163,9 +166,10 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '—');
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
-  assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
+  assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await text(page, '#change'), '▲ 2.50%');
   assert.equal(await text(page, '#change-label'), '24H');
+  assert.equal(await text(page, '#unit'), 'USDT');
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
   // Escape closes and returns focus; the button hides again when idle.
@@ -222,14 +226,19 @@ async function board(browser, base) {
   // Burn-in protection keeps the board near the middle; switched off, exactly in the middle.
   const drift = () => page.locator('#drift').evaluate(el => (el.style.transform.match(/-?[\d.]+(?=px)/g) || []).map(Number));
   await page.clock.runFor(62000);
-  const [driftX, driftY] = await drift();
-  assert.ok(Math.abs(driftX) <= 1024 * 0.03 && Math.abs(driftY) <= 768 * 0.03, `drift stays near the centre: ${driftX}, ${driftY}`);
-  assert.ok(driftX !== 0 || driftY !== 0, 'the board does move');
+  const [movedX, movedY] = await drift();
   await page.locator('#admin-burn-in').uncheck();
-  assert.deepEqual(await drift(), [0, 0]);
+  // Still: no sideways offset; the vertical one only lifts the price line to the middle.
+  const [stillX, stillY] = await drift();
+  assert.equal(stillX, 0);
+  assert.ok(Math.abs(movedX) <= 1024 * 0.03 && Math.abs(movedY - stillY) <= 768 * 0.03, `drift stays near the centre: ${movedX}, ${movedY - stillY}`);
+  assert.ok(movedX !== 0 || movedY !== stillY, 'the board does move');
   assert.equal((await saved(page)).burnIn, false);
   await page.clock.runFor(62000);
-  assert.deepEqual(await drift(), [0, 0]);
+  assert.deepEqual(await drift(), [stillX, stillY]);
+  // With the board still, the price line sits exactly at mid-height of the screen.
+  const middle = await page.locator('#price-main').evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  assert.ok(Math.abs(middle.y - 384) < 1.5, `price at mid-height: ${middle.y}`);
   await page.locator('#admin-burn-in').check();
   // A tap outside the panel closes it and keeps what was applied.
   await page.touchscreen.tap(20, 20);
@@ -265,7 +274,7 @@ async function board(browser, base) {
   // Silence is shown as a delay with the last price kept on screen.
   await page.evaluate(() => { suppressTicks = true; }); await page.clock.fastForward(16000);
   await page.waitForFunction(() => /DELAYED · LAST PRICE/.test(document.getElementById('overlay-title')?.textContent || ''));
-  assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
+  assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   await page.screenshot({ path: path.join(evidence, 'board-delay.png') });
@@ -273,7 +282,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#overlay-title').count(), 0);
   // Malformed prices never reach the board.
   await page.evaluate(() => sockets.at(-1).emit({ c: 'Infinity' }));
-  assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
+  assert.equal(await text(page, '#price-main'), '70,000');
 
   // A ticker the exchange never answers for.
   await open(page);
@@ -281,8 +290,9 @@ async function board(browser, base) {
   await page.locator('#admin-symbol').fill('NOPE'); await page.locator('#admin-symbol-apply').click();
   await page.clock.runFor(40000);
   assert.equal(await text(page, '#overlay-title'), 'CHECK TICKER');
-  // A coin without an icon shows its ticker in the icon's place.
-  assert.equal(await text(page, '#icon-fallback'), 'NOPE');
+  // A coin without an icon simply has none: its ticker is already in the head line.
+  assert.equal(await page.locator('#icon').count(), 0);
+  assert.equal(await text(page, '#coin'), 'NOPE');
   assert.match(await text(page, '#overlay-msg'), /지원하지 않는 티커일 수 있습니다/);
   // Being offline is the more useful thing to say than doubting the ticker.
   await context.setOffline(true);
@@ -338,7 +348,7 @@ async function lockedStorage(browser, base) {
   });
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
-  assert.equal(await text(page, '#price-main'), '98,000,000 KRW');
+  assert.equal(await text(page, '#price-main'), '9800만');
   await open(page);
   await page.getByRole('button', { name: 'USDT · 바이낸스', exact: true }).click();
   assert.match(await text(page, '#toast'), /저장하지 못했습니다/);
@@ -410,12 +420,30 @@ async function layouts(browser, base) {
     // The board fills the screen in one direction and never leaves it.
     await page.waitForFunction(() => document.getElementById('container').style.transform.startsWith('scale('));
     const area = { width: s.width - s.left - s.right, height: s.height - s.top - s.bottom };
-    const portrait = s.height > s.width;
     const face = await page.locator('#container').boundingBox();
     assert.ok(face.x >= 0 && face.y >= 0 && face.x + face.width <= s.width && face.y + face.height <= s.height, s.name + ' board on screen');
-    const fills = Math.max(face.width / (area.width * 0.86), face.height / (area.height * (portrait ? 0.72 : 0.6)));
+    // Height is counted from the price line outwards, since that line is what is centred.
+    const reach = await page.evaluate(() => { const b = document.getElementById('container').getBoundingClientRect(), p = document.getElementById('price-main').getBoundingClientRect(); const mid = p.top + p.height / 2; return 2 * Math.max(mid - b.top, b.bottom - mid); });
+    const fills = Math.max(face.width / (area.width * 0.86), reach / (area.height * 0.62));
     assert.ok(fills > 0.98 && fills < 1.02, s.name + ' board fills the screen: ' + fills);
-    assert.equal(await page.locator('#container').evaluate(el => getComputedStyle(el).flexDirection), portrait ? 'column' : 'row', s.name + ' orientation');
+    // Head, price and change are always stacked, with the price the largest line.
+    const box = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, midX: r.left + r.width / 2, midY: r.top + r.height / 2, height: r.height }; }, id);
+    const [head, priceLine, foot, icon] = [await box('board-head'), await box('price-main'), await box('board-foot'), await box('icon')];
+    assert.ok(head.top < priceLine.top && priceLine.top < foot.top, s.name + ' stacked');
+    assert.ok(priceLine.height > head.height * 1.8 && priceLine.height > foot.height * 1.8, s.name + ' price dominates');
+    if (s.height > s.width) {
+      // Portrait: the icon sits on top and everything is centred.
+      assert.ok(icon.top < head.top, s.name + ' icon on top');
+      for (const row of [icon, head, foot]) assert.ok(Math.abs(row.midX - priceLine.midX) < 2, s.name + ' centred');
+    } else {
+      // Landscape: a large icon to the left, level with the price; the text lines share a left edge.
+      assert.ok(icon.right < priceLine.left, s.name + ' icon to the left');
+      assert.ok(Math.abs(icon.midY - priceLine.midY) < 2, s.name + ' icon level with the price');
+      assert.ok(icon.height > priceLine.height * 0.7, s.name + ' icon is large');
+      assert.ok(Math.abs(head.left - priceLine.left) < 2 && Math.abs(foot.left - priceLine.left) < 2, s.name + ' text left-aligned');
+    }
+    // The price line is at mid-height of the usable screen.
+    assert.ok(Math.abs(priceLine.midY - (s.top + (s.height - s.top - s.bottom) / 2)) <= s.height * 0.03 + 2, s.name + ' price at mid-height');
     if (['ipad-portrait', 'ipad-landscape', 'phone'].includes(s.name)) await page.screenshot({ path: path.join(evidence, `board-${s.name}.png`) });
     await tapBoard(page);
     const toggle = await page.locator('#settings-toggle').boundingBox();

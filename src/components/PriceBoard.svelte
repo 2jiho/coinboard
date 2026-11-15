@@ -11,7 +11,7 @@
   const DRIFT = 0.03;
 
   // How much of the screen the board may take; the rest is room to float in.
-  const FILL = { width: 0.86, landscapeHeight: 0.6, portraitHeight: 0.72 };
+  const FILL = { width: 0.86, height: 0.62 };
   const EDGE = 16;
 
   // Icons ship with the app in public/coins. A coin without one shows its ticker instead.
@@ -19,9 +19,12 @@
   let failedIcon = $state(null);
   const iconFailed = $derived(failedIcon === iconSrc);
 
-  const parts = $derived(tick ? priceParts(tick.selection.currency, tick.price) : { digits: '—', unit: '' });
+  const parts = $derived(tick ? priceParts(tick.selection.currency, tick.price) : { pieces: [{ number: '—', mark: '' }], unit: '' });
   const changeText = $derived(tick ? formatChange(tick.change) : '—');
   const changeDirection = $derived(tick ? direction(tick.change) : 0);
+  // "▼ 2.50%" is drawn as a small arrow and the number; together they read the same.
+  const changeArrow = $derived(changeText.includes(' ') ? changeText.split(' ')[0] : '');
+  const changeNumber = $derived(changeArrow ? changeText.slice(changeArrow.length) : changeText);
   // The board is English only; Korean lives in the settings panel.
   const source = $derived(settings.currency === 'KRW' ? `UPBIT · KRW-${settings.ticker}` : `BINANCE · ${settings.ticker}/USDT`);
   const tone = value => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
@@ -40,7 +43,12 @@
     lastPrice = next;
   });
 
-  let container;
+  let container, priceLine;
+  // The price line, not the whole block, is what sits in the middle of the
+  // screen: lift is how far the block must move for that to be true.
+  let lift = $state(0);
+  // In landscape the icon is level with the price line, not with the whole block.
+  let iconDrop = $state(0);
   let scale = $state(1);
   let room = { x: 0, y: 0 };
   let offset = $state({ x: 0, y: 0 });
@@ -55,13 +63,16 @@
     const inset = side => parseFloat(style.getPropertyValue('--safe-' + side)) || 0;
     const width = window.innerWidth - inset('left') - inset('right');
     const height = window.innerHeight - inset('top') - inset('bottom');
-    const portrait = window.innerHeight > window.innerWidth;
-    const next = Math.min(width * FILL.width / container.offsetWidth,
-      height * (portrait ? FILL.portraitHeight : FILL.landscapeHeight) / container.offsetHeight);
+    const middle = priceLine.offsetTop + priceLine.offsetHeight / 2;
+    // Height is counted from the price line outwards, since that is the centre.
+    const reach = 2 * Math.max(middle, container.offsetHeight - middle);
+    const next = Math.min(width * FILL.width / container.offsetWidth, height * FILL.height / reach);
     if (!Number.isFinite(next) || next <= 0) return;
     scale = next;
+    lift = (container.offsetHeight / 2 - middle) * next;
+    iconDrop = window.matchMedia('(orientation: portrait)').matches ? 0 : middle - container.offsetHeight / 2;
     room = { x: Math.min(width * DRIFT, Math.max(0, (width - container.offsetWidth * next) / 2 - EDGE)),
-      y: Math.min(height * DRIFT, Math.max(0, (height - container.offsetHeight * next) / 2 - EDGE)) };
+      y: Math.min(height * DRIFT, Math.max(0, (height - reach * next) / 2 - EDGE)) };
     gliding = false;
     offset = { x: within(offset.x, room.x), y: within(offset.y, room.y) };
   }
@@ -88,27 +99,27 @@
 </script>
 
 <div id="stage">
-  <div id="drift" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y}px)">
+  <div id="drift" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
     <div id="container" bind:this={container} class:price-unavailable={status.unavailable}
       style:filter="brightness({brightness}%)" style:transform="scale({scale})">
-      {#if iconFailed}
-        <div id="icon-fallback">{settings.ticker.slice(0, 5)}</div>
-      {:else}
-        <img id="icon" src={iconSrc} alt="{settings.ticker} logo" onerror={() => { failedIcon = iconSrc; }} />
+      <!-- Landscape: a large icon, then three lines. Portrait: the same, stacked. -->
+      {#if !iconFailed}
+        <img id="icon" src={iconSrc} alt="" style:transform="translateY({iconDrop}px)" onerror={() => { failedIcon = iconSrc; }} />
       {/if}
-      <div>
-        <p id="price-main" class={tone(flash)} aria-live="polite" aria-atomic="true">{parts.digits}{#if parts.unit}<span class="unit">{' ' + parts.unit}</span>{/if}</p>
+      <div id="board-text">
+        <p id="board-head"><span id="coin">{settings.ticker}</span><span id="unit">{settings.currency}</span></p>
+        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true">{#each parts.pieces as piece, index}{index ? ' ' : ''}{piece.number}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</p>
         <p id="price-source">{source}</p>
+        <p id="board-foot">
+          <span id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{#if changeArrow}<span class="arrow">{changeArrow}</span>{/if}{changeNumber}</span>
+          <span id="change-label">{settings.currency === 'KRW' ? '1D' : '24H'}</span>
+        </p>
         {#if status.titleShown || notice}
           <div id="status-overlay">
             {#if status.titleShown}<p id="overlay-title">{status.title}</p>{/if}
             {#if notice}<p id="notice">{notice}</p>{/if}
           </div>
         {/if}
-      </div>
-      <div>
-        <p id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{changeText}</p>
-        <p id="change-label">{settings.currency === 'KRW' ? '1D' : '24H'}</p>
       </div>
     </div>
   </div>
