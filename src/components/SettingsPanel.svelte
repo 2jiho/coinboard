@@ -38,12 +38,19 @@
   // The add form: market and coin for a new asset, added only on 추가. It
   // starts in the market being edited, on the first listed coin not yet shown there.
   let adding = $state(false);
+  // The chosen asset's market and coin are shown only after its row is tapped;
+  // tapping it again folds them away.
+  let editing = $state(false);
+  function pick(index) {
+    if (index === selected && editing) { editing = false; return; }
+    adding = false; onSelect(index); editing = true;
+  }
   let newCurrency = $state('KRW'), newCoin = $state(''), newText = $state(''), newError = $state('');
   let newListed = $state(null);
   const firstFree = currency => PRESETS.find(coin => !settings.assets.some(item => sameAsset(item, { currency, ticker: coin }))) ?? OTHER;
   function startAdding() {
     newCurrency = asset.currency; newCoin = firstFree(newCurrency); newText = ''; newError = '';
-    adding = true;
+    editing = false; adding = true;
   }
   $effect(() => {
     if (!adding || newCoin !== OTHER) return;
@@ -113,8 +120,8 @@
          chosen to edit it below. -->
     <div class="settings-group" id="asset-list" role="group" aria-label="표시할 자산">
       {#each settings.assets as item, index (item.currency + ':' + item.ticker)}
-        <div class="asset-row" class:selected={index === selected}>
-          <button type="button" class="asset-pick" aria-pressed={index === selected} onclick={() => onSelect(index)}>
+        <div class="asset-row" class:selected={index === selected && editing}>
+          <button type="button" class="asset-pick" aria-pressed={index === selected} aria-expanded={index === selected && editing} onclick={() => pick(index)}>
             <span class="asset-coin">{item.ticker}</span><span class="asset-market">{EXCHANGES[item.currency].choice}</span>
           </button>
           {#if settings.assets.length > 1}
@@ -168,8 +175,8 @@
       </div>
       <p id="asset-new-error" role="alert" hidden={!newError}>{newError}</p>
     {/if}
-    <!-- The chosen asset's market and coin. Hidden while a new one is being added. -->
-    {#if !adding}
+    <!-- The chosen asset's market and coin, once its row is tapped. -->
+    {#if editing && !adding}
     <div class="settings-group">
       <div class="settings-row">
         <label for="admin-currency">시장</label>
