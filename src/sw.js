@@ -3,27 +3,27 @@
 const APP_VERSION = "__APP_VERSION__";
 const SHELL_FILES = "__SHELL_FILES__";
 const SCOPE = new URL(self.registration.scope);
-const CACHE_PREFIX = "coinboard:" + SCOPE.pathname + ":";
+const CACHE_PREFIX = `coinboard:${  SCOPE.pathname  }:`;
 const CACHE_NAME = CACHE_PREFIX + APP_VERSION;
 const INDEX_URL = new URL("index.html", SCOPE).href;
-const SHELL_URLS = SHELL_FILES.map(function (path) { return new URL(path, SCOPE).href; });
+const SHELL_URLS = SHELL_FILES.map((path) => { return new URL(path, SCOPE).href; });
 
-self.addEventListener("message", function (event) {
+self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "GET_APP_VERSION" && event.ports && event.ports[0]) {
     event.ports[0].postMessage({ type: "APP_VERSION", cacheName: CACHE_NAME });
   }
 });
-self.addEventListener("install", function (event) {
-  event.waitUntil((async function () {
+self.addEventListener("install", (event) => {
+  event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(SHELL_URLS.map(function (url) { return new Request(url, { cache: "reload" }); }));
+    await cache.addAll(SHELL_URLS.map((url) => { return new Request(url, { cache: "reload" }); }));
     await self.skipWaiting();
   })());
 });
-self.addEventListener("activate", function (event) {
-  event.waitUntil((async function () {
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
     const names = await caches.keys();
-    await Promise.all(names.map(function (name) {
+    await Promise.all(names.map((name) => {
       return name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME ? caches.delete(name) : null;
     }));
     await self.clients.claim();
@@ -52,10 +52,10 @@ async function iconFirst(request) {
   if (cached) return cached;
   const response = await fetch(request);
   // Only a real icon is worth keeping; a 404 means the coin has none.
-  if (response.ok) await cache.put(request.url, response.clone()).catch(function () {});
+  if (response.ok) await cache.put(request.url, response.clone()).catch(() => {});
   return response;
 }
-self.addEventListener("fetch", function (event) {
+self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);

@@ -10,11 +10,11 @@ export const binance = {
   // there is no heartbeat: liveness is judged by tickers alone.
   heartbeat: null,
   heartbeatMs: 0,
-  market: function (ticker) { return ticker + "USDT"; },
-  url: function (market) { return "wss://stream.binance.com:443/ws/" + market.toLowerCase() + "@ticker"; },
+  market (ticker) { return `${ticker  }USDT`; },
+  url (market) { return `wss://stream.binance.com:443/ws/${  market.toLowerCase()  }@ticker`; },
   // The stream is chosen by the URL; nothing to send.
-  subscribe: function () { return []; },
-  read: function (data, market) {
+  subscribe () { return []; },
+  read (data, market) {
     // Errors arrive bare ({ code, msg }) or wrapped ({ error: { code, msg } }).
     if (data.error) return { type: "error", code: String(data.error.code !== undefined ? data.error.code : data.error.name || "UNKNOWN") };
     if (data.code !== undefined && data.msg) return { type: "error", code: String(data.code) };

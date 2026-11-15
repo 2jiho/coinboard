@@ -11,14 +11,14 @@ export const upbit = {
   // alive while the market is quiet. So: PING at open, then every 10 seconds.
   heartbeat: "PING",
   heartbeatMs: 10000,
-  market: function (ticker) { return "KRW-" + ticker; },
-  url: function () { return "wss://api.upbit.com/websocket/v1"; },
+  market (ticker) { return `KRW-${  ticker}`; },
+  url () { return "wss://api.upbit.com/websocket/v1"; },
   // Frames to send once the socket is open.
-  subscribe: function (market, id) {
-    return [JSON.stringify([{ ticket: "coinboard-" + id }, { type: "ticker", codes: [market] }, { format: "DEFAULT" }])];
+  subscribe (market, id) {
+    return [JSON.stringify([{ ticket: `coinboard-${  id}` }, { type: "ticker", codes: [market] }, { format: "DEFAULT" }])];
   },
   // One decoded message -> { type: "tick" | "alive" | "error" | "restart" } or null to ignore.
-  read: function (data, market) {
+  read (data, market) {
     if (data.error) return { type: "error", code: data.error.name };
     if (data.status === "UP") return { type: "alive" };
     if (data.type !== "ticker" || data.code !== market) return null;

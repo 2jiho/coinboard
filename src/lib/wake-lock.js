@@ -3,26 +3,26 @@
 // visible session. Every state change is reported through onChange.
 // kind: active | pending | waiting | unsupported | released | failed
 export function createWakeLock(options) {
-  var navigator = options.navigator, document = options.document, window = options.window;
-  var now = options.now || Date.now;
-  var onChange = options.onChange || function () {};
-  var sentinel = null;
-  var pending = null;
-  var epoch = 0;
-  var kind = null;
-  var suspended = document.visibilityState !== "visible";
+  const navigator = options.navigator, document = options.document, window = options.window;
+  const now = options.now || Date.now;
+  const onChange = options.onChange || (() => {});
+  let sentinel = null;
+  let pending = null;
+  let epoch = 0;
+  let kind = null;
+  let suspended = document.visibilityState !== "visible";
   // A lock won by the automatic retry that is lost again this quickly means the
   // system keeps refusing (low power mode): stop instead of looping.
-  var QUICK_LOSS_MS = 5000;
+  const QUICK_LOSS_MS = 5000;
 
   function show(nextKind, message, canRetry) {
     kind = nextKind;
-    onChange({ kind: nextKind, message: message, canRetry: canRetry });
+    onChange({ kind: nextKind, message, canRetry });
   }
 
   function release(lock) {
     if (lock && !lock.released) {
-      return lock.release().catch(function (error) {
+      return lock.release().catch((error) => {
         console.warn("Wake Lock release failed:", error);
       });
     }
@@ -37,18 +37,18 @@ export function createWakeLock(options) {
     if (suspended || document.visibilityState !== "visible") return Promise.resolve();
     if (pending) return pending;
     if (sentinel && !sentinel.released) return Promise.resolve();
-    var requestEpoch = epoch;
+    const requestEpoch = epoch;
     show("pending", "화면 켜짐 유지 요청 중…", false);
-    pending = Promise.resolve().then(async function () {
+    pending = Promise.resolve().then(async () => {
       try {
-        var lock = await navigator.wakeLock.request("screen");
+        const lock = await navigator.wakeLock.request("screen");
         if (requestEpoch !== epoch || suspended || document.visibilityState !== "visible") {
           await release(lock);
           return;
         }
-        var acquiredAt = now();
+        const acquiredAt = now();
         sentinel = lock;
-        lock.addEventListener("release", function () {
+        lock.addEventListener("release", () => {
           if (sentinel !== lock) return;
           sentinel = null;
           if (suspended) {
@@ -68,7 +68,7 @@ export function createWakeLock(options) {
       } catch (error) {
         console.warn("Wake Lock request failed:", error);
         if (requestEpoch === epoch && !suspended) {
-          show("failed", "화면 켜짐 유지 실패 (" + error.name + ") · 저전력 모드·배터리·권한을 확인하세요", true);
+          show("failed", `화면 켜짐 유지 실패 (${  error.name  }) · 저전력 모드·배터리·권한을 확인하세요`, true);
         }
       } finally {
         pending = null;
@@ -76,7 +76,7 @@ export function createWakeLock(options) {
     });
     // A hide/show transition during a request invalidates it. Finish disposing
     // of the old lock before making one request for the current visible session.
-    pending.then(function () {
+    pending.then(() => {
       if (requestEpoch !== epoch && !suspended && document.visibilityState === "visible") acquire(false);
     });
     return pending;
@@ -85,7 +85,7 @@ export function createWakeLock(options) {
   function suspend() {
     if (!suspended) epoch++;
     suspended = true;
-    var oldLock = sentinel;
+    const oldLock = sentinel;
     sentinel = null;
     show("waiting", "화면 켜짐 유지 대기 · 앱으로 돌아오면 재요청합니다", false);
     release(oldLock);
@@ -107,8 +107,8 @@ export function createWakeLock(options) {
   window.addEventListener("pageshow", resume);
   acquire(false);
   return {
-    retry: function () { return acquire(false); },
-    dispose: function () {
+    retry () { return acquire(false); },
+    dispose () {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", suspend);

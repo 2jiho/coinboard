@@ -3,11 +3,11 @@
 // One idea throughout: always show at least four figures, and no more decimals
 // than that needs. A price then takes about the same room and shows its
 // movement whatever its size.
-var whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 // Exactly four significant digits: 152.3, 98.77, 2.346, 0.6234, 0.00001234.
 // (A fixed count keeps the width from jumping between 0.25 and 0.2501.)
-var four = new Intl.NumberFormat("en-US", { minimumSignificantDigits: 4, maximumSignificantDigits: 4 });
-var MAN = 10000;
+const four = new Intl.NumberFormat("en-US", { minimumSignificantDigits: 4, maximumSignificantDigits: 4 });
+const MAN = 10000;
 
 // Won, the Korean way:
 //   1억 and up        "1억 2340만"   rounded to 만
@@ -17,9 +17,9 @@ var MAN = 10000;
 //   under 100          "12.34"       four significant digits
 function wonPieces(value) {
   // Round first, then choose the range, so 999.96만 is "1000만" and not "1000.0만".
-  var tenths = Math.round(value / (MAN / 10));
+  const tenths = Math.round(value / (MAN / 10));
   if (tenths >= 10000) {
-    var man = Math.round(value / MAN), eok = Math.floor(man / MAN), rest = man % MAN, pieces = [];
+    const man = Math.round(value / MAN), eok = Math.floor(man / MAN), rest = man % MAN, pieces = [];
     if (eok > 0) pieces.push({ number: String(eok), mark: "억" });
     if (rest > 0) pieces.push({ number: String(rest), mark: "만" });
     return pieces;
@@ -39,18 +39,18 @@ export function priceParts(currency, value) {
 }
 // "1억 2340만 KRW", "451.2만 KRW", "70,123 USDT", "152.3 USDT"
 export function price(currency, value) {
-  var parts = priceParts(currency, value);
-  return parts.pieces.map(function (piece) { return piece.number + piece.mark; }).join(" ") + " " + parts.unit;
+  const parts = priceParts(currency, value);
+  return `${parts.pieces.map((piece) => { return piece.number + piece.mark; }).join(" ")  } ${  parts.unit}`;
 }
 // -1, 0 or 1 for the change as displayed, so +0.004% is neither up nor down.
 export function direction(value) {
-  var rounded = Number(value.toFixed(2));
+  const rounded = Number(value.toFixed(2));
   return rounded > 0 ? 1 : rounded < 0 ? -1 : 0;
 }
 // "▲ 1.23%" / "▼ 0.50%": the arrow carries the direction, so it reads from
 // across a room and without relying on colour.
 export function change(value) {
-  var sign = direction(value);
+  const sign = direction(value);
   if (sign === 0) return "0.00%";
-  return (sign > 0 ? "▲ " : "▼ ") + Math.abs(value).toFixed(2) + "%";
+  return `${(sign > 0 ? "▲ " : "▼ ") + Math.abs(value).toFixed(2)  }%`;
 }
