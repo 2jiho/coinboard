@@ -38,7 +38,8 @@
   // more rows than columns; portrait: no more columns than rows) are tried,
   // and the one whose cells fit the pieces at the largest scale wins. A count
   // with no such split (5, 7, ...) is one line. Chosen by hand, the last row
-  // may be short; its cells keep their size and gather in the middle.
+  // may be short; its cells stay under the columns above, and the places left
+  // over stay empty, so every line runs straight.
   // The cell's pieces at design size (width fixed, height about this).
   const PIECES = { width: 600, height: 320 };
   let screen = $state({ width: window.innerWidth, height: window.innerHeight });
@@ -54,17 +55,16 @@
     }
     return best.columns;
   }
-  // Each cell's place on a grid of half-cells (so a short row can be centred),
-  // and which of its sides carry a line: lines run between cells, from edge to
-  // edge of the screen, never round the outside.
+  // Each cell's place, and which of its sides carry a line: lines run between
+  // places, from edge to edge of the screen, never round the outside (an empty
+  // place is bounded by its neighbours' lines).
   const layout = $derived.by(() => {
     const count = assets.length;
     const columns = Math.min(count, settings.columns || chooseColumns(count));
     const rows = Math.ceil(count / columns);
     const cells = Array.from({ length: count }, (_, index) => {
       const row = Math.floor(index / columns), place = index % columns;
-      const inRow = row === rows - 1 ? count - row * columns : columns;
-      return { row: row + 1, start: 1 + (columns - inRow) + place * 2, lineRight: place < inRow - 1, lineBelow: row < rows - 1 };
+      return { row: row + 1, column: place + 1, lineRight: place < columns - 1, lineBelow: row < rows - 1 };
     });
     return { columns, rows, cells };
   });
@@ -216,7 +216,7 @@
             {@const market = markets[index]}
             {@const change = changeParts(ticks[index])}
             <div class="cell" class:price-unavailable={statuses[index]?.unavailable} class:line-right={layout.cells[index]?.lineRight} class:line-below={layout.cells[index]?.lineBelow}
-              style:grid-row={layout.cells[index]?.row} style:grid-column="{layout.cells[index]?.start} / span 2">
+              style:grid-row={layout.cells[index]?.row} style:grid-column={layout.cells[index]?.column}>
               <div class="cell-inner" style:transform="scale({cellScale})">
               <p class="cell-head">
                 {#if !failedIcons.has(iconOf(asset))}<img class="cell-icon" src={iconOf(asset)} alt="" onerror={() => iconFailed(iconOf(asset))} />{/if}

@@ -218,6 +218,12 @@ export function createMarketFeed(options) {
       throw new Error("Invalid market selection");
     }
     if (nextCurrency === currency && list.join() === selections.map((selection) => selection.ticker).join()) return;
+    // The same coins in another order: nothing to ask the exchange, only the
+    // order in which states are reported changes.
+    if (nextCurrency === currency && [...list].sort().join() === selections.map((selection) => selection.ticker).sort().join()) {
+      selections = list.map((ticker) => byMarket.get(describeMarket(currency, ticker).market));
+      return;
+    }
     disconnect();
     const next = list.map((ticker) => describeMarket(nextCurrency, ticker));
     const kept = new Set(nextCurrency === currency ? next.map((selection) => selection.market) : []);

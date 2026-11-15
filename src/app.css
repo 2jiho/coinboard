@@ -105,14 +105,14 @@ body {
 .change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 #container.price-unavailable #price-main { opacity: 0.55; }
 /* The grid: the whole screen divided into equal cells, as many per row as
-   settings or the board choose (PriceBoard.svelte). Each cell spans two
-   half-columns, so a short last row can sit in the middle.
+   settings or the board choose (PriceBoard.svelte). A short last row keeps
+   to the columns above; its leftover places stay empty.
    Faint lines run between cells from edge to edge, never round the outside. Each cell holds the same
    pieces as the single board, smaller, at one fixed design size scaled to the
    cell (the same scale for all). */
 #drift.grid, #container.grid { width: 100%; height: 100%; }
 #container.grid { display: block; }
-#grid { display: grid; grid-template-columns: repeat(calc(var(--cols) * 2), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows), minmax(0, 1fr)); width: 100%; height: 100%; }
+#grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows), minmax(0, 1fr)); width: 100%; height: 100%; }
 .cell { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; }
 .cell.line-right { border-right: 1px solid #2c2c2e; }
 .cell.line-below { border-bottom: 1px solid #2c2c2e; }
@@ -260,8 +260,10 @@ body.settings-open #status-dot { visibility: hidden; }
 #admin-panel .asset-pick:active, #admin-panel #asset-add:active { transform: none; }
 .asset-coin { font-weight: 600; letter-spacing: 0.02em; }
 .asset-market { font-size: 13px; color: var(--secondary); }
-#admin-panel .asset-remove { flex: none; width: 36px; min-height: 36px; padding: 0; border-radius: 50%; background: transparent; color: var(--secondary); }
-#admin-panel .asset-remove svg { width: 20px; height: 20px; }
+#admin-panel .asset-move, #admin-panel .asset-remove { flex: none; width: 36px; min-height: 36px; padding: 0; border-radius: 50%; background: transparent; color: var(--secondary); }
+#admin-panel .asset-move:disabled { opacity: 0.25; }
+#admin-panel .asset-remove { margin-left: 2px; color: #ff6961; }
+#admin-panel .asset-move svg, #admin-panel .asset-remove svg { width: 20px; height: 20px; }
 #admin-panel #asset-add { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 50px; padding: 0 14px; border-radius: 0; background: transparent; color: var(--accent); }
 #admin-panel #asset-add svg { width: 18px; height: 18px; margin: 0; }
 /* The add form: market and coin, then 취소 and 추가. */

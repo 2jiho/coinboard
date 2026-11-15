@@ -621,6 +621,18 @@ async function gridBoard(browser, base) {
   assert.deepEqual(await cellPrices(), ['9800만', '180.3', '70,000']);
   assert.equal(await page.title(), '9800만 | BTCKRW | Coinboard', 'the tab follows the first asset');
 
+  // Order: up and down. Prices stay and nothing reconnects; the chosen asset moves with its row.
+  const socketCount = await page.evaluate(() => sockets.length);
+  const up = page.locator('.asset-move[aria-label$="위로"]'), down = page.locator('.asset-move[aria-label$="아래로"]');
+  assert.equal(await up.first().isDisabled(), true); assert.equal(await down.last().isDisabled(), true);
+  await down.nth(1).click();
+  assert.deepEqual(await assets(), ['BTC:KRW', 'BTC:USDT-PERP', 'SOL:USDT-PERP']);
+  assert.deepEqual(await page.locator('.asset-pick').evaluateAll(els => els.map(el => el.getAttribute('aria-pressed'))), ['false', 'false', 'true']);
+  assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'BTCUSDTPERP', 'SOLUSDTPERP']);
+  assert.deepEqual(await cellPrices(), ['9800만', '70,000', '180.3']);
+  assert.equal(await page.evaluate(() => sockets.length), socketCount, 'reordering does not reconnect');
+  await up.nth(2).click();
+  assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP']);
   // Landscape, three: one row; every cell drawn at one size; the grid inside the screen.
   await page.keyboard.press('Escape');
   const cells = () => page.locator('.cell').evaluateAll(els => els.map(el => { const box = el.getBoundingClientRect(); return { x: box.x, y: box.y, right: box.right, bottom: box.bottom, width: box.width }; }));
@@ -663,7 +675,7 @@ async function gridBoard(browser, base) {
   assert.deepEqual(await shape([3, 2]), [3, 2], 'rows by columns, portrait');
   assert.ok(await page.evaluate(inScreen, await pieces()));
   await page.screenshot({ path: path.join(evidence, 'grid-portrait.png') });
-  // Cells per row by hand: five in rows of three is three over two, the short row in the middle; one is a single column.
+  // Cells per row by hand: five in rows of three is three over two, the short row under the first two columns; one is a single column.
   await open(page);
   await page.locator('.asset-remove').last().click();
   await page.locator('#admin-columns').selectOption('3');
@@ -674,7 +686,9 @@ async function gridBoard(browser, base) {
   await until(page, () => new Set([...document.querySelectorAll('.cell')].map(el => Math.round(el.getBoundingClientRect().y))).size === 2);
   assert.deepEqual(await rowCounts(), [3, 2]);
   const fives = await cells();
-  assert.ok(Math.abs((fives[3].x + fives[4].right) / 2 - (fives[0].x + fives[2].right) / 2) < 2, 'the short row is centred');
+  assert.deepEqual([fives[3].x, fives[4].x].map(Math.round), [fives[0].x, fives[1].x].map(Math.round), 'the short row keeps to the columns above');
+  assert.deepEqual(await page.locator('.cell').evaluateAll(els => els.map(el => [el.classList.contains('line-right'), el.classList.contains('line-below')])),
+    [[true, true], [true, true], [false, true], [true, false], [true, false]], 'lines run straight; the empty place is bounded by its neighbours');
   await open(page); await page.locator('#admin-columns').selectOption('1'); await page.keyboard.press('Escape');
   assert.deepEqual(await shape([5, 1]), [5, 1]);
   await open(page); await page.locator('#admin-columns').selectOption('0'); await addAsset(); await page.keyboard.press('Escape');
@@ -710,7 +724,7 @@ async function gridBoard(browser, base) {
 
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS grid: add, edit, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one');
+  console.log('PASS grid: add, edit, reorder, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one');
 }
 
 async function idleUpdate(browser, base) {

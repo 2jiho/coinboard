@@ -7,7 +7,7 @@
   import { EXCHANGES } from '../lib/exchanges/index.js';
 
   let { settings, selected, canAdd, status, wake, versionLabel, updateReady,
-    onClose, onSelect, onAdd, onRemove, onColumns, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+    onClose, onSelect, onAdd, onRemove, onMove, onColumns, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel, closeButton;
   // The rows below edit this asset; the list above chooses it.
@@ -118,8 +118,15 @@
             <span class="asset-coin">{item.ticker}</span><span class="asset-market">{EXCHANGES[item.currency].choice}</span>
           </button>
           {#if settings.assets.length > 1}
+            <!-- Order: up and down. Removing: a bin, so it does not read as a handle. -->
+            <button type="button" class="asset-move" aria-label="{assetName(item)} 위로" disabled={index === 0} onclick={() => onMove(index, -1)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 14 5-5 5 5"/></svg>
+            </button>
+            <button type="button" class="asset-move" aria-label="{assetName(item)} 아래로" disabled={index === settings.assets.length - 1} onclick={() => onMove(index, 1)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+            </button>
             <button type="button" class="asset-remove" aria-label="{assetName(item)} 빼기" onclick={() => onRemove(index)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 12h12"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 10.5v5.5M13.5 10.5v5.5"/></svg>
             </button>
           {/if}
         </div>

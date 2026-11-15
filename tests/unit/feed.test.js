@@ -302,3 +302,11 @@ test('retrying the board leaves a working connection alone', async () => {
   board.retry(); assert.equal(sockets.length, 1);
   board.dispose();
 });
+test('the same coins in another order keep the connection; only the order of states changes', async () => {
+  const f = fixture(); f.feed.select('KRW', ['BTC', 'ETH']); f.sockets[0].open(); await f.message(f.tick('KRW'));
+  f.feed.select('KRW', ['ETH', 'BTC']);
+  assert.equal(f.sockets.length, 1); assert.equal(f.sockets[0].readyState, 1);
+  f.states.length = 0; f.advance(16000); await f.message({ status: 'UP' });
+  f.feed.setOnline(false);
+  assert.deepEqual(f.states.slice(-2).map(s => s.selection.ticker), ['ETH', 'BTC']);
+});

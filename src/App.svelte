@@ -144,6 +144,15 @@
     selected = settings.assets.length - 1;
     return '';
   }
+  // Move an asset up (-1) or down (+1); the one being edited stays chosen.
+  function moveAsset(index, step) {
+    const target = index + step;
+    if (target < 0 || target >= settings.assets.length) return;
+    const assets = [...settings.assets];
+    [assets[index], assets[target]] = [assets[target], assets[index]];
+    if (selected === index) selected = target; else if (selected === target) selected = index;
+    changeAssets(assets);
+  }
   function removeAsset(index) {
     if (settings.assets.length <= 1) return;
     if (selected >= index && selected > 0) selected -= 1;
@@ -232,6 +241,7 @@
     onAdd={addAsset}
     onColumns={columns => save({ columns })}
     onRemove={removeAsset}
+    onMove={moveAsset}
     onCurrency={currency => currency === settings.assets[selected].currency ? '' : changeAsset({ currency })}
     onTicker={ticker => ticker === settings.assets[selected].ticker ? '' : changeAsset({ ticker })}
     onBrightnessPreview={value => { previewBrightness = value; }}
