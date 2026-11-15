@@ -11,12 +11,15 @@
   import { describeState } from './lib/status.js';
   import { createQuietControls } from './lib/quiet-controls.js';
   import { createMarketList } from './lib/markets.js';
+  import { createPacer } from './lib/pace.js';
 
   const version = __APP_VERSION__;
   // Storage can throw on access (private mode): run on defaults without it.
   function storage(name) { try { return window[name]; } catch { return null; } }
   const store = createSettings(storage('localStorage'));
-  const markets = createMarketList({ fetch: (url) => window.fetch(url) });
+  // One pacer for everything sent to an exchange: the price connection and the coin list.
+  const pacer = createPacer({ now: Date.now, store: storage('sessionStorage') });
+  const markets = createMarketList({ fetch: (url) => window.fetch(url), pacer });
 
   let settings = $state(store.get());
   let previewBrightness = $state(null);
@@ -102,7 +105,7 @@
 
   onMount(() => {
     feed = createMarketFeed({
-      active: visible, online: navigator.onLine,
+      active: visible, online: navigator.onLine, pacer,
       onTick(next) { if (next.selection.currency === settings.currency && next.selection.ticker === settings.ticker) tick = next; },
       onState(next) { feedState = next; },
     });

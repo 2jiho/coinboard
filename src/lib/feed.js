@@ -2,6 +2,7 @@
 // What is specific to an exchange lives in ./exchanges; this file owns the
 // connection: when to connect, when to give up, when a price counts as live.
 import { EXCHANGES } from "./exchanges/index.js";
+import { createPacer } from "./pace.js";
 
 // Why the feed is not live, as a code. The words are for the settings panel;
 // anything that decides behaviour or the board's wording uses the code.
@@ -43,16 +44,12 @@ export function createMarketFeed(options) {
   let failures = 0, active = options.active !== false, online = options.online !== false, disposed = false;
   // Connections in a row that timed out before this selection ever sent a price.
   let silentAttempts = 0, everTicked = false;
-  const lastAttempt = { KRW: -Infinity, USDT: -Infinity };
-  let store = options.attemptStore;
-  if (store === undefined) { try { store = globalThis.sessionStorage; } catch (_) {} }
-  if (store) {
-    ["KRW", "USDT"].forEach((currency) => {
-      try {
-        const value = Number(store.getItem(`coinboard-connect-${currency}`));
-        if (value > 0 && value <= clock.now() && value > clock.now() - 60000) lastAttempt[currency] = value;
-      } catch (_) {}
-    });
+  // Requests to an exchange are spaced out, here and for the coin list alike.
+  let pacer = options.pacer;
+  if (!pacer) {
+    let store = options.attemptStore;
+    if (store === undefined) { try { store = globalThis.sessionStorage; } catch (_) {} }
+    pacer = createPacer({ now: clock.now, store });
   }
 
   // cause: a key of REASONS, "exchange-error", or null when nothing is wrong.
@@ -77,10 +74,7 @@ export function createMarketFeed(options) {
     }
   }
   function eligible() { return !disposed && active && online && !!selection; }
-  function rateWait() {
-    const minimum = EXCHANGES[selection.currency].minConnectInterval;
-    return Math.max(0, lastAttempt[selection.currency] + minimum - clock.now());
-  }
+  function rateWait() { return pacer.waitFor(selection.currency); }
   function schedule(delay, cause) {
     if (!eligible()) { emit(!online ? "offline" : "paused", cause); return; }
     delay = Math.max(delay || 0, rateWait());
@@ -112,10 +106,7 @@ export function createMarketFeed(options) {
     // comparing the exchange's clock with ours. Exchange event times only
     // order ticks within one connection.
     let lastMessageAt = startedAt, lastEventTime = -Infinity;
-    lastAttempt[current.currency] = startedAt;
-    if (store) {
-      try { store.setItem(`coinboard-connect-${current.currency}`, String(startedAt)); } catch (_) {}
-    }
+    pacer.mark(current.currency);
     emit("connecting");
     let connection;
     try {
