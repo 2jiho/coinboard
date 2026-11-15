@@ -205,7 +205,11 @@ body[data-palette="red-blue"] {
    The old digit is drawn by ::before, one window-height ahead of the new one,
    so a single movement carries both: the new digit in, the old one out. */
 .price-text .slot { display: inline-block; clip-path: inset(0); }
-.price-text .digit { display: inline-block; position: relative; }
+/* Each digit keeps its own compositing layer for good. Otherwise Safari moves
+   a digit onto a layer for its animation and back off when it ends, and the
+   board being drawn at a fractional scale, the digit snaps a pixel at that
+   moment: a small jump at the end of every roll. */
+.price-text .digit { display: inline-block; position: relative; will-change: transform; }
 .price-text .digit[data-old]::before { content: attr(data-old); position: absolute; left: 0; }
 /* Price up: the new digit rises from below; the old one leaves by the top. */
 .price-text .digit.up::before { top: -100%; }
