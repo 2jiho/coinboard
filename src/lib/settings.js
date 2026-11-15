@@ -1,4 +1,6 @@
 // Load, validate and persist kiosk settings. Knows nothing about the DOM.
+import { EXCHANGES } from "./exchanges/index.js";
+
 const KEY = "coinboard-settings";
 // The project was called btc-price-kiosk. Same origin, so old settings are still readable.
 const OLD_KEY = "btc-kiosk-settings";
@@ -15,7 +17,8 @@ export function createSettings(storage) {
     if (saved && typeof saved === "object") {
       const ticker = normalizeTicker(saved.ticker);
       if (ticker) settings.ticker = ticker;
-      if (["KRW", "USDT"].includes(saved.currency)) settings.currency = saved.currency;
+      // "currency" holds the market: KRW (Upbit), USDT (Binance) or USDT-PERP (Binance futures).
+      if (typeof saved.currency === "string" && Object.hasOwn(EXCHANGES, saved.currency)) settings.currency = saved.currency;
       // On unless it was explicitly switched off.
       settings.burnIn = saved.burnIn !== false;
       // Up/down colours: green and red, or the Korean red and blue.

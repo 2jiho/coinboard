@@ -4,6 +4,7 @@
 
 - **원화 · 업비트**: KRW 시장의 가격과 전일 대비 등락률.
 - **USDT · 바이낸스**: USDT 시장의 가격과 최근 24시간 등락률. USD로 환산하지 않습니다.
+- **USDT 무기한 · 바이낸스**: USDT 무기한 선물의 가격과 최근 24시간 등락률. 전광판의 통화 코드 옆에 `PERP` 표시가 붙고, 탭 제목은 `70,123 | BTCUSDTPERP | Coinboard`처럼 됩니다.
 - 거래소가 보내 주는 시세만 표시합니다. 시세 polling이나 환율 환산은 없고, 선택한 거래소 하나에만 연결합니다. 거래소에 따로 요청하는 것은 티커를 직접 입력할 때 받는 상장 코인 목록 한 번뿐입니다.
 - 화면 켜짐 유지, 번인 방지 이동, 밝기 필터, 오프라인 실행, 자동 업데이트를 제공합니다.
 
@@ -18,7 +19,7 @@
 설정 창은 필요한 것만 보여 주고, 바꾸는 즉시 적용·저장됩니다.
 
 - **코인**: 한 줄짜리 선택 항목입니다. 자주 쓰는 여섯 코인이 목록에 있고, 그 외에는 "직접 입력…"을 골라 티커를 입력한 뒤 Enter 또는 "변경"으로 적용합니다. 입력 칸을 열면 그 거래소가 실제로 상장한 코인 목록을 한 번 받아 와서 자동 완성을 보여 주고, 목록에 없는 티커는 바로 거절합니다. 목록을 받지 못하면 영문·숫자 1~20자 티커를 그대로 받습니다.
-- **통화**: 원화(업비트) 또는 USDT(바이낸스).
+- **시장**: 원화(업비트), USDT(바이낸스 현물), USDT 무기한(바이낸스 선물).
 - **밝기**: 표시를 어둡게 하는 필터이며 기기 밝기는 바꾸지 않습니다.
 - **번인 방지**: 아래 "동작 방식" 참고.
 - **등락 색**: 상승 초록·하락 빨강, 또는 한국식인 상승 빨강·하락 파랑.
@@ -62,7 +63,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/components/PriceBoard.svelte` | 전광판: 아이콘, 가격, 등락률, 가격 아래 한 줄 |
 | `src/components/SettingsPanel.svelte` | 설정 창 |
 | `src/lib/feed.js` | 거래소 WebSocket 연결, 재연결, 생존 판정 |
-| `src/lib/exchanges/` | 거래소별 주소, 구독 메시지, 메시지 해석(업비트, 바이낸스) |
+| `src/lib/exchanges/` | 거래소별 주소, 구독 메시지, 메시지 해석(업비트, 바이낸스 현물·무기한 선물) |
 | `src/lib/status.js` | 연결 상태를 화면 문구로 바꿉니다 |
 | `src/lib/quiet-controls.js` | 설정 버튼의 표시·숨김, 첫 탭 보호, 방치된 설정 창 닫기 |
 | `src/lib/presets.js` | 설정 창의 코인 선택 목록 |
@@ -114,7 +115,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 npm version patch --no-git-tag-version
 ~~~
 
-문제 수정은 `patch`, 기능 추가는 `minor`로 올립니다. 배포할 때는 반드시 올려야 설정 창의 버전 표시와 캐시 이름이 바뀝니다. 설정 창에는 평소 `버전 0.4.1`만 보이고, 화면 코드와 설치된 오프라인 사본의 버전이 다를 때만 `버전 0.4.1 · 설치된 사본 0.4.2`처럼 둘 다 표시합니다.
+문제 수정은 `patch`, 기능 추가는 `minor`로 올립니다. 배포할 때는 반드시 올려야 설정 창의 버전 표시와 캐시 이름이 바뀝니다. 설정 창에는 평소 `버전 0.5.0`만 보이고, 화면 코드와 설치된 오프라인 사본의 버전이 다를 때만 `버전 0.5.0 · 설치된 사본 0.5.1`처럼 둘 다 표시합니다.
 
 ## 테스트
 
@@ -154,3 +155,4 @@ npm run test:e2e
 - [업비트 요청 제한](https://docs.upbit.com/kr/reference/rate-limits): 브라우저(Origin 포함) 연결 요청은 10초 간격을 지킵니다.
 - [업비트 연결 관리](https://docs.upbit.com/kr/docs/websocket-best-practice): 120초 idle 종료와 PING 유지.
 - [바이낸스 시장 스트림](https://developers.binance.com/en/docs/products/spot/web-socket-streams): `wss://stream.binance.com:443/ws/<심볼>@ticker`.
+- [바이낸스 USDT 선물 스트림](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams): `wss://fstream.binance.com/ws/<심볼>@ticker`.

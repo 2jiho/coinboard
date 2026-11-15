@@ -196,8 +196,10 @@ test('Binance error replies in either shape stop retries', async () => {
   }
 });
 test('describeMarket names a market the way each part of the app needs it', () => {
-  assert.deepEqual(describeMarket('KRW', 'BTC'), { currency: 'KRW', ticker: 'BTC', exchange: '업비트', label: 'UPBIT', market: 'KRW-BTC', pair: 'KRW-BTC', changeLabel: '1D' });
-  assert.deepEqual(describeMarket('USDT', 'ETH'), { currency: 'USDT', ticker: 'ETH', exchange: '바이낸스', label: 'BINANCE', market: 'ETHUSDT', pair: 'ETH/USDT', changeLabel: '24H' });
+  assert.deepEqual(describeMarket('KRW', 'BTC'), { currency: 'KRW', ticker: 'BTC', quote: 'KRW', tag: '', symbol: 'BTCKRW', exchange: '업비트', label: 'UPBIT', market: 'KRW-BTC', pair: 'KRW-BTC', changeLabel: '1D' });
+  assert.deepEqual(describeMarket('USDT', 'ETH'), { currency: 'USDT', ticker: 'ETH', quote: 'USDT', tag: '', symbol: 'ETHUSDT', exchange: '바이낸스', label: 'BINANCE', market: 'ETHUSDT', pair: 'ETH/USDT', changeLabel: '24H' });
+  // A perpetual future is its own market: priced in USDT, marked PERP.
+  assert.deepEqual(describeMarket('USDT-PERP', 'BTC'), { currency: 'USDT-PERP', ticker: 'BTC', quote: 'USDT', tag: 'PERP', symbol: 'BTCUSDTPERP', exchange: '바이낸스 선물', label: 'BINANCE FUTURES', market: 'BTCUSDT', pair: 'BTC/USDT PERP', changeLabel: '24H' });
 });
 test('every state says why in a code as well as in words', async () => {
   const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open();
@@ -213,4 +215,18 @@ test('every state says why in a code as well as in words', async () => {
   assert.equal(f.state().kind, 'error'); assert.equal(f.state().cause, 'exchange-error');
   f.feed.setOnline(false); assert.equal(f.state().cause, 'offline');
   f.feed.setOnline(true); f.feed.setActive(false); assert.equal(f.state().cause, 'hidden');
+});
+test('Binance perpetual futures: their own stream, the same ticker message, USDT prices', async () => {
+  const f = fixture(); f.feed.select('USDT-PERP', 'BTC'); f.sockets[0].open();
+  assert.equal(f.sockets[0].url, 'wss://fstream.binance.com/ws/btcusdt@ticker');
+  assert.deepEqual(f.sockets[0].sent, []);
+  await f.message(f.tick('USDT', { c: '70111.50', P: '-1.25' }));
+  assert.equal(f.ticks[0].price, 70111.5); assert.equal(f.ticks[0].change, -1.25);
+  assert.equal(f.ticks[0].selection.quote, 'USDT'); assert.equal(f.ticks[0].selection.tag, 'PERP');
+  assert.equal(f.state().kind, 'live'); assert.equal(f.state().selection.exchange, '바이낸스 선물');
+});
+test('spot and futures of the same coin are different selections, each paced on its own', async () => {
+  const f = fixture(); f.feed.select('USDT', 'BTC'); f.feed.select('USDT-PERP', 'BTC');
+  assert.equal(f.sockets.length, 2); assert.match(f.sockets[1].url, /^wss:\/\/fstream\.binance\.com\//);
+  assert.throws(() => f.feed.select('USD', 'BTC'), /Invalid market selection/);
 });

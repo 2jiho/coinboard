@@ -73,7 +73,7 @@
   }
 
   // The browser tab shows the price as well, at the same pace as the board.
-  $effect(() => { document.title = tabTitle(settings.ticker, settings.currency, tick); });
+  $effect(() => { document.title = tabTitle(describeMarket(settings.currency, settings.ticker), tick); });
   $effect(() => {
     document.body.classList.toggle('controls-visible', controlsVisible);
     document.body.classList.toggle('settings-open', panelOpen);

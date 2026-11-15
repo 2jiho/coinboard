@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { describeState } from '../../src/lib/status.js';
-const selection = { currency: 'KRW', ticker: 'BTC', exchange: '업비트' };
+const selection = { currency: 'KRW', quote: 'KRW', ticker: 'BTC', exchange: '업비트' };
 const last = { price: 98000000, receivedAt: 1000, selection };
 test('no state yet: nothing to say, price shown as unavailable', () => {
   const s = describeState(null, 0); assert.equal(s.text, ''); assert.equal(s.unavailable, true);
@@ -55,4 +55,9 @@ test('level sums the state up as one of three colours', () => {
 });
 test('the board line for a healthy feed is LIVE', () => {
   assert.equal(describeState({ kind: 'live', reason: '', selection, last }, 0).title, 'LIVE');
+});
+test('a futures price is written as a USDT amount', () => {
+  const perp = { currency: 'USDT-PERP', quote: 'USDT', ticker: 'BTC', exchange: '바이낸스 선물' };
+  const s = describeState({ kind: 'offline', reason: '', selection: perp, last: { price: 70111.5, receivedAt: 0, selection: perp } }, 4000);
+  assert.match(s.detail, /^마지막 시세: 70,112 USDT · 4초 전/); assert.equal(s.text, '바이낸스 선물 · 오프라인');
 });

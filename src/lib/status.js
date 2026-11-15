@@ -26,7 +26,7 @@ export function describeState(state, now) {
   if (state.tickerSuspect && ["backoff", "connecting", "waiting"].includes(kind)) title = "CHECK TICKER";
   let detail = "";
   if (kind !== "live") {
-    detail = state.last ? `마지막 시세: ${price(state.last.selection.currency, state.last.price)} · ${Math.max(0, Math.floor((now - state.last.receivedAt) / 1000))}초 전` : "아직 수신한 시세가 없습니다.";
+    detail = state.last ? `마지막 시세: ${price(state.last.selection.quote, state.last.price)} · ${Math.max(0, Math.floor((now - state.last.receivedAt) / 1000))}초 전` : "아직 수신한 시세가 없습니다.";
     if (state.reason) detail += `\n${state.reason}`;
     if (state.tickerSuspect) detail += "\n지원하지 않는 티커일 수 있습니다";
   }

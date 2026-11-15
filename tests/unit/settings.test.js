@@ -77,3 +77,11 @@ test('the up/down colours are green and red unless the red-and-blue pair was cho
     assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ palette: odd }) })).get().palette, 'green-red', String(odd));
   }
 });
+test('the market can be Upbit, Binance spot or Binance perpetual futures; anything else falls back to Upbit', () => {
+  for (const market of ['KRW', 'USDT', 'USDT-PERP']) {
+    assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ currency: market }) })).get().currency, market);
+  }
+  for (const odd of ['USD', 'PERP', '', null, 3]) {
+    assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ currency: odd }) })).get().currency, 'KRW', String(odd));
+  }
+});
