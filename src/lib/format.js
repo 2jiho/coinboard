@@ -56,10 +56,10 @@ export function change(value) {
 }
 // For the browser tab: "8996만 | BTCKRW | Coinboard", or "BTCKRW | Coinboard"
 // before a price arrives. The price comes first, since a narrow tab shows only
-// the start; the market is written the way traders do, coin and currency together.
-export function tabTitle(ticker, currency, tick) {
-  const market = ticker + currency;
-  if (!tick) return `${market} | Coinboard`;
-  const amount = priceParts(currency, tick.price).pieces.map((piece) => piece.number + piece.mark).join(" ");
-  return `${amount} | ${market} | Coinboard`;
+// the start. market is what describeMarket gives: its symbol is the market in
+// one word (BTCKRW, BTCUSDT, BTCUSDTPERP) and its quote the currency of the price.
+export function tabTitle(market, tick) {
+  if (!tick) return `${market.symbol} | Coinboard`;
+  const amount = priceParts(market.quote, tick.price).pieces.map((piece) => piece.number + piece.mark).join(" ");
+  return `${amount} | ${market.symbol} | Coinboard`;
 }

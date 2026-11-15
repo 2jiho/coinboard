@@ -24,7 +24,10 @@ const REASONS = {
 // One market, named the way each part of the app needs it.
 export function describeMarket(currency, ticker) {
   const exchange = EXCHANGES[currency];
-  return { currency, ticker, exchange: exchange.name, label: exchange.label,
+  // quote is the currency prices are in; tag marks a market that is not the
+  // plain spot one (PERP); symbol is the market in one word, for the tab title.
+  return { currency, ticker, quote: exchange.quote, tag: exchange.tag, symbol: ticker + exchange.quote + exchange.tag,
+    exchange: exchange.name, label: exchange.label,
     market: exchange.market(ticker), pair: exchange.pair(ticker), changeLabel: exchange.changeLabel };
 }
 
@@ -175,7 +178,7 @@ export function createMarketFeed(options) {
   }
   function select(currency, ticker) {
     ticker = (ticker || "BTC").toUpperCase();
-    if (!["KRW", "USDT"].includes(currency) || !/^[A-Z0-9]{1,20}$/.test(ticker)) throw new Error("Invalid market selection");
+    if (!Object.hasOwn(EXCHANGES, currency) || !/^[A-Z0-9]{1,20}$/.test(ticker)) throw new Error("Invalid market selection");
     if (selection && selection.currency === currency && selection.ticker === ticker) return;
     disconnect();
     selection = describeMarket(currency, ticker); last = null; failures = 0;

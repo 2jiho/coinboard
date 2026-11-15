@@ -69,6 +69,8 @@ body {
 #board-head { display: flex; align-items: center; gap: 18px; font-size: 56px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
 #coin { color: #f2f2f7; }
 #unit { color: #8e8e93; font-weight: 500; }
+/* PERP and the like: a small outlined mark after the currency. */
+#tag { padding: 5px 11px 4px; border: 2px solid #48484a; border-radius: 10px; font-size: 0.58em; font-weight: 600; letter-spacing: 0.06em; color: #8e8e93; }
 /* Portrait: the same pieces stacked and centred, with the icon on top. */
 @media (orientation: portrait) {
   #container { flex-direction: column; gap: 40px; }
@@ -250,7 +252,7 @@ a:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 2px; }
 /* Coin and currency: one-line choices that open the system's own picker */
 #admin-panel select {
   -webkit-appearance: none; appearance: none;
-  min-height: 44px; max-width: 62%; margin: 0 -4px 0 0; padding: 0 26px 0 8px;
+  min-height: 44px; max-width: 72%; margin: 0 -4px 0 0; padding: 0 26px 0 8px;
   border: 0; border-radius: 9px; background-color: transparent; color: var(--secondary);
   font: inherit; font-size: 15px; text-align: right; text-align-last: right; cursor: pointer;
   /* An up-down chevron, as on a system pop-up button. */

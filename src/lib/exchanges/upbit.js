@@ -5,6 +5,10 @@ export const upbit = {
   // name is shown in settings (Korean); label and changeLabel on the board (English).
   name: "업비트",
   label: "UPBIT",
+  choice: "원화 · 업비트",
+  listName: "업비트 원화",
+  quote: "KRW",
+  tag: "",
   // The change is against the previous day's close.
   changeLabel: "1D",
   // Browsers send Origin: Upbit limits these connection requests to one per 10 seconds.

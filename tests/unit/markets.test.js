@@ -69,3 +69,8 @@ test('if something else used the turn while it waited, it waits again', async ()
   await list.load('KRW');
   assert.deepEqual(events, ['sleep 5000', 'sleep 3000', 'mark', 'fetch']);
 });
+test('Binance futures: the USDT perpetuals, without the dated quarterly contracts', async () => {
+  const f = fixture({ 'fapi.binance.com': { body: [{ symbol: 'BTCUSDT' }, { symbol: 'ETHUSDT' }, { symbol: 'BTCUSDT_270326' }, { symbol: 'ETHBTC' }, { symbol: 'BTCUSDC' }, { symbol: '1000PEPEUSDT' }] } });
+  assert.deepEqual(await f.list.load('USDT-PERP'), ['1000PEPE', 'BTC', 'ETH']);
+  assert.deepEqual(f.asked, ['https://fapi.binance.com/fapi/v1/ticker/price']);
+});

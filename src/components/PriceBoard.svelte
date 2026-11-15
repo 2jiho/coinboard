@@ -22,7 +22,7 @@
   let failedIcon = $state(null);
   const iconFailed = $derived(failedIcon === iconSrc);
 
-  const parts = $derived(tick ? priceParts(tick.selection.currency, tick.price) : { pieces: [{ number: '—', mark: '' }], unit: '' });
+  const parts = $derived(tick ? priceParts(tick.selection.quote, tick.price) : { pieces: [{ number: '—', mark: '' }], unit: '' });
   const changeText = $derived(tick ? formatChange(tick.change) : '—');
   const changeDirection = $derived(tick ? direction(tick.change) : 0);
   // "▼ 2.50%" is drawn as a small arrow and the number; together they read the same.
@@ -143,7 +143,7 @@
         <img id="icon" src={iconSrc} alt="" style:transform="translateY({iconDrop}px)" onerror={() => { failedIcon = iconSrc; }} />
       {/if}
       <div id="board-text">
-        <p id="board-head"><span id="coin">{settings.ticker}</span><span id="unit">{settings.currency}</span></p>
+        <p id="board-head"><span id="coin">{settings.ticker}</span><span id="unit">{market.quote}</span>{#if market.tag}<span id="tag">{market.tag}</span>{/if}</p>
         <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true"><span id="price-text" bind:this={priceText} style:transform="scale({priceScale})">{#each parts.pieces as piece, index}{index ? ' ' : ''}{#each [...piece.number] as char, place (place)}<span class="slot">{#key char}<span class="digit" use:roll={`${index}:${place}`}>{char}</span>{/key}</span>{/each}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</span></p>
         <p id="price-source">{market.label} · {market.pair}</p>
         <p id="board-foot">

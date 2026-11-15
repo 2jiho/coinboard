@@ -235,6 +235,22 @@ async function board(browser, base) {
   assert.equal(await text(page, '#unit'), 'USDT');
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
+  // Binance perpetual futures: a market of its own, priced in USDT and marked PERP.
+  assert.equal(await page.locator('#tag').count(), 0);
+  await page.locator('#admin-currency').selectOption('USDT-PERP');
+  await page.clock.runFor(3000); await live(page);
+  assert.match(await page.evaluate(() => sockets.at(-1).url), /^wss:\/\/fstream\.binance\.com\/ws\/btcusdt@ticker$/);
+  assert.equal(await text(page, '#coin'), 'BTC'); assert.equal(await text(page, '#unit'), 'USDT'); assert.equal(await text(page, '#tag'), 'PERP');
+  assert.equal(await text(page, '#price-main'), '70,000');
+  assert.equal(await text(page, '#price-source'), 'BINANCE FUTURES · BTC/USDT PERP');
+  assert.equal(await page.title(), '70,000 | BTCUSDTPERP | Coinboard');
+  assert.equal((await saved(page)).currency, 'USDT-PERP');
+  assert.equal(await boardSize(), steadySize, 'the PERP mark does not change the board size');
+  // The whole choice is readable in the settings row.
+  assert.ok(await page.locator('#admin-currency').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'the market name is not cut off');
+  await page.locator('#admin-currency').selectOption('USDT');
+  await page.clock.runFor(3000); await live(page);
+  assert.equal(await page.locator('#tag').count(), 0);
   // Escape closes and returns focus; the button hides again when idle.
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#admin-panel').count(), 0);
@@ -255,7 +271,7 @@ async function board(browser, base) {
   // Any other coin: "직접 입력…" opens a field for its ticker.
   // Coin and currency are two one-line choices.
   assert.deepEqual(await page.locator('#admin-coin option').allTextContents(), ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', '직접 입력…']);
-  assert.deepEqual(await page.locator('#admin-currency option').allTextContents(), ['원화 · 업비트', 'USDT · 바이낸스']);
+  assert.deepEqual(await page.locator('#admin-currency option').allTextContents(), ['원화 · 업비트', 'USDT · 바이낸스', 'USDT 무기한 · 바이낸스']);
   assert.equal(await page.locator('#admin-coin').inputValue(), 'BTC');
   await page.locator('#admin-coin').selectOption('__other');
   assert.equal(await page.locator('#admin-symbol').isVisible(), true);

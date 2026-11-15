@@ -4,6 +4,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { normalizeTicker } from '../lib/settings.js';
   import { PRESETS } from '../lib/presets.js';
+  import { EXCHANGES } from '../lib/exchanges/index.js';
 
   let { settings, status, wake, versionLabel, updateReady,
     onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
@@ -17,7 +18,6 @@
   // The coins the exchange lists, once known: for completion and for checking
   // a typed ticker. null while unknown, in which case anything is let through.
   let listed = $state(null);
-  const EXCHANGE_NAMES = { KRW: '업비트 원화', USDT: '바이낸스 USDT' };
   $effect(() => {
     if (!otherOpen) return;
     const currency = settings.currency;
@@ -43,7 +43,7 @@
   function applyTicker() {
     const ticker = normalizeTicker(tickerText);
     if (!ticker) { tickerError = '영문·숫자 1~20자로 입력하세요'; return; }
-    if (listed && !listed.includes(ticker)) { tickerError = `${EXCHANGE_NAMES[settings.currency]} 시장에 없는 티커입니다`; return; }
+    if (listed && !listed.includes(ticker)) { tickerError = `${EXCHANGES[settings.currency].listName} 시장에 없는 티커입니다`; return; }
     tickerError = '';
     tickerText = ticker;
     if (ticker !== settings.ticker) onTicker(ticker);
@@ -95,10 +95,9 @@
         </div>
       {/if}
       <div class="settings-row">
-        <label for="admin-currency">통화</label>
+        <label for="admin-currency">시장</label>
         <select id="admin-currency" value={settings.currency} onchange={event => onCurrency(event.currentTarget.value)}>
-          <option value="KRW">원화 · 업비트</option>
-          <option value="USDT">USDT · 바이낸스</option>
+          {#each Object.entries(EXCHANGES) as [key, exchange]}<option value={key}>{exchange.choice}</option>{/each}
         </select>
       </div>
     </div>
