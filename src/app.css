@@ -9,7 +9,6 @@ input, button {
 :root {
   /* Up and down, and their brighter flash on the price itself. */
   --up: #30d158; --down: #ff453a; --up-flash: #7ee2a0; --down-flash: #ff8a80;
-  --up-glow: rgba(48, 209, 88, 0.42); --down-glow: rgba(255, 69, 58, 0.42);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -89,7 +88,6 @@ body {
 /* The Korean convention: up is red, down is blue. */
 body[data-palette="red-blue"] {
   --up: #ff453a; --down: #4b8dff; --up-flash: #ff8a80; --down-flash: #8fb8ff;
-  --up-glow: rgba(255, 69, 58, 0.42); --down-glow: rgba(75, 141, 255, 0.45);
 }
 /* A changed digit rolls in: from below when the price rose, from above when it fell. */
 #price-text .digit { display: inline-block; }
@@ -97,14 +95,8 @@ body[data-palette="red-blue"] {
 #price-text .digit.down { animation: roll-down 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
 @keyframes roll-up { from { transform: translateY(0.3em); opacity: 0; } }
 @keyframes roll-down { from { transform: translateY(-0.3em); opacity: 0; } }
-/* A surge lights the edge of the screen and fades away. */
-#stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; }
-#stage[data-surge]::after { animation: surge 3s ease-out; }
-#stage[data-surge="up"]::after { box-shadow: inset 0 0 140px 10px var(--up-glow); }
-#stage[data-surge="down"]::after { box-shadow: inset 0 0 140px 10px var(--down-glow); }
-@keyframes surge { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  #price-text .digit, #stage[data-surge]::after { animation: none; }
+  #price-text .digit { animation: none; }
 }
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */

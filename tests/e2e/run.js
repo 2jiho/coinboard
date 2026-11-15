@@ -367,15 +367,8 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '70,010');
   assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
   assert.match(await page.locator('#price-text .digit').nth(4).getAttribute('class'), /\bup\b/);
-  // A jump of half a percent within a minute lights the edge of the screen for a moment.
-  assert.equal(await page.locator('#stage').getAttribute('data-surge'), null);
-  await page.evaluate(() => sockets.at(-1).emit({ c: '70500.00' }));
-  assert.equal(await page.locator('#stage').getAttribute('data-surge'), 'up');
-  await page.waitForTimeout(400); await page.screenshot({ path: path.join(evidence, 'board-surge.png') });
-  await page.clock.runFor(3500);
-  assert.equal(await page.locator('#stage').getAttribute('data-surge'), null);
-  await page.evaluate(() => sockets.at(-1).emit({ c: '70000.10' }));
-  assert.equal(await page.locator('#stage').getAttribute('data-surge'), null, 'quiet for a minute after a surge');
+  await page.evaluate(() => sockets.at(-1).emit());
+  assert.equal(await text(page, '#price-main'), '70,000');
   // Malformed prices never reach the board.
   await page.evaluate(() => sockets.at(-1).emit({ c: 'Infinity' }));
   assert.equal(await text(page, '#price-main'), '70,000');

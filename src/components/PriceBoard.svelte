@@ -6,7 +6,6 @@
   import { onMount } from 'svelte';
   import { priceParts, change as formatChange, direction } from '../lib/format.js';
   import { describeMarket } from '../lib/feed.js';
-  import { createSurgeDetector } from '../lib/surge.js';
 
   let { settings, tick, status, brightness, active } = $props();
 
@@ -34,33 +33,19 @@
   const market = $derived(describeMarket(settings.currency, settings.ticker));
   const tone = value => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
 
-  // When the price moves: which way (so changed digits roll in from the right
-  // side and the price flashes its colour for half a second), and whether the
-  // move is a surge (the edge of the screen lights up for three seconds).
-  // This runs before the screen is updated, so new digits are born knowing
-  // their direction.
+  // When the price moves, which way: changed digits roll in from that side and
+  // the price flashes its colour for half a second. This runs before the screen
+  // is updated, so new digits are born knowing their direction.
   let flash = $state(0);
   let trend = $state(0);
-  let surge = $state(0);
-  let lastPrice = null, flashTimer, surgeTimer;
-  const surges = createSurgeDetector();
+  let lastPrice = null, flashTimer;
   $effect.pre(() => {
     const next = tick ? tick.price : null;
-    if (next === null) {
-      clearTimeout(flashTimer); clearTimeout(surgeTimer);
-      flash = 0; trend = 0; surge = 0; lastPrice = null; surges.reset();
-      return;
-    }
+    if (next === null) { clearTimeout(flashTimer); flash = 0; trend = 0; lastPrice = null; return; }
     if (lastPrice !== null && next !== lastPrice) {
       trend = flash = next > lastPrice ? 1 : -1;
       clearTimeout(flashTimer);
       flashTimer = setTimeout(() => { flash = 0; }, 500);
-    }
-    const jump = surges.push(next, tick.receivedAt);
-    if (jump) {
-      surge = jump;
-      clearTimeout(surgeTimer);
-      surgeTimer = setTimeout(() => { surge = 0; }, 3000);
     }
     lastPrice = next;
   });
@@ -129,7 +114,7 @@
   });
 </script>
 
-<div id="stage" data-surge={surge > 0 ? 'up' : surge < 0 ? 'down' : undefined}>
+<div id="stage">
   <div id="drift" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
     <div id="container" bind:this={container} class:price-unavailable={status.unavailable}
       style:filter="brightness({brightness}%)" style:transform="scale({scale})">
