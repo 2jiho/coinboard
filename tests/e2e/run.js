@@ -49,8 +49,8 @@ async function scripted(context) {
       emit(values = {}) {
         if (this.readyState !== 1 || window.suppressTicks) return;
         const upbit = this.url.includes('upbit');
-        const data = upbit ? { type: 'ticker', code: this.market, trade_price: 98000000, signed_change_rate: -0.025, timestamp: Date.now(), ...values }
-          : { e: '24hrTicker', s: this.market, c: '70000.10', P: '2.5', E: Date.now(), ...values };
+        const data = upbit ? { type: 'ticker', code: this.market, trade_price: 98000000, signed_change_rate: -0.025, high_price: 99000000, low_price: 97000000, timestamp: Date.now(), ...values }
+          : { e: '24hrTicker', s: this.market, c: '70000.10', P: '2.5', h: '71000.00', l: '69000.00', E: Date.now(), ...values };
         this.onmessage?.({ data: upbit ? new TextEncoder().encode(JSON.stringify(data)).buffer : JSON.stringify(data) });
       }
       send(text) {
@@ -111,6 +111,9 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '9800만');
   assert.equal(await text(page, '#change'), '▼ 2.50%');
   assert.equal(await text(page, '#change-label'), '1D');
+  // The day's range: low and high at the ends, a dot where the price is between them.
+  assert.equal(await text(page, '#range-low'), 'L 9700만'); assert.equal(await text(page, '#range-high'), 'H 9900만');
+  assert.equal(await page.locator('#range-dot').evaluate(el => el.style.left), '50%');
   // The head line names the coin and the currency; the price line is digits only.
   assert.equal(await text(page, '#coin'), 'BTC'); assert.equal(await text(page, '#unit'), 'KRW');
   assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
@@ -170,6 +173,7 @@ async function board(browser, base) {
   assert.equal(await text(page, '#change'), '▲ 2.50%');
   assert.equal(await text(page, '#change-label'), '24H');
   assert.equal(await text(page, '#unit'), 'USDT');
+  assert.equal(await text(page, '#range-low'), 'L 69,000'); assert.equal(await text(page, '#range-high'), 'H 71,000');
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
   // Escape closes and returns focus; the button hides again when idle.
@@ -428,7 +432,8 @@ async function layouts(browser, base) {
     assert.ok(fills > 0.98 && fills < 1.02, s.name + ' board fills the screen: ' + fills);
     // Head, price and change are always stacked, with the price the largest line.
     const box = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, midX: r.left + r.width / 2, midY: r.top + r.height / 2, height: r.height }; }, id);
-    const [head, priceLine, foot, icon] = [await box('board-head'), await box('price-main'), await box('board-foot'), await box('icon')];
+    const [head, priceLine, foot, icon, range] = [await box('board-head'), await box('price-main'), await box('board-foot'), await box('icon'), await box('range')];
+    assert.ok(foot.top < range.top && range.height < foot.height, s.name + ' range under the change, and smaller');
     assert.ok(head.top < priceLine.top && priceLine.top < foot.top, s.name + ' stacked');
     assert.ok(priceLine.height > head.height * 1.8 && priceLine.height > foot.height * 1.8, s.name + ' price dominates');
     if (s.height > s.width) {

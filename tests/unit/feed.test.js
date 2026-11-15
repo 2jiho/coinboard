@@ -195,3 +195,19 @@ test('Binance error replies in either shape stop retries', async () => {
     f.advance(60000); assert.equal(f.sockets.length, 1);
   }
 });
+test('ticks carry the day high and low from each exchange', async () => {
+  const f = fixture(); f.feed.select('KRW', 'BTC'); f.sockets[0].open();
+  await f.message(f.tick('KRW', { high_price: 99000000, low_price: 97000000 }));
+  assert.equal(f.ticks[0].high, 99000000); assert.equal(f.ticks[0].low, 97000000);
+  const g = fixture(); g.feed.select('USDT', 'BTC'); g.sockets[0].open();
+  await g.message(g.tick('USDT', { h: '71000.00', l: '69000.00' }));
+  assert.equal(g.ticks[0].high, 71000); assert.equal(g.ticks[0].low, 69000);
+});
+test('a missing or nonsensical high/low is dropped without losing the price', async () => {
+  for (const odd of [{}, { h: 'NaN', l: '69000' }, { h: '69000', l: '71000' }, { h: '0', l: '0' }, { h: null, l: null }]) {
+    const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open();
+    await f.message(f.tick('USDT', odd));
+    assert.equal(f.ticks.length, 1, JSON.stringify(odd)); assert.equal(f.ticks[0].price, 70000.1);
+    assert.equal(f.ticks[0].high, null); assert.equal(f.ticks[0].low, null);
+  }
+});

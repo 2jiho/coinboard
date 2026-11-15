@@ -154,7 +154,10 @@ export function createMarketFeed(options) {
         if (eventTime < lastEventTime) return;
         lastEventTime = eventTime;
         lastMessageAt = clock.now();
-        last = { price: price, change: change, eventTime: eventTime, receivedAt: lastMessageAt, selection: current };
+        // The range is an extra: if it is missing or makes no sense, the price still counts.
+        var high = message.high, low = message.low;
+        if (!(Number.isFinite(high) && Number.isFinite(low) && low > 0 && high >= low)) high = low = null;
+        last = { price: price, change: change, high: high, low: low, eventTime: eventTime, receivedAt: lastMessageAt, selection: current };
         gotTick = everTicked = true; silentAttempts = 0;
         onTick(last);
         failures = 0;
