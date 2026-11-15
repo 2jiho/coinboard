@@ -24,16 +24,18 @@ export const upbit = {
   listedTicker(entry) { return typeof entry.market === "string" && entry.market.startsWith("KRW-") ? entry.market.slice(4) : null; },
   // How the market is written for people.
   pair(ticker) { return `KRW-${ticker}`; },
+  // One connection carries every KRW market on the board.
   url() { return "wss://api.upbit.com/websocket/v1"; },
-  // Frames to send once the socket is open.
-  subscribe(market, id) {
-    return [JSON.stringify([{ ticket: `coinboard-${id}` }, { type: "ticker", codes: [market] }, { format: "DEFAULT" }])];
+  // Frames to send once the socket is open: one subscription for all the markets.
+  subscribe(markets, id) {
+    return [JSON.stringify([{ ticket: `coinboard-${id}` }, { type: "ticker", codes: markets }, { format: "DEFAULT" }])];
   },
   // One decoded message -> { type: "tick" | "alive" | "error" | "restart" } or null to ignore.
-  read(data, market) {
+  // A tick names its market; the feed drops markets it did not ask for.
+  read(data) {
     if (data.error) return { type: "error", code: data.error.name };
     if (data.status === "UP") return { type: "alive" };
-    if (data.type !== "ticker" || data.code !== market) return null;
-    return { type: "tick", price: number(data.trade_price), change: number(data.signed_change_rate) * 100, eventTime: number(data.timestamp) };
+    if (data.type !== "ticker" || typeof data.code !== "string") return null;
+    return { type: "tick", market: data.code, price: number(data.trade_price), change: number(data.signed_change_rate) * 100, eventTime: number(data.timestamp) };
   },
 };

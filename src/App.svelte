@@ -4,8 +4,8 @@
   import { onMount, tick as flushed } from 'svelte';
   import PriceBoard from './components/PriceBoard.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
-  import { createSettings } from './lib/settings.js';
-  import { createMarketFeed, describeMarket } from './lib/feed.js';
+  import { createSettings, sameAsset, MAX_ASSETS } from './lib/settings.js';
+  import { createBoardFeed, describeMarket } from './lib/feed.js';
   import { createWakeLock } from './lib/wake-lock.js';
   import { createUpdater } from './lib/updater.js';
   import { describeState } from './lib/status.js';
@@ -25,8 +25,11 @@
 
   let settings = $state(store.get());
   let previewBrightness = $state(null);
-  let tick = $state(null);
-  let feedState = $state(null);
+  // Per asset, keyed by assetKey: the price on screen and the feed's state.
+  let ticks = $state.raw({});
+  let feedStates = $state.raw({});
+  // The asset the settings panel is editing.
+  let selected = $state(0);
   let now = $state(Date.now());
   let visible = $state(document.visibilityState === 'visible');
   let wake = $state({ kind: 'pending', message: '', canRetry: false });
@@ -37,11 +40,27 @@
   let toast = $state('');
   let toggleButton;
   let feed, wakeLock, updater, controls, toastTimer, cursorTimer;
-  // Prices can arrive several times a second. The screen takes one at most
-  // every three seconds, the latest, so the digits are not forever in motion.
-  const display = createSteady({ intervalMs: 3000, onValue(next) { tick = next; } });
+  const assetKey = asset => `${asset.currency}:${asset.ticker}`;
+  // Prices can arrive several times a second. Each asset's place on the screen
+  // takes one at most every three seconds, the latest, so the digits are not
+  // forever in motion.
+  const displays = new Map();
+  function displayFor(key) {
+    let display = displays.get(key);
+    if (!display) {
+      display = createSteady({ intervalMs: 3000, onValue(next) { ticks = { ...ticks, [key]: next }; } });
+      displays.set(key, display);
+    }
+    return display;
+  }
 
-  const status = $derived(describeState(feedState, now));
+  const statuses = $derived(settings.assets.map(asset => describeState(feedStates[assetKey(asset)] ?? null, now)));
+  const assetTicks = $derived(settings.assets.map(asset => ticks[assetKey(asset)] ?? null));
+  // The settings panel speaks of the asset it is editing.
+  const status = $derived(statuses[Math.min(selected, statuses.length - 1)]);
+  // The worst of all: one asset in trouble is enough to say so.
+  const RANK = { ok: 0, warn: 1, bad: 2 };
+  const worst = $derived(statuses.reduce((level, next) => RANK[next.level] > RANK[level] ? next.level : level, 'ok'));
   // The installed offline copy normally matches the page. Say so only when it
   // does not: that is a board still showing an older page.
   const versionLabel = $derived(cache.state === 'unsupported' ? `버전 ${version} · 오프라인 실행 미지원`
@@ -53,10 +72,13 @@
   // Only a lost or refused wake lock counts; a device without the feature is
   // reported in the settings panel alone.
   const wakeLost = $derived(wake.kind === 'released' || wake.kind === 'failed');
-  const level = $derived(status.level === 'ok' && wakeLost ? 'warn' : status.level);
+  const level = $derived(worst === 'ok' && wakeLost ? 'warn' : worst);
+  // One asset: where it comes from and how it is. Several: a line each.
   const tip = $derived.by(() => {
-    const market = describeMarket(settings.currency, settings.ticker);
-    return [`${market.label} · ${market.pair}`, status.title, wakeLost ? 'SCREEN MAY SLEEP' : ''].filter(Boolean).join('\n');
+    const markets = settings.assets.map(asset => describeMarket(asset.currency, asset.ticker));
+    const lines = markets.length === 1 ? [`${markets[0].label} · ${markets[0].pair}`, statuses[0].title]
+      : markets.map((market, index) => `${market.symbol} · ${statuses[index].title}`);
+    return [...lines, wakeLost ? 'SCREEN MAY SLEEP' : ''].filter(Boolean).join('\n');
   });
   // A mouse shows the detail by hovering, and that is all: a click pins nothing.
   // Touch has no hover, so a tap opens it; it closes after a few seconds, on a
@@ -72,8 +94,8 @@
     tipTimer = setTimeout(hideTip, 4000);
   }
 
-  // The browser tab shows the price as well, at the same pace as the board.
-  $effect(() => { document.title = tabTitle(describeMarket(settings.currency, settings.ticker), tick); });
+  // The browser tab shows the first asset's price, at the same pace as the board.
+  $effect(() => { document.title = tabTitle(describeMarket(settings.assets[0].currency, settings.assets[0].ticker), assetTicks[0]); });
   $effect(() => {
     document.body.classList.toggle('controls-visible', controlsVisible);
     document.body.classList.toggle('settings-open', panelOpen);
@@ -97,12 +119,45 @@
     if (!saved) showToast('설정을 저장하지 못했습니다. 이번 실행에만 적용됩니다.');
   }
   function applySelection() {
-    // Clear the old amount before another source is connected.
-    display.reset();
-    tick = null;
-    feed.select(settings.currency, settings.ticker);
+    // Forget prices of assets no longer shown, so one that comes back starts afresh.
+    const keys = new Set(settings.assets.map(assetKey));
+    for (const [key, display] of displays) if (!keys.has(key)) { display.reset(); displays.delete(key); }
+    ticks = Object.fromEntries(Object.entries(ticks).filter(([key]) => keys.has(key)));
+    feedStates = Object.fromEntries(Object.entries(feedStates).filter(([key]) => keys.has(key)));
+    selected = Math.min(selected, settings.assets.length - 1);
+    feed.select(settings.assets);
   }
-  function changeSelection(patch) { save(patch); applySelection(); }
+  function changeAssets(assets) { save({ assets }); applySelection(); }
+  // Change the asset being edited. '' when done, or why not.
+  function changeAsset(patch) {
+    const next = { ...settings.assets[selected], ...patch };
+    if (settings.assets.some((asset, index) => index !== selected && sameAsset(asset, next))) return '이미 표시 중인 자산입니다';
+    changeAssets(settings.assets.map((asset, index) => index === selected ? next : asset));
+    return '';
+  }
+  const canAdd = $derived(settings.assets.length < MAX_ASSETS);
+  // A new asset, chosen in the add form. '' when added, or why not.
+  function addAsset(next) {
+    if (settings.assets.length >= MAX_ASSETS) return '';
+    if (settings.assets.some(asset => sameAsset(asset, next))) return '이미 표시 중인 자산입니다';
+    changeAssets([...settings.assets, next]);
+    selected = settings.assets.length - 1;
+    return '';
+  }
+  // Move an asset up (-1) or down (+1); the one being edited stays chosen.
+  function moveAsset(index, step) {
+    const target = index + step;
+    if (target < 0 || target >= settings.assets.length) return;
+    const assets = [...settings.assets];
+    [assets[index], assets[target]] = [assets[target], assets[index]];
+    if (selected === index) selected = target; else if (selected === target) selected = index;
+    changeAssets(assets);
+  }
+  function removeAsset(index) {
+    if (settings.assets.length <= 1) return;
+    if (selected >= index && selected > 0) selected -= 1;
+    changeAssets(settings.assets.filter((_, position) => position !== index));
+  }
 
   function openPanel() { panelOpen = true; controls.reveal(); controls.touch(); }
   // returnFocus is false for a tap outside, which is a way of leaving.
@@ -117,10 +172,16 @@
   }
 
   onMount(() => {
-    feed = createMarketFeed({
+    feed = createBoardFeed({
       online: navigator.onLine, pacer,
-      onTick(next) { if (next.selection.currency === settings.currency && next.selection.ticker === settings.ticker) display.push(next); },
-      onState(next) { feedState = next; },
+      onTick(next) {
+        const key = assetKey(next.selection);
+        if (settings.assets.some(asset => assetKey(asset) === key)) displayFor(key).push(next);
+      },
+      onState(next) {
+        const key = assetKey(next.selection);
+        if (settings.assets.some(asset => assetKey(asset) === key)) feedStates = { ...feedStates, [key]: next };
+      },
     });
     applySelection();
     wakeLock = createWakeLock({ navigator, document, window, onChange(next) { wake = next; } });
@@ -148,7 +209,7 @@
       visible = value;
       // Back in view with a feed that is not live: reconnect now rather than
       // wait out a backoff that began while nobody was looking.
-      if (value && feedState && feedState.kind !== 'live') feed.retry();
+      if (value && Object.values(feedStates).some(state => state.kind !== 'live')) feed.retry();
     }
     const listeners = [
       [document, 'visibilitychange', () => setVisible(document.visibilityState === 'visible')],
@@ -167,17 +228,22 @@
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
       clearTimeout(toastTimer); clearTimeout(cursorTimer); clearTimeout(tipTimer);
-      controls.dispose(); feed.dispose(); wakeLock.dispose(); display.reset();
+      controls.dispose(); feed.dispose(); wakeLock.dispose(); for (const display of displays.values()) display.reset();
     };
   });
 </script>
 
 {#if panelOpen}
   <div id="scrim"></div>
-  <SettingsPanel {settings} {status} {wake} {versionLabel} {updateReady}
+  <SettingsPanel {settings} {selected} {canAdd} {status} {wake} {versionLabel} {updateReady}
     onClose={closePanel}
-    onCurrency={currency => { if (currency !== settings.currency) changeSelection({ currency }); }}
-    onTicker={ticker => changeSelection({ ticker })}
+    onSelect={index => { selected = index; }}
+    onAdd={addAsset}
+    onColumns={columns => save({ columns })}
+    onRemove={removeAsset}
+    onMove={moveAsset}
+    onCurrency={currency => currency === settings.assets[selected].currency ? '' : changeAsset({ currency })}
+    onTicker={ticker => ticker === settings.assets[selected].ticker ? '' : changeAsset({ ticker })}
     onBrightnessPreview={value => { previewBrightness = value; }}
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
     onBurnIn={burnIn => save({ burnIn })}
@@ -192,4 +258,4 @@
 </button>
 <div id="toast" class:show={!!toast} role="status">{toast}</div>
 <div id="status-dot" data-level={level} class:show={tipShown} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
-<PriceBoard {settings} {tick} {status} brightness={previewBrightness ?? settings.brightness} active={visible} />
+<PriceBoard {settings} ticks={assetTicks} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />

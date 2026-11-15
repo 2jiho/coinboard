@@ -31,6 +31,10 @@ export function describeMarket(currency, ticker) {
     market: exchange.market(ticker), pair: exchange.pair(ticker), changeLabel: exchange.changeLabel };
 }
 
+// One connection to one exchange (one market kind: KRW, USDT, USDT-PERP),
+// carrying every coin the board shows there. States are reported per coin:
+// the connection's state, except that a coin which has sent nothing on a live
+// connection is still waiting.
 export function createMarketFeed(options) {
   options = options || {};
   const WS = options.WebSocket || globalThis.WebSocket;
@@ -42,11 +46,20 @@ export function createMarketFeed(options) {
   const onState = options.onState || (() => {});
   const random = options.random || Math.random;
   const staleMs = options.staleMs || 15000;
-  let selection = null, socket = null, generation = 0, last = null;
+  // The coins, in order, and the same keyed by exchange market name.
+  let currency = null, selections = [], byMarket = new Map();
+  // Per coin: its latest price, whether it has ever sent one since it was
+  // chosen, and whether it stayed silent on a connection where others spoke.
+  let lasts = new Map(), everTicked = new Set(), unanswered = new Set();
+  let socket = null, generation = 0;
   let retryTimer = null, healthTimer = null, heartbeatTimer = null;
   let failures = 0, active = options.active !== false, online = options.online !== false, disposed = false;
-  // Connections in a row that timed out before this selection ever sent a price.
-  let silentAttempts = 0, everTicked = false;
+  // Connections in a row that timed out before any coin sent a price.
+  let silentAttempts = 0;
+  // The connection's own state; each coin's is derived from it.
+  let connection = { kind: "paused", cause: null, reason: "", retryAt: null };
+  // Coins that have sent a price on the current connection.
+  let tickedNow = new Set();
   // Requests to an exchange are spaced out, here and for the coin list alike.
   let pacer = options.pacer;
   if (!pacer) {
@@ -55,10 +68,17 @@ export function createMarketFeed(options) {
     pacer = createPacer({ now: clock.now, store });
   }
 
+  function report(selection) {
+    const market = selection.market;
+    const kind = connection.kind === "live" && !tickedNow.has(market) ? "waiting" : connection.kind;
+    onState({ kind, cause: connection.cause, reason: connection.reason, retryAt: connection.retryAt, selection,
+      last: lasts.get(market) || null,
+      tickerSuspect: !everTicked.has(market) && (silentAttempts >= 2 || unanswered.has(market)) });
+  }
   // cause: a key of REASONS, "exchange-error", or null when nothing is wrong.
   function emit(kind, cause, retryAt, detail) {
-    onState({ kind, cause: cause || null, reason: detail || REASONS[cause] || "", retryAt: retryAt || null, selection, last,
-      tickerSuspect: !everTicked && silentAttempts >= 2 });
+    connection = { kind, cause: cause || null, reason: detail || REASONS[cause] || "", retryAt: retryAt || null };
+    selections.forEach(report);
   }
   function clearTimers() {
     if (retryTimer !== null) clock.clearTimeout(retryTimer);
@@ -69,6 +89,7 @@ export function createMarketFeed(options) {
   function disconnect() {
     generation++;
     clearTimers();
+    tickedNow = new Set();
     const old = socket;
     socket = null;
     if (old) {
@@ -76,8 +97,8 @@ export function createMarketFeed(options) {
       try { old.close(); } catch (_) {}
     }
   }
-  function eligible() { return !disposed && active && online && !!selection; }
-  function rateWait() { return pacer.waitFor(selection.currency); }
+  function eligible() { return !disposed && active && online && selections.length > 0; }
+  function rateWait() { return pacer.waitFor(currency); }
   function schedule(delay, cause) {
     if (!eligible()) { emit(!online ? "offline" : "paused", cause); return; }
     delay = Math.max(delay || 0, rateWait());
@@ -102,52 +123,62 @@ export function createMarketFeed(options) {
   function connect() {
     if (!eligible()) return;
     if (rateWait() > 0) { schedule(0); return; }
-    const current = selection, exchange = EXCHANGES[current.currency];
+    const exchange = EXCHANGES[currency], wanted = byMarket, markets = [...byMarket.keys()];
     const token = generation;
-    let startedAt = clock.now(), gotTick = false;
+    const startedAt = clock.now();
+    let firstTickAt = null;
     // Liveness is judged by when this device received something, never by
     // comparing the exchange's clock with ours. Exchange event times only
-    // order ticks within one connection.
-    let lastMessageAt = startedAt, lastEventTime = -Infinity;
-    pacer.mark(current.currency);
+    // order ticks within one connection, coin by coin.
+    let lastMessageAt = startedAt;
+    const lastEventTime = new Map();
+    pacer.mark(currency);
     emit("connecting");
-    let connection;
+    let ws;
     try {
-      connection = new WS(exchange.url(current.market));
-      connection.binaryType = "arraybuffer";
+      ws = new WS(exchange.url(markets));
+      ws.binaryType = "arraybuffer";
     } catch (error) { fail("connect-failed"); return; }
-    socket = connection;
-    function isCurrent() { return token === generation && socket === connection && eligible(); }
+    socket = ws;
+    function isCurrent() { return token === generation && socket === ws && eligible(); }
     healthTimer = clock.setInterval(() => {
       if (!isCurrent()) return;
-      if (!gotTick && clock.now() - startedAt >= staleMs) {
+      const now = clock.now();
+      if (firstTickAt === null && now - startedAt >= staleMs) {
         silentAttempts++;
         fail("timeout");
-      } else if (gotTick && clock.now() - lastMessageAt >= staleMs) {
+      } else if (firstTickAt !== null && now - lastMessageAt >= staleMs) {
         fail("stale");
+      } else if (firstTickAt !== null && now - firstTickAt >= staleMs) {
+        // The connection works but a coin has said nothing since: perhaps no
+        // such market. It keeps its place; the status says to check it.
+        for (const selection of selections) {
+          const market = selection.market;
+          if (!tickedNow.has(market) && !everTicked.has(market) && !unanswered.has(market)) { unanswered.add(market); report(selection); }
+        }
       }
     }, 1000);
-    connection.onopen = () => {
+    ws.onopen = () => {
       if (!isCurrent()) return;
       emit("waiting");
       try {
-        exchange.subscribe(current.market, `${startedAt}-${token}`).forEach((frame) => { connection.send(frame); });
-        if (exchange.heartbeat) connection.send(exchange.heartbeat);
+        exchange.subscribe(markets, `${startedAt}-${token}`).forEach((frame) => { ws.send(frame); });
+        if (exchange.heartbeat) ws.send(exchange.heartbeat);
       } catch (error) { fail("subscribe-failed"); return; }
       if (exchange.heartbeat) {
         heartbeatTimer = clock.setInterval(() => {
-          if (isCurrent() && connection.readyState === WS.OPEN) {
-            try { connection.send(exchange.heartbeat); } catch (_) { fail("heartbeat-failed"); }
+          if (isCurrent() && ws.readyState === WS.OPEN) {
+            try { ws.send(exchange.heartbeat); } catch (_) { fail("heartbeat-failed"); }
           }
         }, exchange.heartbeatMs);
       }
     };
-    connection.onmessage = async (event) => {
+    ws.onmessage = async (event) => {
       if (!isCurrent()) return;
       try {
         const data = await decode(event.data);
         if (!isCurrent()) return; // Includes a Blob decoding across a switch.
-        const message = exchange.read(data, current.market);
+        const message = exchange.read(data);
         if (!message) return;
         if (message.type === "error") {
           if (message.code === "TOO_MANY_REQUEST") { fail("rate-limited", 30000); return; }
@@ -157,32 +188,50 @@ export function createMarketFeed(options) {
         }
         if (message.type === "restart") { fail("restart"); return; }
         if (message.type === "alive") { lastMessageAt = clock.now(); return; }
+        const selection = wanted.get(message.market);
+        if (!selection) return;
         const price = message.price, change = message.change, eventTime = message.eventTime;
         if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(change) ||
             !Number.isFinite(eventTime) || eventTime <= 0) return;
-        if (eventTime < lastEventTime) return;
-        lastEventTime = eventTime;
+        if (eventTime < (lastEventTime.get(message.market) ?? -Infinity)) return;
+        lastEventTime.set(message.market, eventTime);
         lastMessageAt = clock.now();
-        last = { price, change, eventTime, receivedAt: lastMessageAt, selection: current };
-        gotTick = everTicked = true; silentAttempts = 0;
+        if (firstTickAt === null) firstTickAt = lastMessageAt;
+        const last = { price, change, eventTime, receivedAt: lastMessageAt, selection };
+        lasts.set(message.market, last);
+        tickedNow.add(message.market); everTicked.add(message.market); unanswered.delete(message.market);
+        silentAttempts = 0; failures = 0;
         onTick(last);
-        failures = 0;
-        emit("live");
+        if (connection.kind !== "live") emit("live"); else report(selection);
       } catch (error) {
         // Corrupt payloads do not mark prices fresh. The watchdog will recover.
         if (isCurrent() && options.onError) options.onError(error);
       }
     };
-    connection.onerror = () => { if (isCurrent()) fail("network"); };
-    connection.onclose = () => { if (isCurrent()) fail("closed"); };
+    ws.onerror = () => { if (isCurrent()) fail("network"); };
+    ws.onclose = () => { if (isCurrent()) fail("closed"); };
   }
-  function select(currency, ticker) {
-    ticker = (ticker || "BTC").toUpperCase();
-    if (!Object.hasOwn(EXCHANGES, currency) || !/^[A-Z0-9]{1,20}$/.test(ticker)) throw new Error("Invalid market selection");
-    if (selection && selection.currency === currency && selection.ticker === ticker) return;
+  // tickers: one ticker or a list; the order is kept.
+  function select(nextCurrency, tickers) {
+    const list = [...new Set((Array.isArray(tickers) ? tickers : [tickers || "BTC"]).map((ticker) => String(ticker).toUpperCase()))];
+    if (!Object.hasOwn(EXCHANGES, nextCurrency) || list.length === 0 || !list.every((ticker) => /^[A-Z0-9]{1,20}$/.test(ticker))) {
+      throw new Error("Invalid market selection");
+    }
+    if (nextCurrency === currency && list.join() === selections.map((selection) => selection.ticker).join()) return;
+    // The same coins in another order: nothing to ask the exchange, only the
+    // order in which states are reported changes.
+    if (nextCurrency === currency && [...list].sort().join() === selections.map((selection) => selection.ticker).sort().join()) {
+      selections = list.map((ticker) => byMarket.get(describeMarket(currency, ticker).market));
+      return;
+    }
     disconnect();
-    selection = describeMarket(currency, ticker); last = null; failures = 0;
-    silentAttempts = 0; everTicked = false;
+    const next = list.map((ticker) => describeMarket(nextCurrency, ticker));
+    const kept = new Set(nextCurrency === currency ? next.map((selection) => selection.market) : []);
+    // Coins that stay keep their last price; anything else starts afresh.
+    for (const market of [...lasts.keys()]) if (!kept.has(market)) lasts.delete(market);
+    for (const set of [everTicked, unanswered]) for (const market of [...set]) if (!kept.has(market)) set.delete(market);
+    currency = nextCurrency; selections = next; byMarket = new Map(next.map((selection) => [selection.market, selection]));
+    failures = 0; silentAttempts = 0;
     schedule(0);
   }
   function setActive(value) {
@@ -199,7 +248,39 @@ export function createMarketFeed(options) {
   }
   return {
     select, setActive, setOnline,
+    // Whether the connection is delivering prices.
+    get live() { return connection.kind === "live"; },
     retry() { if (eligible()) { disconnect(); schedule(0); } },
     dispose() { disposed = true; disconnect(); },
+  };
+}
+
+// The whole board: a list of { currency, ticker }, possibly mixing markets.
+// Each market kind gets one connection carrying all its coins, so the board
+// never holds more than one connection per exchange stream.
+export function createBoardFeed(options) {
+  options = options || {};
+  const feeds = new Map();
+  let active = options.active !== false, online = options.online !== false;
+  return {
+    select(assets) {
+      const groups = new Map();
+      for (const asset of assets) {
+        if (!groups.has(asset.currency)) groups.set(asset.currency, []);
+        groups.get(asset.currency).push(asset.ticker);
+      }
+      for (const [currency, feed] of feeds) if (!groups.has(currency)) { feed.dispose(); feeds.delete(currency); }
+      for (const [currency, tickers] of groups) {
+        let feed = feeds.get(currency);
+        if (!feed) { feed = createMarketFeed({ ...options, active, online }); feeds.set(currency, feed); }
+        feed.select(currency, tickers);
+      }
+    },
+    setActive(value) { active = !!value; for (const feed of feeds.values()) feed.setActive(value); },
+    setOnline(value) { online = !!value; for (const feed of feeds.values()) feed.setOnline(value); },
+    // Only connections that are not delivering: a working one is left alone,
+    // which matters most for Upbit's one request in ten seconds.
+    retry() { for (const feed of feeds.values()) if (!feed.live) feed.retry(); },
+    dispose() { for (const feed of feeds.values()) feed.dispose(); feeds.clear(); },
   };
 }

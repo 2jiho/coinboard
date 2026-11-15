@@ -29,16 +29,23 @@ function binanceMarket(options) {
     // (futures also list dated contracts such as "BTCUSDT_270326").
     listUrl: options.listUrl,
     listedTicker(entry) { return typeof entry.symbol === "string" && entry.symbol.endsWith("USDT") ? entry.symbol.slice(0, -4) : null; },
-    url(market) { return `${options.stream}/ws/${market.toLowerCase()}@ticker`; },
-    // The stream is chosen by the URL; nothing to send.
+    // The streams are chosen by the URL; nothing to send. One market is a raw
+    // stream; several are one combined stream, whose messages come wrapped as
+    // { stream, data }.
+    url(markets) {
+      const streams = markets.map((market) => `${market.toLowerCase()}@ticker`);
+      return streams.length === 1 ? `${options.stream}/ws/${streams[0]}` : `${options.stream}/stream?streams=${streams.join("/")}`;
+    },
     subscribe() { return []; },
-    read(data, market) {
+    // A tick names its market; the feed drops markets it did not ask for.
+    read(data) {
+      if (data && typeof data.stream === "string" && data.data && typeof data.data === "object") data = data.data;
       // Errors arrive bare ({ code, msg }) or wrapped ({ error: { code, msg } }).
       if (data.error) return { type: "error", code: String(data.error.code !== undefined ? data.error.code : data.error.name || "UNKNOWN") };
       if (data.code !== undefined && data.msg) return { type: "error", code: String(data.code) };
       if (data.e === "serverShutdown") return { type: "restart" };
-      if (data.e !== "24hrTicker" || data.s !== market) return null;
-      return { type: "tick", price: number(data.c), change: number(data.P), eventTime: number(data.E) };
+      if (data.e !== "24hrTicker" || typeof data.s !== "string") return null;
+      return { type: "tick", market: data.s, price: number(data.c), change: number(data.P), eventTime: number(data.E) };
     },
   };
 }
