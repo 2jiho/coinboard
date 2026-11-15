@@ -140,9 +140,13 @@ async function board(browser, base) {
   assert.equal(await repo.getAttribute('href'), 'https://github.com/2jiho/coinboard');
   assert.equal(await repo.getAttribute('target'), '_blank');
   assert.match(await repo.getAttribute('rel'), /noopener/);
-  // It carries the GitHub mark and still has a name for screen readers.
-  assert.equal(await repo.locator('svg.brand').count(), 1);
-  assert.match(await repo.textContent(), /GitHub/);
+  // Just the GitHub mark, with its name kept for screen readers.
+  assert.equal(await repo.locator('svg').count(), 1);
+  assert.equal((await repo.textContent()).trim(), '');
+  assert.equal(await repo.getAttribute('aria-label'), 'GitHub 저장소');
+  await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
+  const mark = await repo.boundingBox();
+  assert.ok(mark.width >= 44 && mark.height >= 44, 'the icon is still a full-size touch target');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
   assert.deepEqual(await page.locator('#admin-panel h3').allTextContents(), ['시세', '화면', '앱']);
