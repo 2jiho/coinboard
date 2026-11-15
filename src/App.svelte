@@ -9,6 +9,7 @@
   import { createWakeLock } from './lib/wake-lock.js';
   import { createUpdater } from './lib/updater.js';
   import { describeState } from './lib/status.js';
+  import { tabTitle } from './lib/format.js';
   import { createQuietControls } from './lib/quiet-controls.js';
   import { createMarketList } from './lib/markets.js';
   import { createPacer } from './lib/pace.js';
@@ -71,6 +72,8 @@
     tipTimer = setTimeout(hideTip, 4000);
   }
 
+  // The browser tab shows the price as well, at the same pace as the board.
+  $effect(() => { document.title = tabTitle(settings.ticker, settings.currency, tick); });
   $effect(() => {
     document.body.classList.toggle('controls-visible', controlsVisible);
     document.body.classList.toggle('settings-open', panelOpen);

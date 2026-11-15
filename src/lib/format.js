@@ -54,3 +54,10 @@ export function change(value) {
   if (sign === 0) return "0.00%";
   return `${(sign > 0 ? "▲ " : "▼ ") + Math.abs(value).toFixed(2)}%`;
 }
+// For the browser tab: "8996만 | BTC", or "BTC | Coinboard" before a price
+// arrives. The price comes first, since a narrow tab shows only the start.
+export function tabTitle(ticker, currency, tick) {
+  if (!tick) return `${ticker} | Coinboard`;
+  const amount = priceParts(currency, tick.price).pieces.map((piece) => piece.number + piece.mark).join(" ");
+  return `${amount} | ${ticker}`;
+}

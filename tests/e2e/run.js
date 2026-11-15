@@ -120,6 +120,8 @@ async function board(browser, base) {
   assert.equal(await page.evaluate(() => sockets.length), 1);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   assert.equal(await page.locator('#admin-panel').count(), 0);
+  // The browser tab carries the price too.
+  assert.equal(await page.title(), '9800만 | BTC');
   // The board is set in Pretendard, shipped with the app: the same letterforms on every device.
   await page.evaluate(() => document.fonts.ready);
   assert.match(await page.locator('#price-main').evaluate(el => getComputedStyle(el).fontFamily), /^"?Pretendard"?,/);
@@ -202,6 +204,7 @@ async function board(browser, base) {
   await page.locator('#admin-currency').selectOption('USDT');
   assert.equal(await text(page, '#price-main'), '—');
   assert.equal(await boardSize(), steadySize, 'no price yet: same size');
+  assert.equal(await page.title(), 'BTC | Coinboard');
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-main'), '70,000');
@@ -414,6 +417,7 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '70,030', 'still held');
   await page.clock.runFor(1100);
   assert.equal(await text(page, '#price-main'), '70,050', 'then the latest price, skipping the one in between');
+  assert.equal(await page.title(), '70,050 | ETH', 'the tab title keeps pace with the board');
   await page.evaluate(() => sockets.at(-1).quote());
   await page.clock.runFor(3100);
   assert.equal(await text(page, '#price-main'), '70,000');
