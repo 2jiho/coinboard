@@ -9,6 +9,7 @@
   import { createWakeLock } from './lib/wake-lock.js';
   import { createUpdater } from './lib/updater.js';
   import { describeState } from './lib/status.js';
+  import { tabTitle } from './lib/format.js';
   import { createQuietControls } from './lib/quiet-controls.js';
   import { createMarketList } from './lib/markets.js';
   import { createPacer } from './lib/pace.js';
@@ -71,6 +72,8 @@
     tipTimer = setTimeout(hideTip, 4000);
   }
 
+  // The browser tab shows the price as well, at the same pace as the board.
+  $effect(() => { document.title = tabTitle(settings.ticker, settings.currency, tick); });
   $effect(() => {
     document.body.classList.toggle('controls-visible', controlsVisible);
     document.body.classList.toggle('settings-open', panelOpen);
@@ -115,7 +118,7 @@
 
   onMount(() => {
     feed = createMarketFeed({
-      active: visible, online: navigator.onLine, pacer,
+      online: navigator.onLine, pacer,
       onTick(next) { if (next.selection.currency === settings.currency && next.selection.ticker === settings.ticker) display.push(next); },
       onState(next) { feedState = next; },
     });
@@ -138,12 +141,20 @@
       onPanelIdle() { closePanel(false); },
     });
 
-    function setVisible(value) { visible = value; feed.setActive(value); }
+    // Being hidden (another tab in front) does not disconnect: the price in the
+    // tab title stays live. Only leaving the page does. What "visible" governs
+    // is the board's own activity: its countdown and its burn-in drift.
+    function setVisible(value) {
+      visible = value;
+      // Back in view with a feed that is not live: reconnect now rather than
+      // wait out a backoff that began while nobody was looking.
+      if (value && feedState && feedState.kind !== 'live') feed.retry();
+    }
     const listeners = [
       [document, 'visibilitychange', () => setVisible(document.visibilityState === 'visible')],
       [document, 'pointerdown', event => { if (tipShown && !event.target.closest('#status-dot')) hideTip(); }],
-      [window, 'pagehide', () => setVisible(false)],
-      [window, 'pageshow', () => setVisible(document.visibilityState === 'visible')],
+      [window, 'pagehide', () => { visible = false; feed.setActive(false); }],
+      [window, 'pageshow', () => { feed.setActive(true); setVisible(document.visibilityState === 'visible'); }],
       [window, 'online', () => feed.setOnline(true)],
       [window, 'offline', () => feed.setOnline(false)],
       // Hide the mouse pointer on an idle fullscreen board.

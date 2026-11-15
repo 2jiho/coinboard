@@ -45,3 +45,14 @@ test('reset drops what was held and starts over: the next value is shown at once
   f.steady.push('new coin'); assert.deepEqual(f.shown, ['a', 'new coin']);
   f.advance(10000); assert.deepEqual(f.shown, ['a', 'new coin']);
 });
+test('a late timer does not hold a value back: once the three seconds are up, the next arrival shows at once', () => {
+  // A hidden tab's timers may be slowed to one a minute, but prices keep arriving.
+  const f = fixture(); f.steady.push('a');
+  f.advance(1000); f.steady.push('b');
+  // Time passes without the timer having fired (simulated by pushing "later" on the same clock).
+  let late = 0; const slow = createSteady({ intervalMs: 3000, now: () => late, onValue: v => f.shown.push('slow:' + v), timers: { setTimeout: () => 1, clearTimeout() {} } });
+  slow.push('x'); late = 1000; slow.push('y'); assert.deepEqual(f.shown.slice(-1), ['slow:x']);
+  late = 3500; slow.push('z');
+  assert.deepEqual(f.shown.slice(-1), ['slow:z'], 'shown on arrival, the stalled timer notwithstanding');
+  late = 4000; slow.push('w'); assert.deepEqual(f.shown.slice(-1), ['slow:z'], 'and the pace still holds afterwards');
+});

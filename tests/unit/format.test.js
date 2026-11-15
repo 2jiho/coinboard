@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { price, priceParts, change, direction } from '../../src/lib/format.js';
+import { price, priceParts, change, direction, tabTitle } from '../../src/lib/format.js';
 test('large won prices are written the Korean way, in 억 and 만', () => {
   assert.equal(price('KRW', 123400000), '1억 2340만 KRW');
   assert.equal(price('KRW', 123456789), '1억 2346만 KRW');
@@ -68,4 +68,12 @@ test('change shows its direction as an arrow, readable without colour', () => {
 test('a change that rounds to zero carries no arrow and no direction', () => {
   for (const tiny of [-0.004, 0, 0.004]) { assert.equal(change(tiny), '0.00%'); assert.equal(direction(tiny), 0); }
   assert.equal(direction(0.005), 1); assert.equal(direction(-0.02), -1);
+});
+test('the tab title is the price, the market (coin and currency together) and the app name', () => {
+  assert.equal(tabTitle('BTC', 'KRW', { price: 89960000, change: 1.234 }), '8996만 | BTCKRW | Coinboard');
+  assert.equal(tabTitle('BTC', 'KRW', { price: 123400000, change: 0 }), '1억 2340만 | BTCKRW | Coinboard');
+  assert.equal(tabTitle('ETH', 'USDT', { price: 3457.82, change: -0.96 }), '3,458 | ETHUSDT | Coinboard');
+});
+test('with no price yet the tab title is the ticker and the app name', () => {
+  assert.equal(tabTitle('BTC', 'KRW', null), 'BTCKRW | Coinboard');
 });
