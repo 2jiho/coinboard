@@ -63,8 +63,6 @@ body {
   #container { flex-direction: column; gap: 40px; }
   #icon { width: 150px; height: 150px; }
   #board-text { align-items: center; width: 780px; }
-  #price-main { text-align: center; }
-  #price-text { transform-origin: center; }
 }
 /* The price zone: full width of the column and one fixed height (the line
    height leaves room for the comma's tail above the change line). */
@@ -85,6 +83,12 @@ body {
 #change .arrow { display: inline-block; margin-right: 0.22em; font-size: 0.62em; transform: translateY(-0.12em); }
 #change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 #container.price-unavailable #price-main { opacity: 0.55; }
+/* Portrait again, after the rules it overrides: the price is centred in its
+   zone and shrinks towards its centre. */
+@media (orientation: portrait) {
+  #price-main { text-align: center; }
+  #price-text { transform-origin: center; }
+}
 
 /* The status dot: a 10px light in the bottom-left corner inside a full-size
    touch target, with the detail in a small card on hover or tap. */

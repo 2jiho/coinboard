@@ -10,11 +10,13 @@
   import { createUpdater } from './lib/updater.js';
   import { describeState } from './lib/status.js';
   import { createQuietControls } from './lib/quiet-controls.js';
+  import { createMarketList } from './lib/markets.js';
 
   const version = __APP_VERSION__;
   // Storage can throw on access (private mode): run on defaults without it.
   function storage(name) { try { return window[name]; } catch { return null; } }
   const store = createSettings(storage('localStorage'));
+  const markets = createMarketList({ fetch: (url) => window.fetch(url) });
 
   let settings = $state(store.get());
   let previewBrightness = $state(null);
@@ -155,7 +157,8 @@
     onBurnIn={burnIn => save({ burnIn })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}
-    onUpdate={() => updater.reload()} />
+    onUpdate={() => updater.reload()}
+    loadTickers={currency => markets.load(currency)} />
 {/if}
 <button id="settings-toggle" bind:this={toggleButton} type="button" aria-label="설정 열기" aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>

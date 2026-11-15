@@ -14,6 +14,9 @@ export const binance = {
   heartbeatMs: 0,
   market(ticker) { return `${ticker}USDT`; },
   pair(ticker) { return `${ticker}/USDT`; },
+  // A price for every symbol Binance trades; the USDT ones are "<ticker>USDT".
+  listUrl: "https://api.binance.com/api/v3/ticker/price",
+  listedTicker(entry) { return typeof entry.symbol === "string" && entry.symbol.endsWith("USDT") ? entry.symbol.slice(0, -4) : null; },
   url(market) { return `wss://stream.binance.com:443/ws/${market.toLowerCase()}@ticker`; },
   // The stream is chosen by the URL; nothing to send.
   subscribe() { return []; },

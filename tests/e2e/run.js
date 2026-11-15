@@ -398,8 +398,11 @@ async function board(browser, base) {
   assert.equal(await page.evaluate(() => sessionStorage.getItem('coinboard-auto-reload')), NEXT_VERSION);
   flags.nextWorker = false;
 
-  // Everything the board loads comes from its own address.
-  assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:')), []);
+  // Everything the board loads comes from its own address; the only calls out
+  // are the exchanges' coin lists, asked for when the ticker field is opened.
+  const LISTS = ['https://api.upbit.com/v1/market/all', 'https://api.binance.com/api/v3/ticker/price'];
+  assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:') && !LISTS.includes(url)), []);
+  assert.ok(requests.filter(url => LISTS.includes(url)).length <= 8, 'coin lists are asked for a handful of times, not polled');
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS board: rest state, keyboard, wake lock recovery, currency/ticker, immediate settings, delay/suspect/offline/error, automatic update');
@@ -450,6 +453,45 @@ async function carriedSettings(browser, base) {
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(60%)');
   await context.close();
   console.log('PASS carried settings: settings saved by btc-price-kiosk are picked up');
+}
+
+async function coinList(browser, base) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
+  let asked = 0;
+  await context.route('https://api.upbit.com/v1/market/all', route => {
+    asked++;
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify([{ market: 'KRW-BTC' }, { market: 'KRW-ETH' }, { market: 'KRW-LINK' }, { market: 'BTC-ETH' }]) });
+  });
+  const page = await context.newPage(); const problems = watch(page);
+  await page.goto(base); await live(page);
+  assert.equal(asked, 0, 'the list is not fetched until someone wants to type a ticker');
+  await open(page);
+  await page.locator('#admin-coin').selectOption('__other');
+  // The field completes from the coins the exchange really lists.
+  await page.waitForFunction(() => document.querySelectorAll('#ticker-list option').length === 3);
+  assert.deepEqual(await page.locator('#ticker-list option').evaluateAll(options => options.map(option => option.value)), ['BTC', 'ETH', 'LINK']);
+  assert.equal(await page.locator('#admin-symbol').getAttribute('list'), 'ticker-list');
+  // A ticker the exchange does not list is refused at once, with the reason.
+  await page.locator('#admin-symbol').fill('nope'); await page.locator('#admin-symbol').press('Enter');
+  assert.equal(await text(page, '#admin-symbol-error'), '업비트 원화 시장에 없는 티커입니다');
+  assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
+  // One it does list is applied.
+  await page.locator('#admin-symbol').fill('link'); await page.locator('#admin-symbol').press('Enter');
+  assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-LINK');
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'LINK');
+  // Opening the field again does not ask the exchange again.
+  await page.locator('#admin-coin').selectOption('__other');
+  await page.waitForFunction(() => document.querySelectorAll('#ticker-list option').length === 3);
+  assert.equal(asked, 1);
+  // The other exchange's list could not be had (blocked here): any ticker is let through, as before.
+  await page.locator('#admin-currency').selectOption('USDT');
+  await page.locator('#admin-coin').selectOption('__other');
+  await page.locator('#admin-symbol').fill('nope'); await page.locator('#admin-symbol').press('Enter');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · NOPE/USDT');
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS coin list: completion and checking from the exchange, fetched once on demand, optional when unavailable');
 }
 
 async function offlineShell(browser, base) {
@@ -515,7 +557,8 @@ async function layouts(browser, base) {
     if (s.height > s.width) {
       // Portrait: the icon sits on top and everything is centred.
       assert.ok(icon.top < head.top, s.name + ' icon on top');
-      for (const row of [icon, head, foot]) assert.ok(Math.abs(row.midX - priceLine.midX) < 2, s.name + ' centred');
+      for (const row of [icon, head, foot, await box('price-text')]) assert.ok(Math.abs(row.midX - priceLine.midX) < 2, s.name + ' centred');
+      assert.ok(Math.abs(priceLine.midX - (s.left + (s.width - s.left - s.right) / 2)) <= s.width * 0.03 + 2, s.name + ' centred on the screen');
     } else {
       // Landscape: a large icon to the left, level with the price; the text lines share a left edge.
       assert.ok(icon.right < priceLine.left, s.name + ' icon to the left');
@@ -583,7 +626,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://localhost:${server.address().port}/coinboard/`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 try {
-  for (const scenario of [board, idleUpdate, lockedStorage, carriedSettings, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, idleUpdate, lockedStorage, carriedSettings, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;
