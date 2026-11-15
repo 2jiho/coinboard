@@ -8,7 +8,7 @@ input, button {
 }
 :root {
   /* Up and down, and their brighter flash on the price itself. */
-  --up: #30d158; --down: #ff453a; --up-flash: #7ee2a0; --down-flash: #ff8a80;
+  --up: #30d158; --down: #ff453a; --up-flash: #cdf3d8; --down-flash: #ffd6d2;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -68,13 +68,14 @@ body {
 }
 /* The price zone: full width of the column and one fixed height (the line
    height leaves room for the comma's tail above the change line). */
-#price-main { align-self: stretch; text-align: left; margin-top: 16px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; color: #fff; transition: color 0.5s ease-out; }
+#price-main { align-self: stretch; text-align: left; margin-top: 16px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; color: #fff; transition: color 1.2s ease-out; }
 /* The price itself; scaled down from its left edge when it is too long for the zone. */
 #price-text { display: inline-block; transform-origin: left center; }
 /* 억 and 만 are units, so they are smaller and quieter than the figures. */
 #price-main .mark { margin-left: 0.04em; font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: #a1a1a6; }
-#price-main.up { color: var(--up-flash); transition: none; }
-#price-main.down { color: var(--down-flash); transition: none; }
+/* A move tints the price faintly and lets it fade back: a breath, not a flash. */
+#price-main.up { color: var(--up-flash); transition: color 0.25s ease-out; }
+#price-main.down { color: var(--down-flash); transition: color 0.25s ease-out; }
 /* The exchange and market are not drawn. They stay in the page for screen readers. */
 #price-source { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 #board-foot { display: flex; align-items: baseline; gap: 22px; margin-top: 26px; font-size: 72px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
@@ -87,14 +88,15 @@ body {
 #container.price-unavailable #price-main { opacity: 0.55; }
 /* The Korean convention: up is red, down is blue. */
 body[data-palette="red-blue"] {
-  --up: #ff453a; --down: #4b8dff; --up-flash: #ff8a80; --down-flash: #8fb8ff;
+  --up: #ff453a; --down: #4b8dff; --up-flash: #ffd6d2; --down-flash: #d3e3ff;
 }
 /* A changed digit rolls in: from below when the price rose, from above when it fell. */
 #price-text .digit { display: inline-block; }
-#price-text .digit.up { animation: roll-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
-#price-text .digit.down { animation: roll-down 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
-@keyframes roll-up { from { transform: translateY(0.3em); opacity: 0; } }
-@keyframes roll-down { from { transform: translateY(-0.3em); opacity: 0; } }
+/* Gently: a short distance, never fully invisible, and slow to settle. */
+#price-text .digit.up { animation: roll-up 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+#price-text .digit.down { animation: roll-down 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes roll-up { from { transform: translateY(0.1em); opacity: 0.45; } }
+@keyframes roll-down { from { transform: translateY(-0.1em); opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) {
   #price-text .digit { animation: none; }
 }
