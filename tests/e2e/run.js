@@ -46,8 +46,11 @@ async function scripted(context) {
           this.timer = setInterval(() => this.emit(), 1000);
         }, 0);
       }
+      // quote(values) makes every following ticker carry those values; quote() goes back to the usual ones.
+      quote(values = null) { this.fixed = values; this.emit(); }
       emit(values = {}) {
         if (this.readyState !== 1 || window.suppressTicks) return;
+        values = { ...(this.fixed || {}), ...values };
         const upbit = this.url.includes('upbit');
         const data = upbit ? { type: 'ticker', code: this.market, trade_price: 98000000, signed_change_rate: -0.025, timestamp: Date.now(), ...values }
           : { e: '24hrTicker', s: this.market, c: '70000.10', P: '2.5', E: Date.now(), ...values };
@@ -202,7 +205,9 @@ async function board(browser, base) {
   // A much longer price than usual shrinks inside its own zone; nothing else changes size.
   const zoneOf = id => page.locator(id).evaluate(el => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height }; });
   const [zoneBefore, changeBefore] = [await zoneOf('#price-main'), await zoneOf('#change')];
-  await page.evaluate(() => sockets.at(-1).emit({ c: '0.000012345678' }));
+  // The screen takes a new price at most once every three seconds.
+  await page.evaluate(() => sockets.at(-1).quote({ c: '0.000012345678' }));
+  await page.clock.runFor(3100);
   assert.equal(await text(page, '#price-main'), '0.00001235');
   assert.equal(await boardSize(), steadySize, 'a very long price: same board size');
   await page.waitForFunction(() => document.getElementById('price-text').style.transform !== 'scale(1)');
@@ -212,7 +217,8 @@ async function board(browser, base) {
   const same = (a, b) => Math.abs(a - b) < 0.5;
   assert.ok(same((await zoneOf('#price-main')).height, zoneBefore.height), 'price zone keeps its height');
   assert.ok(same((await zoneOf('#change')).height, changeBefore.height), 'change keeps its size');
-  await page.evaluate(() => sockets.at(-1).emit());
+  await page.evaluate(() => sockets.at(-1).quote());
+  await page.clock.runFor(3100);
   assert.equal(await text(page, '#price-main'), '70,000');
   // A usual price goes back to full size.
   await page.waitForFunction(() => document.getElementById('price-text').style.transform === 'scale(1)');
@@ -358,7 +364,8 @@ async function board(browser, base) {
   const digits = () => page.locator('#price-text .digit').allTextContents();
   assert.deepEqual(await digits(), ['7', '0', ',', '0', '0', '0']);
   await page.evaluate(() => { for (const el of document.querySelectorAll('#price-text .digit')) el.dataset.seen = '1'; });
-  await page.evaluate(() => sockets.at(-1).emit({ c: '70010.00' }));
+  await page.evaluate(() => sockets.at(-1).quote({ c: '70010.00' }));
+  await page.clock.runFor(3100);
   assert.equal(await text(page, '#price-main'), '70,010');
   assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
   assert.match(await page.locator('#price-text .digit').nth(4).getAttribute('class'), /\bup\b/);
@@ -377,7 +384,8 @@ async function board(browser, base) {
   assert.deepEqual((await moving()).map(state => state.replace('*', '')), ['still', 'still', 'still', 'still', 'up', 'still']);
   assert.deepEqual((await moving()).filter(state => state.endsWith('*')).length <= 1, true, 'at most the changed digit is animating');
   await page.evaluate(() => { for (const el of document.querySelectorAll('#price-text .digit')) el.dataset.seen = '1'; });
-  await page.evaluate(() => sockets.at(-1).emit({ c: '70000.10' }));
+  await page.evaluate(() => sockets.at(-1).quote({ c: '70000.10' }));
+  await page.clock.runFor(3100);
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
   assert.deepEqual((await moving()).map(state => state.replace('*', '')), ['still', 'still', 'still', 'still', 'down', 'still'], 'a change of direction moves only the changed digit');
@@ -385,7 +393,23 @@ async function board(browser, base) {
   assert.deepEqual(await pushed(), ['', '', '', '', '1', '']);
   assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'push-down');
   assert.deepEqual((await moving()).filter(state => state.endsWith('*')).length <= 1, true);
-  await page.evaluate(() => sockets.at(-1).emit());
+  await page.evaluate(() => sockets.at(-1).quote());
+  // Prices that arrive faster than that are not all drawn: the screen waits
+  // out its three seconds and then shows the latest one.
+  await page.clock.runFor(3100);
+  await page.evaluate(() => sockets.at(-1).quote({ c: '70020.00' }));
+  await page.evaluate(() => sockets.at(-1).quote({ c: '70030.00' }));
+  await page.clock.runFor(3100);
+  assert.equal(await text(page, '#price-main'), '70,030');
+  await page.evaluate(() => sockets.at(-1).quote({ c: '70040.00' }));
+  await page.evaluate(() => sockets.at(-1).quote({ c: '70050.00' }));
+  assert.equal(await text(page, '#price-main'), '70,030', 'held: less than three seconds since the last change');
+  await page.clock.runFor(2000);
+  assert.equal(await text(page, '#price-main'), '70,030', 'still held');
+  await page.clock.runFor(1100);
+  assert.equal(await text(page, '#price-main'), '70,050', 'then the latest price, skipping the one in between');
+  await page.evaluate(() => sockets.at(-1).quote());
+  await page.clock.runFor(3100);
   assert.equal(await text(page, '#price-main'), '70,000');
   // Malformed prices never reach the board.
   await page.evaluate(() => sockets.at(-1).emit({ c: 'Infinity' }));

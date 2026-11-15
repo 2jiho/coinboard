@@ -12,6 +12,7 @@
   import { createQuietControls } from './lib/quiet-controls.js';
   import { createMarketList } from './lib/markets.js';
   import { createPacer } from './lib/pace.js';
+  import { createSteady } from './lib/steady.js';
 
   const version = __APP_VERSION__;
   // Storage can throw on access (private mode): run on defaults without it.
@@ -35,6 +36,9 @@
   let toast = $state('');
   let toggleButton;
   let feed, wakeLock, updater, controls, toastTimer, cursorTimer;
+  // Prices can arrive several times a second. The screen takes one at most
+  // every three seconds, the latest, so the digits are not forever in motion.
+  const display = createSteady({ intervalMs: 3000, onValue(next) { tick = next; } });
 
   const status = $derived(describeState(feedState, now));
   // The installed offline copy normally matches the page. Say so only when it
@@ -91,6 +95,7 @@
   }
   function applySelection() {
     // Clear the old amount before another source is connected.
+    display.reset();
     tick = null;
     feed.select(settings.currency, settings.ticker);
   }
@@ -111,7 +116,7 @@
   onMount(() => {
     feed = createMarketFeed({
       active: visible, online: navigator.onLine, pacer,
-      onTick(next) { if (next.selection.currency === settings.currency && next.selection.ticker === settings.ticker) tick = next; },
+      onTick(next) { if (next.selection.currency === settings.currency && next.selection.ticker === settings.ticker) display.push(next); },
       onState(next) { feedState = next; },
     });
     applySelection();
@@ -151,7 +156,7 @@
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
       clearTimeout(toastTimer); clearTimeout(cursorTimer); clearTimeout(tipTimer);
-      controls.dispose(); feed.dispose(); wakeLock.dispose();
+      controls.dispose(); feed.dispose(); wakeLock.dispose(); display.reset();
     };
   });
 </script>
