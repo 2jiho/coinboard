@@ -3,6 +3,7 @@
   // field that needs a decision, because typing is not choosing.
   import { onMount, untrack } from 'svelte';
   import { normalizeTicker } from '../lib/settings.js';
+  import { PRESETS } from '../lib/presets.js';
 
   let { settings, status, wake, versionLabel, updateReady,
     onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onDebug, onRetryFeed, onRetryWake, onUpdate } = $props();
@@ -12,9 +13,6 @@
   let tickerText = $state(untrack(() => settings.ticker));
   let tickerError = $state(false);
   let brightness = $state(untrack(() => settings.brightness));
-
-  // Listed on both Upbit (KRW) and Binance (USDT).
-  const PRESETS = ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA'];
 
   function applyTicker() {
     const ticker = normalizeTicker(tickerText);

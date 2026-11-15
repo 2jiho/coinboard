@@ -14,8 +14,8 @@
   const FILL = { width: 0.86, landscapeHeight: 0.6, portraitHeight: 0.72 };
   const EDGE = 16;
 
-  const iconSrc = $derived(settings.ticker === 'BTC' ? './bitcoin-btc-logo.svg'
-    : `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${settings.ticker.toLowerCase()}.svg`);
+  // Icons ship with the app in public/coins. A coin without one shows its ticker instead.
+  const iconSrc = $derived(`./coins/${settings.ticker.toLowerCase()}.svg`);
   let failedIcon = $state(null);
   const iconFailed = $derived(failedIcon === iconSrc);
 
@@ -94,8 +94,7 @@
       {#if iconFailed}
         <div id="icon-fallback">{settings.ticker.slice(0, 5)}</div>
       {:else}
-        <img id="icon" src={iconSrc} alt="{settings.ticker} logo" crossorigin={iconSrc.startsWith('https:') ? 'anonymous' : undefined}
-          onerror={() => { failedIcon = iconSrc; }} />
+        <img id="icon" src={iconSrc} alt="{settings.ticker} logo" onerror={() => { failedIcon = iconSrc; }} />
       {/if}
       <div>
         <p id="price-main" class={tone(flash)} aria-live="polite" aria-atomic="true">{parts.digits}{#if parts.unit}<span class="unit">{' ' + parts.unit}</span>{/if}</p>

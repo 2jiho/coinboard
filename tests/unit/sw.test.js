@@ -6,7 +6,9 @@ import vm from 'node:vm';
 const scope = 'https://example.test/coinboard/';
 const source = fs.readFileSync(new URL('../../src/sw.js', import.meta.url), 'utf8')
   .replace('"__APP_VERSION__"', '"1.2.3"').replace('"__SHELL_FILES__"', '["index.html","assets/app-abc.js"]');
-const ICON = 'https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/eth.svg';
+// Icons ship with the app. The common ones are in the shell; the rest are
+// fetched from the app's own coins/ folder when first shown.
+const ICON = scope + 'coins/link.svg';
 
 // stores: cache name -> Map(url -> Response). fetch: what the network answers.
 function fixture(stores, fetch) {
@@ -48,7 +50,7 @@ test('files outside the shell, other apps and non-GET requests are left alone', 
   assert.equal(f.request(scope + 'not-in-shell.txt'), undefined);
   assert.equal(f.request('https://example.test/another-app/index.html'), undefined);
   assert.equal(f.request('https://api.upbit.com/v1/ticker'), undefined);
-  assert.equal(f.request('https://cdn.jsdelivr.net/npm/something-else@1/x.js'), undefined);
+  assert.equal(f.request('https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/eth.svg'), undefined);
   assert.equal(f.request(scope + 'index.html', 'POST'), undefined);
 });
 test('a coin icon is downloaded once and then kept for offline use', async () => {

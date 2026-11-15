@@ -207,6 +207,9 @@ async function board(browser, base) {
   await page.locator('#ticker-presets [data-ticker="ETH"]').click();
   assert.equal((await saved(page)).ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
+  // The coin's own icon ships with the app; no outside server is asked.
+  await page.waitForFunction(() => { const icon = document.getElementById('icon'); return icon && icon.complete && icon.naturalWidth > 0; });
+  assert.match(await page.locator('#icon').getAttribute('src'), /^\.\/coins\/eth\.svg$/);
   // Text typed but not applied is thrown away when the panel closes.
   await page.locator('#admin-symbol').fill('SOL'); await page.locator('#admin-close').click();
   await open(page); assert.equal(await page.locator('#admin-symbol').inputValue(), 'ETH');
@@ -278,6 +281,8 @@ async function board(browser, base) {
   await page.locator('#admin-symbol').fill('NOPE'); await page.locator('#admin-symbol-apply').click();
   await page.clock.runFor(40000);
   assert.equal(await text(page, '#overlay-title'), 'CHECK TICKER');
+  // A coin without an icon shows its ticker in the icon's place.
+  assert.equal(await text(page, '#icon-fallback'), 'NOPE');
   assert.match(await text(page, '#overlay-msg'), /지원하지 않는 티커일 수 있습니다/);
   // Being offline is the more useful thing to say than doubting the ticker.
   await context.setOffline(true);
@@ -302,7 +307,8 @@ async function board(browser, base) {
   assert.equal(await page.evaluate(() => sessionStorage.getItem('coinboard-auto-reload')), NEXT_VERSION);
   flags.nextWorker = false;
 
-  assert.equal(requests.some(url => /frankfurter|currency-api/.test(url)), false);
+  // Everything the board loads comes from its own address.
+  assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:')), []);
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS board: rest state, keyboard, wake lock recovery, currency/ticker, immediate settings, delay/suspect/offline/error, automatic update');
@@ -368,7 +374,9 @@ async function offlineShell(browser, base) {
     return (await (await caches.open(name)).keys()).map(request => new URL(request.url).pathname.replace('/coinboard/', ''));
   }, VERSION);
   const built = fs.readdirSync(dist, { recursive: true }).map(file => String(file).split(path.sep).join('/'))
-    .filter(file => fs.statSync(path.join(dist, file)).isFile() && file !== 'sw.js');
+    .filter(file => fs.statSync(path.join(dist, file)).isFile() && file !== 'sw.js')
+    // Of the coin icons, only the preset coins are installed up front.
+    .filter(file => !file.startsWith('coins/') || ['btc', 'eth', 'xrp', 'sol', 'doge', 'ada'].includes(path.basename(file, '.svg')));
   assert.deepEqual(cached.sort(), built.sort());
   await context.setOffline(true);
   for (const entry of ['', 'index.html', '?source=home']) {

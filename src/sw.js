@@ -29,12 +29,11 @@ self.addEventListener("activate", function (event) {
     await self.clients.claim();
   })());
 });
-// Coin icons come from a CDN. Each one is kept after its first download so a
-// board showing another coin still has its icon when offline. This cache is
-// not tied to the app version.
+// Coin icons ship with the app in coins/. The common ones are part of the
+// shell; any other is kept after its first download so it is there offline.
+// This cache is not tied to the app version: icons do not change with releases.
 const ICON_CACHE = "coinboard-icons:v1";
-const ICON_ORIGIN = "https://cdn.jsdelivr.net";
-const ICON_PATH = "/npm/cryptocurrency-icons@";
+const ICON_PREFIX = new URL("coins/", SCOPE).href;
 
 async function fromCache(cacheKey) {
   const cache = await caches.open(CACHE_NAME);
@@ -60,11 +59,11 @@ self.addEventListener("fetch", function (event) {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin === ICON_ORIGIN && url.pathname.startsWith(ICON_PATH)) { event.respondWith(iconFirst(request)); return; }
   if (url.origin !== SCOPE.origin || !url.pathname.startsWith(SCOPE.pathname)) return;
   const isAppHTML = url.pathname === SCOPE.pathname || url.pathname === new URL(INDEX_URL).pathname;
   // Root and index share one stored page, including navigation query strings.
   if (isAppHTML) event.respondWith(cacheFirst(request, INDEX_URL));
   else if (SHELL_URLS.includes(url.href)) event.respondWith(cacheFirst(request, url.href));
+  else if (url.href.startsWith(ICON_PREFIX)) event.respondWith(iconFirst(request));
   // Live market sockets are never stored.
 });
