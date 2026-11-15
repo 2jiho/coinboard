@@ -210,7 +210,19 @@ async function board(browser, base) {
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
   await page.locator('#admin-debug').check();
-  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', debug: true, brightness: 50 });
+  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', debug: true, brightness: 50, burnIn: true });
+  // Burn-in protection keeps the board near the middle; switched off, exactly in the middle.
+  const drift = () => page.locator('#drift').evaluate(el => (el.style.transform.match(/-?[\d.]+(?=px)/g) || []).map(Number));
+  await page.clock.runFor(62000);
+  const [driftX, driftY] = await drift();
+  assert.ok(Math.abs(driftX) <= 1024 * 0.03 && Math.abs(driftY) <= 768 * 0.03, `drift stays near the centre: ${driftX}, ${driftY}`);
+  assert.ok(driftX !== 0 || driftY !== 0, 'the board does move');
+  await page.locator('#admin-burn-in').uncheck();
+  assert.deepEqual(await drift(), [0, 0]);
+  assert.equal((await saved(page)).burnIn, false);
+  await page.clock.runFor(62000);
+  assert.deepEqual(await drift(), [0, 0]);
+  await page.locator('#admin-burn-in').check();
   // A tap outside the panel closes it and keeps what was applied.
   await page.touchscreen.tap(20, 20);
   assert.equal(await page.locator('#admin-panel').count(), 0);

@@ -6,6 +6,10 @@
 
   let { settings, tick, status, notice, brightness, active } = $props();
 
+  // Burn-in protection moves the board only a little: far enough to rest the
+  // pixels, not far enough to look off-centre. A share of each screen side.
+  const DRIFT = 0.03;
+
   // How much of the screen the board may take; the rest is room to float in.
   const FILL = { width: 0.86, landscapeHeight: 0.6, portraitHeight: 0.72 };
   const EDGE = 16;
@@ -55,7 +59,8 @@
       height * (portrait ? FILL.portraitHeight : FILL.landscapeHeight) / container.offsetHeight);
     if (!Number.isFinite(next) || next <= 0) return;
     scale = next;
-    room = { x: Math.max(0, (width - container.offsetWidth * next) / 2 - EDGE), y: Math.max(0, (height - container.offsetHeight * next) / 2 - EDGE) };
+    room = { x: Math.min(width * DRIFT, Math.max(0, (width - container.offsetWidth * next) / 2 - EDGE)),
+      y: Math.min(height * DRIFT, Math.max(0, (height - container.offsetHeight * next) / 2 - EDGE)) };
     gliding = false;
     offset = { x: within(offset.x, room.x), y: within(offset.y, room.y) };
   }
@@ -68,9 +73,11 @@
     return () => { observer.disconnect(); window.removeEventListener('resize', fit); };
   });
 
-  // Burn-in protection: once a minute pick a new spot anywhere in the free
-  // space; the CSS transition makes the move take the whole minute.
+  // Burn-in protection: once a minute pick a new spot close to the centre; the
+  // CSS transition makes the move take the whole minute. Switched off, the
+  // board sits exactly in the middle.
   $effect(() => {
+    if (!settings.burnIn) { gliding = false; offset = { x: 0, y: 0 }; return; }
     if (!active) return;
     const wander = () => { gliding = true; offset = { x: (Math.random() * 2 - 1) * room.x, y: (Math.random() * 2 - 1) * room.y }; };
     const start = setTimeout(wander, 1000);

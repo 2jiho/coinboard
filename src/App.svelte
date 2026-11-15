@@ -168,6 +168,7 @@
     onTicker={ticker => changeSelection({ ticker })}
     onBrightnessPreview={value => { previewBrightness = value; }}
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
+    onBurnIn={burnIn => save({ burnIn })}
     onDebug={debug => save({ debug })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}

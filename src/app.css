@@ -106,7 +106,8 @@ body {
 .ticker-row { display: flex; align-items: center; gap: 8px; }
 #admin-symbol[aria-invalid="true"] { outline: 2px solid #b88d8d; }
 #admin-symbol-error { color: #c99191; font-size: 12px; margin: 0; text-align: right; }
-#admin-debug { width: 22px; height: 22px; margin: 0; accent-color: #b9b9b9; }
+#admin-debug, #admin-burn-in { width: 22px; height: 22px; margin: 0; flex: none; accent-color: #b9b9b9; }
+#admin-panel label .hint { display: block; margin-top: 2px; font-size: 11px; color: #777; }
 #admin-symbol { width: 96px; min-height: 44px; padding: 10px; box-sizing: border-box; border: 0; border-radius: 9px; background: #252525; color: #eee; font: inherit; }
 .brightness-row { display: flex; align-items: center; gap: 8px; }
 .brightness-row input { width: 140px; accent-color: #b9b9b9; }

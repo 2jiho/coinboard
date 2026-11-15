@@ -5,7 +5,7 @@
   import { normalizeTicker } from '../lib/settings.js';
 
   let { settings, status, wake, versionLabel, updateReady,
-    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onDebug, onRetryFeed, onRetryWake, onUpdate } = $props();
+    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onDebug, onRetryFeed, onRetryWake, onUpdate } = $props();
 
   let panel, closeButton;
   // The panel starts from the saved values and then holds what is being typed.
@@ -81,6 +81,10 @@
           oninput={() => onBrightnessPreview(Number(brightness))} onchange={() => onBrightness(Number(brightness))} />
         <span id="brightness-value">{brightness}%</span>
       </div>
+    </div>
+    <div class="settings-row">
+      <label for="admin-burn-in">번인 방지 <span class="hint">가운데 근처에서 천천히 움직임</span></label>
+      <input type="checkbox" id="admin-burn-in" checked={settings.burnIn} onchange={event => onBurnIn(event.currentTarget.checked)} />
     </div>
     <p id="wake-lock-status" role="status" aria-live="polite">{wake.message}</p>
     <button id="wake-lock-retry" type="button" hidden={!wake.canRetry} onclick={onRetryWake}>화면 켜짐 유지 다시 시도</button>
