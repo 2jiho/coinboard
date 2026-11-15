@@ -54,10 +54,12 @@ export function change(value) {
   if (sign === 0) return "0.00%";
   return `${(sign > 0 ? "▲ " : "▼ ") + Math.abs(value).toFixed(2)}%`;
 }
-// For the browser tab: "8996만 | BTC | Coinboard", or "BTC | Coinboard" before a price
-// arrives. The price comes first, since a narrow tab shows only the start.
+// For the browser tab: "8996만 | BTCKRW | Coinboard", or "BTCKRW | Coinboard"
+// before a price arrives. The price comes first, since a narrow tab shows only
+// the start; the market is written the way traders do, coin and currency together.
 export function tabTitle(ticker, currency, tick) {
-  if (!tick) return `${ticker} | Coinboard`;
+  const market = ticker + currency;
+  if (!tick) return `${market} | Coinboard`;
   const amount = priceParts(currency, tick.price).pieces.map((piece) => piece.number + piece.mark).join(" ");
-  return `${amount} | ${ticker} | Coinboard`;
+  return `${amount} | ${market} | Coinboard`;
 }

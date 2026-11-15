@@ -13,6 +13,14 @@ export function createSteady(options) {
     push(value) {
       const wait = shownAt + intervalMs - now();
       if (wait <= 0 && !holding) { show(value); return; }
+      // The time is up but the timer has not fired (a hidden tab's timers can
+      // be slowed to one a minute): show this one now and drop the timer.
+      if (wait <= 0) {
+        if (timer !== null) timers.clearTimeout(timer);
+        timer = null; holding = false;
+        show(value);
+        return;
+      }
       held = value;
       if (holding) return;
       holding = true;

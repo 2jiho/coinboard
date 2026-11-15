@@ -121,7 +121,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   assert.equal(await page.locator('#admin-panel').count(), 0);
   // The browser tab carries the price too.
-  assert.equal(await page.title(), '9800만 | BTC | Coinboard');
+  assert.equal(await page.title(), '9800만 | BTCKRW | Coinboard');
   // The board is set in Pretendard, shipped with the app: the same letterforms on every device.
   await page.evaluate(() => document.fonts.ready);
   assert.match(await page.locator('#price-main').evaluate(el => getComputedStyle(el).fontFamily), /^"?Pretendard"?,/);
@@ -204,7 +204,7 @@ async function board(browser, base) {
   await page.locator('#admin-currency').selectOption('USDT');
   assert.equal(await text(page, '#price-main'), '—');
   assert.equal(await boardSize(), steadySize, 'no price yet: same size');
-  assert.equal(await page.title(), 'BTC | Coinboard');
+  assert.equal(await page.title(), 'BTCUSDT | Coinboard');
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-main'), '70,000');
@@ -345,7 +345,24 @@ async function board(browser, base) {
   await page.clock.runFor(11000);
   assert.equal(await page.locator('#admin-panel').count(), 0);
 
-  // Background: sockets close; coming back waits for a fresh price.
+  // Looking at another tab does not disconnect: the price in the tab title stays live.
+  const hide = hidden => page.evaluate(hidden => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => hidden ? 'hidden' : 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, hidden);
+  const openSockets = () => page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length);
+  const socketsBefore = await page.evaluate(() => sockets.length);
+  await hide(true);
+  assert.equal(await openSockets(), 1, 'still connected while hidden');
+  await page.evaluate(() => sockets.at(-1).quote({ c: '71234.00' }));
+  await page.clock.runFor(3100);
+  assert.equal(await page.title(), '71,234 | ETHUSDT | Coinboard', 'the title follows the price while hidden');
+  await hide(false);
+  assert.equal(await page.evaluate(() => sockets.length), socketsBefore, 'coming back to a live board does not reconnect');
+  await page.evaluate(() => sockets.at(-1).quote()); await page.clock.runFor(3100);
+  assert.equal(await text(page, '#price-main'), '70,000');
+
+  // Leaving the page altogether does close the connection; coming back waits for a fresh price.
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 0);
   await page.evaluate(() => { suppressTicks = true; window.dispatchEvent(new Event('pageshow')); });
@@ -372,6 +389,8 @@ async function board(browser, base) {
   // Each digit is its own piece, so only the ones that change roll over.
   const digits = () => page.locator('#price-text .digit').allTextContents();
   assert.deepEqual(await digits(), ['7', '0', ',', '0', '0', '0']);
+  // Let any movement from earlier price changes finish first.
+  await page.waitForFunction(() => [...document.querySelectorAll('#price-text .digit')].every(el => el.getAnimations().length === 0));
   await page.evaluate(() => { for (const el of document.querySelectorAll('#price-text .digit')) el.dataset.seen = '1'; });
   await page.evaluate(() => sockets.at(-1).quote({ c: '70010.00' }));
   await page.clock.runFor(3100);
@@ -380,7 +399,8 @@ async function board(browser, base) {
   assert.match(await page.locator('#price-text .digit').nth(4).getAttribute('class'), /\bup\b/);
   // The new digit pushes the old one out, so it knows which digit it replaces,
   // and each digit sits in a window that hides whatever is pushed past its edge.
-  const pushed = () => page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.old ?? ''));
+  // (Digits changed earlier in this run keep the mark of that change; only the new one is of interest.)
+  const pushed = () => page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen ? '' : (el.dataset.old ?? '')));
   assert.deepEqual(await pushed(), ['', '', '', '', '0', '']);
   assert.equal(await page.locator('#price-text .slot').count(), 6);
   assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el, '::before').content), '"0"');
@@ -389,7 +409,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'push-up');
   // Only that digit moves. The others carry no direction and are not animating:
   // not now, and not when the price turns round and falls.
-  const moving = () => page.locator('#price-text .digit').evaluateAll(els => els.map(el => (/\b(up|down)\b/.exec(el.className) || ['still'])[0] + (el.getAnimations().length ? '*' : '')));
+  const moving = () => page.locator('#price-text .digit').evaluateAll(els => els.map(el => (el.dataset.seen ? 'still' : (/\b(up|down)\b/.exec(el.className) || ['still'])[0]) + (el.getAnimations().length ? '*' : '')));
   assert.deepEqual((await moving()).map(state => state.replace('*', '')), ['still', 'still', 'still', 'still', 'up', 'still']);
   assert.deepEqual((await moving()).filter(state => state.endsWith('*')).length <= 1, true, 'at most the changed digit is animating');
   await page.evaluate(() => { for (const el of document.querySelectorAll('#price-text .digit')) el.dataset.seen = '1'; });
@@ -413,11 +433,10 @@ async function board(browser, base) {
   await page.evaluate(() => sockets.at(-1).quote({ c: '70040.00' }));
   await page.evaluate(() => sockets.at(-1).quote({ c: '70050.00' }));
   assert.equal(await text(page, '#price-main'), '70,030', 'held: less than three seconds since the last change');
-  await page.clock.runFor(2000);
-  assert.equal(await text(page, '#price-main'), '70,030', 'still held');
-  await page.clock.runFor(1100);
+  // (Exactly when the three seconds are up is covered by the unit tests.)
+  await page.clock.runFor(3100);
   assert.equal(await text(page, '#price-main'), '70,050', 'then the latest price, skipping the one in between');
-  assert.equal(await page.title(), '70,050 | ETH | Coinboard', 'the tab title keeps pace with the board');
+  assert.equal(await page.title(), '70,050 | ETHUSDT | Coinboard', 'the tab title keeps pace with the board');
   await page.evaluate(() => sockets.at(-1).quote());
   await page.clock.runFor(3100);
   assert.equal(await text(page, '#price-main'), '70,000');
