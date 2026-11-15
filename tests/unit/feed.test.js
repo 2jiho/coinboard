@@ -218,7 +218,7 @@ test('every state says why in a code as well as in words', async () => {
 });
 test('Binance perpetual futures: their own stream, the same ticker message, USDT prices', async () => {
   const f = fixture(); f.feed.select('USDT-PERP', 'BTC'); f.sockets[0].open();
-  assert.equal(f.sockets[0].url, 'wss://fstream.binance.com/ws/btcusdt@ticker');
+  assert.equal(f.sockets[0].url, 'wss://fstream.binance.com/market/ws/btcusdt@ticker');
   assert.deepEqual(f.sockets[0].sent, []);
   await f.message(f.tick('USDT', { c: '70111.50', P: '-1.25' }));
   assert.equal(f.ticks[0].price, 70111.5); assert.equal(f.ticks[0].change, -1.25);

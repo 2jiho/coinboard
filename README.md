@@ -115,7 +115,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 npm version patch --no-git-tag-version
 ~~~
 
-문제 수정은 `patch`, 기능 추가는 `minor`로 올립니다. 배포할 때는 반드시 올려야 설정 창의 버전 표시와 캐시 이름이 바뀝니다. 설정 창에는 평소 `버전 0.5.0`만 보이고, 화면 코드와 설치된 오프라인 사본의 버전이 다를 때만 `버전 0.5.0 · 설치된 사본 0.5.1`처럼 둘 다 표시합니다.
+문제 수정은 `patch`, 기능 추가는 `minor`로 올립니다. 배포할 때는 반드시 올려야 설정 창의 버전 표시와 캐시 이름이 바뀝니다. 설정 창에는 평소 `버전 0.5.1`만 보이고, 화면 코드와 설치된 오프라인 사본의 버전이 다를 때만 `버전 0.5.1 · 설치된 사본 0.5.2`처럼 둘 다 표시합니다.
 
 ## 테스트
 
@@ -155,4 +155,4 @@ npm run test:e2e
 - [업비트 요청 제한](https://docs.upbit.com/kr/reference/rate-limits): 브라우저(Origin 포함) 연결 요청은 10초 간격을 지킵니다.
 - [업비트 연결 관리](https://docs.upbit.com/kr/docs/websocket-best-practice): 120초 idle 종료와 PING 유지.
 - [바이낸스 시장 스트림](https://developers.binance.com/en/docs/products/spot/web-socket-streams): `wss://stream.binance.com:443/ws/<심볼>@ticker`.
-- [바이낸스 USDT 선물 스트림](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams): `wss://fstream.binance.com/ws/<심볼>@ticker`.
+- [바이낸스 USDT 선물 스트림](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams): `wss://fstream.binance.com/market/ws/<심볼>@ticker`. 2026년 4월 23일부터 경로(`/market`) 없는 예전 주소로는 시세가 오지 않습니다.
