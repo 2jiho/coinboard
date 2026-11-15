@@ -14,31 +14,46 @@ test('rounding to 만 never shows 10000만: it carries into 억', () => {
   assert.equal(price('KRW', 99996000), '1억 KRW');
   assert.equal(price('KRW', 199999999), '2억 KRW');
 });
-test('won prices under 1000만 keep every digit, so nothing meaningful is rounded away', () => {
-  assert.equal(price('KRW', 9999999), '9,999,999 KRW');
-  assert.equal(price('KRW', 4512000), '4,512,000 KRW');
-  assert.equal(price('KRW', 1234.5), '1,235 KRW');
+test('won from 100만 to 1000만 is written in 만 with one decimal', () => {
+  assert.equal(price('KRW', 4512000), '451.2만 KRW');
+  assert.equal(price('KRW', 4500000), '450.0만 KRW');
+  assert.equal(price('KRW', 1000000), '100.0만 KRW');
+  assert.equal(price('KRW', 9999400), '999.9만 KRW');
+});
+test('rounding up out of a range moves to the next range\'s way of writing', () => {
+  assert.equal(price('KRW', 9999600), '1000만 KRW');
+  assert.equal(price('USDT', 999.96), '1,000 USDT');
+  assert.equal(price('USDT', 9.9996), '10.00 USDT');
+});
+test('won from 100 to 100만 is written out in full', () => {
+  assert.equal(price('KRW', 152300), '152,300 KRW');
+  assert.equal(price('KRW', 3245), '3,245 KRW');
+  assert.equal(price('KRW', 215), '215 KRW');
   assert.equal(price('KRW', 100), '100 KRW');
 });
-test('USDT shows whole dollars from 100 up, cents below that', () => {
-  assert.equal(price('USDT', 70000.1), '70,000 USDT');
+test('USDT always shows at least four figures and no more decimals than that needs', () => {
+  assert.equal(price('USDT', 70123.4), '70,123 USDT');
   assert.equal(price('USDT', 3456.78), '3,457 USDT');
-  assert.equal(price('USDT', 100), '100 USDT');
-  assert.equal(price('USDT', 99.994), '99.99 USDT');
+  assert.equal(price('USDT', 1000), '1,000 USDT');
+  assert.equal(price('USDT', 152.34), '152.3 USDT');
+  assert.equal(price('USDT', 100), '100.0 USDT');
+  assert.equal(price('USDT', 98.765), '98.77 USDT');
   assert.equal(price('USDT', 12.3), '12.30 USDT');
-  assert.equal(price('USDT', 1), '1.00 USDT');
+  assert.equal(price('USDT', 2.3456), '2.346 USDT');
+  assert.equal(price('USDT', 1), '1.000 USDT');
 });
-test('sub-unit prices always show exactly four significant digits', () => {
+test('prices under 100 KRW or 1 USDT show exactly four significant digits', () => {
   assert.equal(price('KRW', 12.6), '12.60 KRW');
   assert.equal(price('KRW', 0.0123), '0.01230 KRW');
-  assert.equal(price('USDT', 0.4567), '0.4567 USDT');
+  assert.equal(price('USDT', 0.6234), '0.6234 USDT');
   assert.equal(price('USDT', 0.5), '0.5000 USDT');
   assert.equal(price('USDT', 0.00001234), '0.00001234 USDT');
 });
 test('priceParts gives the pieces to draw: numbers, their 억/만 marks, and the currency code', () => {
   assert.deepEqual(priceParts('KRW', 123400000), { pieces: [{ number: '1', mark: '억' }, { number: '2340', mark: '만' }], unit: 'KRW' });
   assert.deepEqual(priceParts('KRW', 98000000), { pieces: [{ number: '9800', mark: '만' }], unit: 'KRW' });
-  assert.deepEqual(priceParts('KRW', 4512000), { pieces: [{ number: '4,512,000', mark: '' }], unit: 'KRW' });
+  assert.deepEqual(priceParts('KRW', 4512000), { pieces: [{ number: '451.2', mark: '만' }], unit: 'KRW' });
+  assert.deepEqual(priceParts('KRW', 152300), { pieces: [{ number: '152,300', mark: '' }], unit: 'KRW' });
   assert.deepEqual(priceParts('USDT', 70000.1), { pieces: [{ number: '70,000', mark: '' }], unit: 'USDT' });
   for (const [currency, value] of [['KRW', 123400000], ['KRW', 98000000], ['KRW', 0.0123], ['USDT', 65000], ['USDT', 0.00001234]]) {
     const parts = priceParts(currency, value);
