@@ -33,11 +33,19 @@ async function scripted(context) {
   await context.route('https://**/*', route => route.abort());
   await context.addInitScript(() => {
     window.sockets = []; window.sent = []; window.suppressTicks = false;
+    // Markets that never answer (as a coin the exchange does not list would not).
+    window.silentMarkets = [];
+    // Prices by market, when a connection carries several (each coin on its
+    // own gets the usual price, which the single-coin checks expect).
+    const PRICES = { 'KRW-BTC': 98000000, BTCUSDT: '70000.10', 'KRW-ETH': 5000000, 'KRW-XRP': 3400, ETHUSDT: '3500.50', SOLUSDT: '180.25' };
     window.WebSocket = class {
       static OPEN = 1;
       constructor(url) {
         this.url = url; this.readyState = 0;
-        this.market = url.includes('upbit') ? 'KRW-BTC' : url.split('/ws/')[1].split('@')[0].toUpperCase();
+        // One raw stream, a combined one (several coins), or Upbit (coins named on subscribing).
+        this.combined = url.includes('/stream?streams=');
+        const streams = this.combined ? url.split('streams=')[1].split('/') : url.includes('upbit') ? ['krw-btc@'] : [url.split('/ws/')[1]];
+        this.markets = streams.map(stream => stream.split('@')[0].toUpperCase());
         window.sockets.push(this);
         setTimeout(() => {
           if (this.readyState === 3) return;
@@ -52,14 +60,18 @@ async function scripted(context) {
         if (this.readyState !== 1 || window.suppressTicks) return;
         values = { ...(this.fixed || {}), ...values };
         const upbit = this.url.includes('upbit');
-        const data = upbit ? { type: 'ticker', code: this.market, trade_price: 98000000, signed_change_rate: -0.025, timestamp: Date.now(), ...values }
-          : { e: '24hrTicker', s: this.market, c: '70000.10', P: '2.5', E: Date.now(), ...values };
-        this.onmessage?.({ data: upbit ? new TextEncoder().encode(JSON.stringify(data)).buffer : JSON.stringify(data) });
+        for (const market of this.markets) {
+          if (window.silentMarkets.includes(market)) continue;
+          let data = upbit ? { type: 'ticker', code: market, trade_price: (this.markets.length > 1 && PRICES[market]) || 98000000, signed_change_rate: -0.025, timestamp: Date.now(), ...values }
+            : { e: '24hrTicker', s: market, c: (this.markets.length > 1 && PRICES[market]) || '70000.10', P: '2.5', E: Date.now(), ...values };
+          if (this.combined) data = { stream: `${market.toLowerCase()}@ticker`, data };
+          this.onmessage?.({ data: upbit ? new TextEncoder().encode(JSON.stringify(data)).buffer : JSON.stringify(data) });
+        }
       }
       send(text) {
         window.sent.push(text);
         if (text === 'PING') { this.onmessage?.({ data: '{"status":"UP"}' }); return; }
-        this.market = JSON.parse(text)[1].codes[0]; this.emit();
+        this.markets = JSON.parse(text)[1].codes; this.emit();
       }
       close() { this.readyState = 3; clearInterval(this.timer); this.onclose?.({ code: 1000, reason: '' }); }
     };
@@ -244,7 +256,7 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await text(page, '#price-source'), 'BINANCE FUTURES · BTC/USDT PERP');
   assert.equal(await page.title(), '70,000 | BTCUSDTPERP | Coinboard');
-  assert.equal((await saved(page)).currency, 'USDT-PERP');
+  assert.equal((await saved(page)).assets[0].currency, 'USDT-PERP');
   assert.equal(await boardSize(), steadySize, 'the PERP mark does not change the board size');
   // The whole choice is readable in the settings row.
   assert.ok(await page.locator('#admin-currency').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'the market name is not cut off');
@@ -283,21 +295,21 @@ async function board(browser, base) {
   }
   assert.equal(await text(page, '#admin-symbol-error'), '영문·숫자 1~20자로 입력하세요');
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
-  assert.equal((await saved(page)).ticker, 'BTC');
+  assert.equal((await saved(page)).assets[0].ticker, 'BTC');
   // Enter applies; lower case and stray spaces are tidied.
   await page.locator('#admin-symbol').fill(' eth '); await page.locator('#admin-symbol').press('Enter');
   assert.equal(await page.locator('#admin-symbol-error').isVisible(), false);
   // ETH is on the list, so the choice shows it and the field folds away.
   assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
   assert.equal(await page.locator('#admin-symbol').isVisible(), false);
-  assert.equal((await saved(page)).ticker, 'ETH');
+  assert.equal((await saved(page)).assets[0].ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
   // Choosing a listed coin switches to it at once.
   await page.locator('#admin-coin').selectOption('XRP');
   assert.equal(await text(page, '#price-source'), 'BINANCE · XRP/USDT');
   await page.locator('#admin-coin').selectOption('ETH');
-  assert.equal((await saved(page)).ticker, 'ETH');
+  assert.equal((await saved(page)).assets[0].ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
   // The coin's own icon ships with the app; no outside server is asked.
   await page.waitForFunction(() => { const icon = document.getElementById('icon'); return icon && icon.complete && icon.naturalWidth > 0; });
@@ -311,7 +323,7 @@ async function board(browser, base) {
   await page.locator('#admin-brightness').fill('50');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', brightness: 50, burnIn: true, palette: 'green-red' });
+  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red' });
   // Up and down colours: green and red, or the Korean red and blue.
   const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
@@ -445,7 +457,7 @@ async function board(browser, base) {
     await page.evaluate(value => sockets.at(-1).quote({ c: value }), price);
     for (let step = 0; step < 40 && await text(page, '#price-main') !== shown; step += 1) await page.clock.runFor(100);
     assert.equal(await text(page, '#price-main'), shown);
-    return page.locator('#price-main').evaluate(el => `${el.className} ${el.dataset.strength}`);
+    return page.locator('#price-main').evaluate(el => `${el.className.replace(/\bprice\b/, "").trim()} ${el.dataset.strength}`);
   };
   const colour = () => page.locator('#price-main').evaluate(el => { el.style.transition = 'none'; const c = getComputedStyle(el).color; el.style.transition = ''; return c; });
   assert.equal(await tintAfter('70005.00', '70,005'), 'up 1');   // 0.007 %
@@ -534,6 +546,171 @@ async function board(browser, base) {
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS board: rest state, keyboard, wake lock recovery, currency/ticker, immediate settings, delay/suspect/offline/error, automatic update');
+}
+
+async function gridBoard(browser, base) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true });
+  await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.clock.install(); await page.goto(base); await live(page);
+  const assets = async () => ((await saved(page))?.assets ?? [{ currency: 'KRW', ticker: 'BTC' }]).map(asset => `${asset.ticker}:${asset.currency}`);
+  const cellPrices = () => page.locator('.cell .price').allTextContents();
+  // The add form opens on 자산 추가 and adds on 추가; it starts on the first listed coin not shown in the market being edited.
+  const addAsset = async () => { await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click(); };
+  const openUrls = () => page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).map(socket => socket.url));
+  const priced = count => until(page, n => {
+    const prices = [...document.querySelectorAll('.cell .price')];
+    return prices.length === n && prices.every(el => el.textContent !== '—');
+  }, count);
+
+  // One asset: the single board. Settings list it, with no way to remove the last one.
+  await open(page);
+  assert.equal(await page.locator('#asset-list .asset-row').count(), 1);
+  assert.equal(await page.locator('.asset-remove').count(), 0);
+  assert.equal(await page.locator('#grid').count(), 0);
+  // The add form: nothing is added until 추가; 취소 leaves things as they were.
+  await page.locator('#asset-add').click();
+  assert.equal(await page.locator('#new-currency').inputValue(), 'KRW');
+  assert.equal(await page.locator('#new-coin').inputValue(), 'ETH');
+  assert.deepEqual(await assets(), ['BTC:KRW']);
+  await page.locator('#asset-new-cancel').click();
+  assert.equal(await page.locator('#asset-new').count(), 0);
+  assert.deepEqual(await assets(), ['BTC:KRW']);
+  // Choosing in the form, and refusing what is already shown.
+  await page.locator('#asset-add').click();
+  await page.locator('#new-coin').selectOption('BTC'); await page.locator('#asset-new-confirm').click();
+  assert.equal(await text(page, '#asset-new-error'), '이미 표시 중인 자산입니다');
+  assert.deepEqual(await assets(), ['BTC:KRW']);
+  await page.locator('#asset-new-cancel').click();
+  // Adding takes the first listed coin not yet shown, in the same market, and chooses it for editing.
+  assert.equal(await page.locator('#admin-columns').count(), 0, 'no columns to choose for one asset');
+  await addAsset();
+  assert.deepEqual(await assets(), ['BTC:KRW', 'ETH:KRW']);
+  assert.deepEqual(await page.locator('.asset-pick').evaluateAll(els => els.map(el => el.getAttribute('aria-pressed'))), ['false', 'true']);
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
+  assert.equal(await page.locator('#grid').getAttribute('data-count'), '2');
+  // Upbit carries both coins on one connection, after its ten-second pace; BTC keeps its price meanwhile.
+  assert.deepEqual(await cellPrices(), ['9800만', '—']);
+  await page.clock.runFor(10100); await priced(2);
+  assert.deepEqual(await openUrls(), ['wss://api.upbit.com/websocket/v1']);
+  assert.deepEqual(JSON.parse(await page.evaluate(() => sent.filter(frame => frame !== 'PING').at(-1)))[1].codes, ['KRW-BTC', 'KRW-ETH']);
+  assert.deepEqual(await cellPrices(), ['9800만', '500.0만']);
+  assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'ETHKRW']);
+
+  // The rows below edit the chosen asset: here ETH becomes SOL on Binance futures.
+  await page.locator('#admin-currency').selectOption('USDT-PERP');
+  await page.locator('#admin-coin').selectOption('SOL');
+  assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP']);
+  // Adding again takes the market being edited. The same asset twice is refused, and the choice goes back.
+  await addAsset();
+  assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP']);
+  await page.locator('#admin-coin').selectOption('SOL');
+  assert.equal(await text(page, '#admin-symbol-error'), '이미 표시 중인 자산입니다');
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'BTC');
+  assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP']);
+  // Choosing another row edits that one.
+  await page.locator('.asset-pick').nth(1).click();
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'SOL');
+  assert.equal(await page.locator('#admin-currency').inputValue(), 'USDT-PERP');
+  assert.equal(await page.locator('#admin-symbol-error').isVisible(), false);
+
+  // Mixed markets: one connection per market kind, each carrying its coins.
+  await page.clock.runFor(10100); await priced(3);
+  assert.deepEqual((await openUrls()).sort(), ['wss://api.upbit.com/websocket/v1', 'wss://fstream.binance.com/market/stream?streams=solusdt@ticker/btcusdt@ticker']);
+  assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'SOLUSDTPERP', 'BTCUSDTPERP']);
+  assert.deepEqual(await cellPrices(), ['9800만', '180.3', '70,000']);
+  assert.equal(await page.title(), '9800만 | BTCKRW | Coinboard', 'the tab follows the first asset');
+
+  // Landscape, three: one row; every cell drawn at one size; the grid inside the screen.
+  await page.keyboard.press('Escape');
+  const cells = () => page.locator('.cell').evaluateAll(els => els.map(el => { const box = el.getBoundingClientRect(); return { x: box.x, y: box.y, right: box.right, bottom: box.bottom, width: box.width }; }));
+  const pieces = () => page.locator('.cell-inner').evaluateAll(els => els.map(el => { const box = el.getBoundingClientRect(); return { x: box.x, y: box.y, right: box.right, bottom: box.bottom }; }));
+  const inScreen = list => list.every(box => box.x >= 0 && box.y >= 0 && box.right <= innerWidth && box.bottom <= innerHeight);
+  let boxes = await cells();
+  assert.equal(new Set(boxes.map(box => Math.round(box.y))).size, 1, 'three in a row');
+  assert.equal(new Set(boxes.map(box => Math.round(box.width))).size, 1, 'cells of one size');
+  assert.ok(await page.evaluate(inScreen, await pieces()));
+  // The screen is divided: three cells side by side span its width, with lines only between them.
+  assert.ok(Math.abs(boxes.reduce((sum, box) => sum + box.width, 0) - 1024) < 40, 'the cells fill the screen');
+  assert.deepEqual(await page.locator('.cell').evaluateAll(els => els.map(el => [el.classList.contains('line-right'), el.classList.contains('line-below')])), [[true, false], [true, false], [false, false]]);
+  assert.equal(new Set(await page.locator('.cell .price-text').evaluateAll(els => els.map(el => el.style.transform))).size, 1, 'prices at one size');
+  assert.equal(await page.locator('.cell .price[aria-live]').count(), 0, 'cells do not talk over each other');
+
+  // A coin that never answers: its cell is dimmed and the dot says which; the others stay live.
+  await page.evaluate(() => window.silentMarkets.push('ETHUSDT'));
+  await open(page); await addAsset();
+  assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP', 'ETH:USDT-PERP']);
+  await page.keyboard.press('Escape');
+  await page.clock.runFor(10100); await page.clock.runFor(17000);
+  assert.deepEqual(await page.locator('.cell').evaluateAll(els => els.map(el => el.classList.contains('price-unavailable'))), [false, false, false, true]);
+  assert.equal(await page.locator('#status-dot').getAttribute('data-level'), 'warn');
+  assert.equal(await text(page, '#status-tip'), 'BTCKRW · LIVE\nSOLUSDTPERP · LIVE\nBTCUSDTPERP · LIVE\nETHUSDTPERP · CHECK TICKER');
+  // Four: two rows of two.
+  boxes = await cells();
+  assert.deepEqual(boxes.map(box => Math.round(box.y)).filter((y, i, all) => all.indexOf(y) === i).length, 2);
+  await page.screenshot({ path: path.join(evidence, 'grid.png') });
+
+  // Rows are always equal. Six: two rows of three in landscape, three rows of two in portrait.
+  const shapeNow = () => [...document.querySelectorAll('.cell')].map(el => el.getBoundingClientRect()).reduce((sets, box) => { sets[0].add(Math.round(box.y)); sets[1].add(Math.round(box.x)); return sets; }, [new Set(), new Set()]).map(set => set.size);
+  // The layout follows a resize as soon as the board has measured the screen again.
+  const shape = async expected => { try { await until(page, ([want, fn]) => JSON.stringify(eval(fn)()) === JSON.stringify(want), [expected, `(${shapeNow})`]); } catch {} return page.evaluate(shapeNow); };
+  await open(page);
+  await addAsset(); await addAsset();
+  assert.equal((await assets()).length, 6);
+  await page.keyboard.press('Escape'); await page.clock.runFor(500);
+  assert.deepEqual(await shape([2, 3]), [2, 3], 'rows by columns, landscape');
+  await page.setViewportSize({ width: 768, height: 1024 }); await page.clock.runFor(500);
+  assert.deepEqual(await shape([3, 2]), [3, 2], 'rows by columns, portrait');
+  assert.ok(await page.evaluate(inScreen, await pieces()));
+  await page.screenshot({ path: path.join(evidence, 'grid-portrait.png') });
+  // Cells per row by hand: five in rows of three is three over two, the short row in the middle; one is a single column.
+  await open(page);
+  await page.locator('.asset-remove').last().click();
+  await page.locator('#admin-columns').selectOption('3');
+  assert.equal((await saved(page)).columns, 3);
+  await page.keyboard.press('Escape');
+  // Cells in each row, top to bottom (the board may float a little above the top edge).
+  const rowCounts = () => page.evaluate(() => { const rows = new Map(); for (const el of document.querySelectorAll('.cell')) { const y = Math.round(el.getBoundingClientRect().y); rows.set(y, (rows.get(y) || 0) + 1); } return [...rows].sort((a, b) => a[0] - b[0]).map(row => row[1]); });
+  await until(page, () => new Set([...document.querySelectorAll('.cell')].map(el => Math.round(el.getBoundingClientRect().y))).size === 2);
+  assert.deepEqual(await rowCounts(), [3, 2]);
+  const fives = await cells();
+  assert.ok(Math.abs((fives[3].x + fives[4].right) / 2 - (fives[0].x + fives[2].right) / 2) < 2, 'the short row is centred');
+  await open(page); await page.locator('#admin-columns').selectOption('1'); await page.keyboard.press('Escape');
+  assert.deepEqual(await shape([5, 1]), [5, 1]);
+  await open(page); await page.locator('#admin-columns').selectOption('0'); await addAsset(); await page.keyboard.press('Escape');
+  assert.deepEqual(await shape([3, 2]), [3, 2], 'back to the board\'s own choice');
+  // No equal split that suits the screen (seven): one line, a column in portrait and a row in landscape.
+  await open(page); await addAsset();
+  assert.equal((await assets()).length, 7);
+  assert.equal(await page.locator('#asset-add').isVisible(), true, 'six is not a limit');
+  await page.keyboard.press('Escape'); await page.clock.runFor(500);
+  assert.deepEqual(await shape([7, 1]), [7, 1]);
+  assert.ok(await page.evaluate(inScreen, await pieces()));
+  await page.setViewportSize({ width: 1024, height: 768 }); await page.clock.runFor(500);
+  assert.deepEqual(await shape([1, 7]), [1, 7]);
+  assert.ok(await page.evaluate(inScreen, await pieces()));
+
+  // Removing down to one goes back to the single board, which picks up where it was.
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await open(page);
+  while (await page.locator('.asset-remove').count()) await page.locator('.asset-remove').last().click();
+  assert.deepEqual(await assets(), ['BTC:KRW']);
+  assert.equal(await page.locator('#grid').count(), 0);
+  await page.keyboard.press('Escape');
+  await page.clock.runFor(10100); await live(page);
+  assert.equal(await text(page, '#price-main'), '9800만');
+  assert.deepEqual(await openUrls(), ['wss://api.upbit.com/websocket/v1']);
+
+  // Settings saved before the grid open as the one asset they named.
+  const old = await browser.newContext(); await scripted(old);
+  await old.addInitScript(() => { if (!localStorage.getItem('coinboard-settings')) localStorage.setItem('coinboard-settings', JSON.stringify({ ticker: 'ETH', currency: 'USDT', brightness: 60 })); });
+  const oldPage = await old.newPage(); await oldPage.goto(base); await live(oldPage);
+  assert.equal(await text(oldPage, '#price-source'), 'BINANCE · ETH/USDT');
+  await old.close();
+
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS grid: add, edit, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one');
 }
 
 async function idleUpdate(browser, base) {
@@ -781,7 +958,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://localhost:${server.address().port}/coinboard/`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 try {
-  for (const scenario of [board, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;

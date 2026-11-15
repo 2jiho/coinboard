@@ -3,20 +3,44 @@ import { EXCHANGES } from "./exchanges/index.js";
 
 const KEY = "coinboard-settings";
 const TICKER = /^[A-Z0-9]{1,20}$/;
+// A board shows one coin large, or several in a grid. The grid takes any
+// number; this cap only keeps the type readable and the list in settings short.
+export const MAX_ASSETS = 20;
+// The most cells per row that can be chosen by hand.
+export const MAX_COLUMNS = 6;
 export function normalizeTicker(text) {
   if (typeof text !== "string") return null;
   const ticker = text.trim().toUpperCase();
   return TICKER.test(ticker) ? ticker : null;
 }
+// One thing on the board: a coin in a market. "currency" holds the market:
+// KRW (Upbit), USDT (Binance) or USDT-PERP (Binance futures).
+export function sameAsset(a, b) { return a.currency === b.currency && a.ticker === b.ticker; }
+function readAsset(saved) {
+  if (!saved || typeof saved !== "object") return null;
+  const ticker = normalizeTicker(saved.ticker) || "BTC";
+  const currency = typeof saved.currency === "string" && Object.hasOwn(EXCHANGES, saved.currency) ? saved.currency : "KRW";
+  return { currency, ticker };
+}
+// At least one asset, at most MAX_ASSETS, none twice.
+function readAssets(list) {
+  const assets = [];
+  for (const entry of Array.isArray(list) ? list : []) {
+    const asset = readAsset(entry);
+    if (asset && !assets.some((other) => sameAsset(other, asset)) && assets.length < MAX_ASSETS) assets.push(asset);
+  }
+  return assets;
+}
 export function createSettings(storage) {
-  const settings = { ticker: "BTC", currency: "KRW", brightness: 100, burnIn: true, palette: "green-red" };
+  // columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
+  const settings = { assets: [{ currency: "KRW", ticker: "BTC" }], columns: 0, brightness: 100, burnIn: true, palette: "green-red" };
   try {
     const saved = JSON.parse(storage.getItem(KEY));
     if (saved && typeof saved === "object") {
-      const ticker = normalizeTicker(saved.ticker);
-      if (ticker) settings.ticker = ticker;
-      // "currency" holds the market: KRW (Upbit), USDT (Binance) or USDT-PERP (Binance futures).
-      if (typeof saved.currency === "string" && Object.hasOwn(EXCHANGES, saved.currency)) settings.currency = saved.currency;
+      // Settings saved before the grid hold one coin as { ticker, currency }.
+      const assets = Array.isArray(saved.assets) ? readAssets(saved.assets) : [readAsset(saved)];
+      if (assets.length) settings.assets = assets;
+      if (Number.isInteger(saved.columns) && saved.columns >= 0 && saved.columns <= MAX_COLUMNS) settings.columns = saved.columns;
       // On unless it was explicitly switched off.
       settings.burnIn = saved.burnIn !== false;
       // Up/down colours: green and red, or the Korean red and blue.
@@ -26,11 +50,12 @@ export function createSettings(storage) {
     }
   } catch (error) { /* Unreadable storage: run on defaults. */ }
   function get() {
-    return { ticker: settings.ticker, currency: settings.currency, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette };
+    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette };
   }
   // Callers pass validated values; a failed write still applies for this run.
   function update(patch) {
-    ["ticker", "currency", "brightness", "burnIn", "palette"].forEach((key) => {
+    if (patch.assets !== undefined) settings.assets = patch.assets.map((asset) => ({ currency: asset.currency, ticker: asset.ticker }));
+    ["columns", "brightness", "burnIn", "palette"].forEach((key) => {
       if (patch[key] !== undefined) settings[key] = patch[key];
     });
     try { storage.setItem(KEY, JSON.stringify(settings)); return { saved: true }; }

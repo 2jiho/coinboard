@@ -70,7 +70,7 @@ body {
 #coin { color: #f2f2f7; }
 #unit { color: #8e8e93; font-weight: 500; }
 /* PERP and the like: a small outlined mark after the currency. */
-#tag { padding: 5px 11px 4px; border: 2px solid #48484a; border-radius: 10px; font-size: 0.58em; font-weight: 600; letter-spacing: 0.06em; color: #8e8e93; }
+#tag, .tag { padding: 5px 11px 4px; border: 2px solid #48484a; border-radius: 10px; font-size: 0.58em; font-weight: 600; letter-spacing: 0.06em; color: #8e8e93; }
 /* Portrait: the same pieces stacked and centred, with the icon on top. */
 @media (orientation: portrait) {
   #container { flex-direction: column; gap: 40px; }
@@ -79,30 +79,52 @@ body {
 }
 /* The price zone: full width of the column and one fixed height (the line
    height leaves room for the comma's tail above the change line). */
-#price-main { align-self: stretch; text-align: left; margin-top: 16px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; color: #fff; transition: color 2s ease-in-out; }
+#price-main { align-self: stretch; text-align: left; margin-top: 16px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; }
 /* The price itself; scaled down from its left edge when it is too long for the zone. */
-#price-text { display: inline-block; transform-origin: left center; }
+.price-text { display: inline-block; transform-origin: left center; }
 /* 억 and 만 are units, so they are smaller and quieter than the figures. */
-#price-main .mark { margin-left: 0.04em; font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: #a1a1a6; }
+.price .mark { margin-left: 0.04em; font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: #a1a1a6; }
 /* A move tints the price with its colour and lets it fade back slowly. */
-#price-main.up { color: var(--up-flash); transition: color 0.5s ease-in-out; }
-#price-main.down { color: var(--down-flash); transition: color 0.5s ease-in-out; }
+.price { color: #fff; transition: color 2s ease-in-out; }
+.price.up { color: var(--up-flash); transition: color 0.5s ease-in-out; }
+.price.down { color: var(--down-flash); transition: color 0.5s ease-in-out; }
 /* The size of the move sets the depth of the tint: a slight one barely shows,
    a large one takes the full colour. */
-#price-main.up[data-strength="1"] { color: color-mix(in srgb, var(--up-flash) 40%, #fff); }
-#price-main.down[data-strength="1"] { color: color-mix(in srgb, var(--down-flash) 40%, #fff); }
-#price-main.up[data-strength="3"] { color: var(--up); }
-#price-main.down[data-strength="3"] { color: var(--down); }
+.price.up[data-strength="1"] { color: color-mix(in srgb, var(--up-flash) 40%, #fff); }
+.price.down[data-strength="1"] { color: color-mix(in srgb, var(--down-flash) 40%, #fff); }
+.price.up[data-strength="3"] { color: var(--up); }
+.price.down[data-strength="3"] { color: var(--down); }
 /* The exchange and market are not drawn. They stay in the page for screen readers. */
-#price-source { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 #board-foot { display: flex; align-items: baseline; gap: 22px; margin-top: 26px; font-size: 72px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
 /* The change is plain coloured text with a small arrow: no badge around it. */
-#change { color: #d1d1d6; transition: color 0.4s; }
-#change.up { color: var(--up); }
-#change.down { color: var(--down); }
-#change .arrow { display: inline-block; margin-right: 0.22em; font-size: 0.62em; transform: translateY(-0.12em); }
-#change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
+.change { color: #d1d1d6; transition: color 0.4s; }
+.change.up { color: var(--up); }
+.change.down { color: var(--down); }
+.change .arrow { display: inline-block; margin-right: 0.22em; font-size: 0.62em; transform: translateY(-0.12em); }
+.change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 #container.price-unavailable #price-main { opacity: 0.55; }
+/* The grid: the whole screen divided into equal cells, as many per row as
+   settings or the board choose (PriceBoard.svelte). Each cell spans two
+   half-columns, so a short last row can sit in the middle.
+   Faint lines run between cells from edge to edge, never round the outside. Each cell holds the same
+   pieces as the single board, smaller, at one fixed design size scaled to the
+   cell (the same scale for all). */
+#drift.grid, #container.grid { width: 100%; height: 100%; }
+#container.grid { display: block; }
+#grid { display: grid; grid-template-columns: repeat(calc(var(--cols) * 2), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows), minmax(0, 1fr)); width: 100%; height: 100%; }
+.cell { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; }
+.cell.line-right { border-right: 1px solid #2c2c2e; }
+.cell.line-below { border-bottom: 1px solid #2c2c2e; }
+.cell-inner { flex: none; display: flex; flex-direction: column; align-items: center; width: 600px; transform-origin: center; }
+.cell .price-text { transform-origin: center; }
+.cell-head { display: flex; align-items: center; gap: 14px; font-size: 44px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
+.cell-icon { width: 52px; height: 52px; flex: none; margin-right: 4px; }
+.cell-coin { color: #f2f2f7; }
+.cell-unit { color: #8e8e93; font-weight: 500; }
+.cell .price { align-self: stretch; text-align: center; margin-top: 10px; font-size: 150px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; }
+.cell-foot { display: flex; align-items: baseline; gap: 16px; margin-top: 18px; font-size: 54px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
+.cell.price-unavailable .price { opacity: 0.55; }
 /* The Korean convention: up is red, down is blue. */
 body[data-palette="red-blue"] {
   --up: #ff453a; --down: #4b8dff; --up-flash: #ff8f86; --down-flash: #8fb6ff;
@@ -112,20 +134,20 @@ body[data-palette="red-blue"] {
    fell. Each digit has a window (.slot) that hides whatever is past its edges.
    The old digit is drawn by ::before, one window-height ahead of the new one,
    so a single movement carries both: the new digit in, the old one out. */
-#price-text .slot { display: inline-block; clip-path: inset(0); }
-#price-text .digit { display: inline-block; position: relative; }
-#price-text .digit[data-old]::before { content: attr(data-old); position: absolute; left: 0; }
+.price-text .slot { display: inline-block; clip-path: inset(0); }
+.price-text .digit { display: inline-block; position: relative; }
+.price-text .digit[data-old]::before { content: attr(data-old); position: absolute; left: 0; }
 /* Price up: the new digit rises from below; the old one leaves by the top. */
-#price-text .digit.up::before { top: -100%; }
-#price-text .digit.up { animation: push-up 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
+.price-text .digit.up::before { top: -100%; }
+.price-text .digit.up { animation: push-up 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
 /* Price down: the new digit descends from above; the old one leaves by the bottom. */
-#price-text .digit.down::before { top: 100%; }
-#price-text .digit.down { animation: push-down 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
+.price-text .digit.down::before { top: 100%; }
+.price-text .digit.down { animation: push-down 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
 @keyframes push-up { from { transform: translateY(100%); } }
 @keyframes push-down { from { transform: translateY(-100%); } }
 @media (prefers-reduced-motion: reduce) {
-  #price-text .digit { animation: none; }
-  #price-text .digit[data-old]::before { content: none; }
+  .price-text .digit { animation: none; }
+  .price-text .digit[data-old]::before { content: none; }
 }
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */
@@ -185,10 +207,11 @@ body.settings-open #status-dot { visibility: hidden; }
   position: fixed;
   --panel-top: max(48px, calc(var(--safe-top) + 16px));
   --panel-bottom: calc(var(--safe-bottom) + 16px);
-  top: calc(var(--panel-top) + (100vh - var(--panel-top) - var(--panel-bottom)) / 2);
-  top: calc(var(--panel-top) + (100dvh - var(--panel-top) - var(--panel-bottom)) / 2);
+  /* Hung from the top, not centred: when a line below appears or goes (a
+     status, the add form), nothing above it moves under the finger. */
+  top: var(--panel-top);
   left: calc(var(--safe-left) + (100vw - var(--safe-left) - var(--safe-right)) / 2);
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   box-sizing: border-box;
   width: min(380px, calc(100vw - var(--safe-left) - var(--safe-right) - 32px));
   max-height: calc(100vh - var(--panel-top) - var(--panel-bottom));
@@ -211,7 +234,7 @@ body.settings-open #status-dot { visibility: hidden; }
 }
 #admin-panel > * { flex-shrink: 0; }
 @keyframes fade-in { from { opacity: 0; } }
-@keyframes sheet-in { from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); } }
+@keyframes sheet-in { from { opacity: 0; transform: translate(-50%, 12px) scale(0.97); } }
 @media (prefers-reduced-motion: reduce) { #scrim, #admin-panel { animation: none; } }
 
 .settings-header {
@@ -227,6 +250,27 @@ body.settings-open #status-dot { visibility: hidden; }
 
 .settings-section { display: flex; flex-direction: column; gap: 10px; }
 .settings-group { background: var(--group); border-radius: 14px; }
+/* The assets on the board: a row each, the one being edited marked with a
+   tint. The coins and markets rows below change that one. */
+#asset-list { overflow: hidden; }
+.asset-row { display: flex; align-items: center; padding-right: 6px; transition: background 0.15s; }
+.asset-row.selected { background: var(--control); }
+.asset-row + .asset-row, .asset-row + #asset-add { border-top: 1px solid var(--hairline); }
+#admin-panel .asset-pick { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 14px; border-radius: 0; background: transparent; text-align: left; }
+#admin-panel .asset-pick:active, #admin-panel #asset-add:active { transform: none; }
+.asset-coin { font-weight: 600; letter-spacing: 0.02em; }
+.asset-market { font-size: 13px; color: var(--secondary); }
+#admin-panel .asset-remove { flex: none; width: 36px; min-height: 36px; padding: 0; border-radius: 50%; background: transparent; color: var(--secondary); }
+#admin-panel .asset-remove svg { width: 20px; height: 20px; }
+#admin-panel #asset-add { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 50px; padding: 0 14px; border-radius: 0; background: transparent; color: var(--accent); }
+#admin-panel #asset-add svg { width: 18px; height: 18px; margin: 0; }
+/* The add form: market and coin, then 취소 and 추가. */
+#asset-new .settings-row + .asset-new-actions { border-top: 1px solid var(--hairline); }
+.asset-new-actions { display: flex; gap: 8px; padding: 10px; }
+#admin-panel .asset-new-actions button { flex: 1; }
+#admin-panel #asset-new-confirm { background: var(--accent); color: #04130a; font-weight: 600; }
+#new-symbol { width: 92px; min-height: 36px; box-sizing: border-box; padding: 6px 10px; border: 0; border-radius: 9px; background: var(--control); color: var(--label); font: inherit; font-size: 15px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
+#asset-new-error { color: var(--danger); font-size: 13px; }
 .settings-row {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   min-height: 50px; padding: 0 14px;

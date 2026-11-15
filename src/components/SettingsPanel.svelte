@@ -2,14 +2,17 @@
   // Everything here applies as soon as it is changed. The ticker is the one
   // field that needs a decision, because typing is not choosing.
   import { onMount, tick, untrack } from 'svelte';
-  import { normalizeTicker } from '../lib/settings.js';
+  import { normalizeTicker, sameAsset, MAX_COLUMNS } from '../lib/settings.js';
   import { PRESETS } from '../lib/presets.js';
   import { EXCHANGES } from '../lib/exchanges/index.js';
 
-  let { settings, status, wake, versionLabel, updateReady,
-    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+  let { settings, selected, canAdd, status, wake, versionLabel, updateReady,
+    onClose, onSelect, onAdd, onRemove, onColumns, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel, closeButton;
+  // The rows below edit this asset; the list above chooses it.
+  const asset = $derived(settings.assets[Math.min(selected, settings.assets.length - 1)]);
+  const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
   let tickerInput = $state();
   // What is being typed or dragged, before it is applied.
   let tickerText = $state('');
@@ -20,21 +23,55 @@
   let listed = $state(null);
   $effect(() => {
     if (!otherOpen) return;
-    const currency = settings.currency;
+    const currency = asset.currency;
     listed = null;
-    loadTickers(currency).then((tickers) => { if (otherOpen && settings.currency === currency) listed = tickers; });
+    loadTickers(currency).then((tickers) => { if (otherOpen && asset.currency === currency) listed = tickers; });
   });
   let brightness = $state(untrack(() => settings.brightness));
   // Coin is a one-line choice: the listed coins, the current coin if it is not
   // one of them, and "직접 입력…", which opens a field for any other ticker.
   const OTHER = '__other';
-  const preset = $derived(PRESETS.includes(settings.ticker));
+  const preset = $derived(PRESETS.includes(asset.ticker));
   let otherOpen = $state(false);
   // Worth a line only when something is wrong.
   const wakeTrouble = $derived(['unsupported', 'released', 'failed'].includes(wake.kind));
-  async function chooseCoin(value) {
+  // The add form: market and coin for a new asset, added only on 추가. It
+  // starts in the market being edited, on the first listed coin not yet shown there.
+  let adding = $state(false);
+  let newCurrency = $state('KRW'), newCoin = $state(''), newText = $state(''), newError = $state('');
+  let newListed = $state(null);
+  const firstFree = currency => PRESETS.find(coin => !settings.assets.some(item => sameAsset(item, { currency, ticker: coin }))) ?? OTHER;
+  function startAdding() {
+    newCurrency = asset.currency; newCoin = firstFree(newCurrency); newText = ''; newError = '';
+    adding = true;
+  }
+  $effect(() => {
+    if (!adding || newCoin !== OTHER) return;
+    const currency = newCurrency;
+    newListed = null;
+    loadTickers(currency).then((tickers) => { if (adding && newCurrency === currency) newListed = tickers; });
+  });
+  function confirmAdding() {
+    let ticker = newCoin;
+    if (newCoin === OTHER) {
+      ticker = normalizeTicker(newText);
+      if (!ticker) { newError = '영문·숫자 1~20자로 입력하세요'; return; }
+      if (newListed && !newListed.includes(ticker)) { newError = `${EXCHANGES[newCurrency].listName} 시장에 없는 티커입니다`; return; }
+    }
+    newError = onAdd({ currency: newCurrency, ticker });
+    if (!newError) adding = false;
+  }
+  // Another asset to edit: start clean.
+  $effect(() => { selected; untrack(() => { otherOpen = false; tickerError = ''; }); });
+  async function chooseCoin(select, value) {
     tickerError = '';
-    if (value !== OTHER) { otherOpen = false; if (value !== settings.ticker) onTicker(value); return; }
+    if (value !== OTHER) {
+      otherOpen = false;
+      tickerError = onTicker(value);
+      // Refused (already on the board): the choice goes back.
+      if (tickerError) select.value = asset.ticker;
+      return;
+    }
     otherOpen = true; tickerText = '';
     await tick();
     tickerInput.focus();
@@ -43,10 +80,10 @@
   function applyTicker() {
     const ticker = normalizeTicker(tickerText);
     if (!ticker) { tickerError = '영문·숫자 1~20자로 입력하세요'; return; }
-    if (listed && !listed.includes(ticker)) { tickerError = `${EXCHANGES[settings.currency].listName} 시장에 없는 티커입니다`; return; }
-    tickerError = '';
+    if (listed && !listed.includes(ticker)) { tickerError = `${EXCHANGES[asset.currency].listName} 시장에 없는 티커입니다`; return; }
+    tickerError = onTicker(ticker);
+    if (tickerError) return;
     tickerText = ticker;
-    if (ticker !== settings.ticker) onTicker(ticker);
     otherOpen = false;
   }
   function onKeydown(event) {
@@ -72,11 +109,71 @@
     </button>
   </div>
   <section class="settings-section" aria-label="시세">
+    <!-- What the board shows: one asset large, or several in a grid. A row is
+         chosen to edit it below. -->
+    <div class="settings-group" id="asset-list" role="group" aria-label="표시할 자산">
+      {#each settings.assets as item, index (item.currency + ':' + item.ticker)}
+        <div class="asset-row" class:selected={index === selected}>
+          <button type="button" class="asset-pick" aria-pressed={index === selected} onclick={() => onSelect(index)}>
+            <span class="asset-coin">{item.ticker}</span><span class="asset-market">{EXCHANGES[item.currency].choice}</span>
+          </button>
+          {#if settings.assets.length > 1}
+            <button type="button" class="asset-remove" aria-label="{assetName(item)} 빼기" onclick={() => onRemove(index)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 12h12"/></svg>
+            </button>
+          {/if}
+        </div>
+      {/each}
+      {#if canAdd && !adding}
+        <button type="button" id="asset-add" onclick={startAdding}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>자산 추가
+        </button>
+      {/if}
+    </div>
+    {#if adding}
+      <div class="settings-group" id="asset-new" role="group" aria-label="새 자산">
+        <div class="settings-row">
+          <label for="new-currency">시장</label>
+          <select id="new-currency" bind:value={newCurrency} onchange={() => { newError = ''; if (newCoin !== OTHER) newCoin = firstFree(newCurrency); }}>
+            {#each Object.entries(EXCHANGES) as [key, exchange]}<option value={key}>{exchange.choice}</option>{/each}
+          </select>
+        </div>
+        <div class="settings-row">
+          <label for="new-coin">코인</label>
+          <select id="new-coin" bind:value={newCoin} onchange={() => { newError = ''; }}>
+            {#each PRESETS as preset}<option value={preset}>{preset}</option>{/each}
+            <option value={OTHER}>직접 입력…</option>
+          </select>
+        </div>
+        {#if newCoin === OTHER}
+          <div class="settings-row">
+            <label for="new-symbol">티커</label>
+            <input type="text" id="new-symbol" placeholder="예: LINK" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
+              enterkeyhint="done" list="new-ticker-list" bind:value={newText} oninput={() => { newError = ''; }}
+              onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); confirmAdding(); } }} />
+            <datalist id="new-ticker-list">{#each newListed || [] as ticker}<option value={ticker}></option>{/each}</datalist>
+          </div>
+        {/if}
+        <div class="asset-new-actions">
+          <button type="button" id="asset-new-cancel" onclick={() => { adding = false; }}>취소</button>
+          <button type="button" id="asset-new-confirm" onclick={confirmAdding}>추가</button>
+        </div>
+      </div>
+      <p id="asset-new-error" role="alert" hidden={!newError}>{newError}</p>
+    {/if}
+    <!-- The chosen asset's market and coin. Hidden while a new one is being added. -->
+    {#if !adding}
     <div class="settings-group">
       <div class="settings-row">
+        <label for="admin-currency">시장</label>
+        <select id="admin-currency" value={asset.currency} onchange={event => { const select = event.currentTarget; tickerError = onCurrency(select.value); if (tickerError) select.value = asset.currency; }}>
+          {#each Object.entries(EXCHANGES) as [key, exchange]}<option value={key}>{exchange.choice}</option>{/each}
+        </select>
+      </div>
+      <div class="settings-row">
         <label for="admin-coin">코인</label>
-        <select id="admin-coin" value={otherOpen ? OTHER : settings.ticker} onchange={event => chooseCoin(event.currentTarget.value)}>
-          {#if !preset}<option value={settings.ticker}>{settings.ticker}</option>{/if}
+        <select id="admin-coin" value={otherOpen ? OTHER : asset.ticker} onchange={event => chooseCoin(event.currentTarget, event.currentTarget.value)}>
+          {#if !preset}<option value={asset.ticker}>{asset.ticker}</option>{/if}
           {#each PRESETS as preset}<option value={preset}>{preset}</option>{/each}
           <option value={OTHER}>직접 입력…</option>
         </select>
@@ -94,13 +191,19 @@
           </div>
         </div>
       {/if}
-      <div class="settings-row">
-        <label for="admin-currency">시장</label>
-        <select id="admin-currency" value={settings.currency} onchange={event => onCurrency(event.currentTarget.value)}>
-          {#each Object.entries(EXCHANGES) as [key, exchange]}<option value={key}>{exchange.choice}</option>{/each}
-        </select>
-      </div>
     </div>
+    {/if}
+    {#if settings.assets.length > 1}
+      <div class="settings-group">
+        <div class="settings-row">
+          <label for="admin-columns">가로 칸 수</label>
+          <select id="admin-columns" value={String(settings.columns)} onchange={event => onColumns(Number(event.currentTarget.value))}>
+            <option value="0">자동</option>
+            {#each Array.from({ length: MAX_COLUMNS }, (_, n) => n + 1) as columns}<option value={String(columns)}>{columns}</option>{/each}
+          </select>
+        </div>
+      </div>
+    {/if}
     <p id="admin-symbol-error" role="alert" hidden={!tickerError}>{tickerError}</p>
     <p id="status-indicator" class={status.tone} role="status" aria-live="polite" hidden={status.tone === 'connected'}>{status.text}</p>
     <p id="overlay-msg" hidden={!status.detail}>{status.detail}</p>
