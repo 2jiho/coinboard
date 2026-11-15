@@ -6,7 +6,7 @@
   import { PRESETS } from '../lib/presets.js';
 
   let { settings, status, wake, versionLabel, updateReady,
-    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onDebug, onRetryFeed, onRetryWake, onUpdate } = $props();
+    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onRange, onDebug, onRetryFeed, onRetryWake, onUpdate } = $props();
 
   let panel, closeButton;
   // The panel starts from the saved values and then holds what is being typed.
@@ -87,6 +87,10 @@
       <div class="settings-row">
         <label for="admin-burn-in">번인 방지 <span class="hint">가운데 근처에서 천천히 움직임</span></label>
         <input type="checkbox" role="switch" id="admin-burn-in" checked={settings.burnIn} onchange={event => onBurnIn(event.currentTarget.checked)} />
+      </div>
+      <div class="settings-row">
+        <label for="admin-range">고가·저가 표시 <span class="hint">등락률 아래에 당일 범위</span></label>
+        <input type="checkbox" role="switch" id="admin-range" checked={settings.range} onchange={event => onRange(event.currentTarget.checked)} />
       </div>
     </div>
     <p id="wake-lock-status" role="status" aria-live="polite">{wake.message}</p>

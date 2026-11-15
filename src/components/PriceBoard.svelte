@@ -23,7 +23,7 @@
   const changeText = $derived(tick ? formatChange(tick.change) : '—');
   const changeDirection = $derived(tick ? direction(tick.change) : 0);
   // The day's range, and where the price sits in it (0 at the low, 100 at the high).
-  const range = $derived(tick && tick.high !== null && tick.low !== null ? {
+  const range = $derived(settings.range && tick && tick.high !== null && tick.low !== null ? {
     low: priceParts(tick.selection.currency, tick.low), high: priceParts(tick.selection.currency, tick.high),
     at: tick.high > tick.low ? Math.max(0, Math.min(100, Math.round((tick.price - tick.low) / (tick.high - tick.low) * 100))) : 50,
   } : null);
