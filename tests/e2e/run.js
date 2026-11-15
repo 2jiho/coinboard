@@ -108,14 +108,19 @@ async function board(browser, base) {
   await page.clock.install(); await page.goto(base); await live(page);
 
   // The board at rest: price only, nothing to press.
-  assert.equal(await text(page, '#price-main'), '₩98,000,000');
+  assert.equal(await text(page, '#price-main'), '98,000,000 KRW');
   assert.equal(await text(page, '#change'), '▼ 2.50%');
-  assert.equal(await text(page, '#change-label'), '전일 대비');
-  assert.equal(await text(page, '#price-source'), '업비트 · KRW-BTC');
+  assert.equal(await text(page, '#change-label'), '1D');
+  assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
   assert.equal(await page.evaluate(() => sockets.length), 1);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   assert.equal(await page.locator('#admin-panel').count(), 0);
   assert.equal(await page.locator('#status-overlay').count(), 0);
+  // The exchange and market are for screen readers only; they take no room on the board.
+  const sourceBox = await page.locator('#price-source').boundingBox();
+  assert.ok(sourceBox.width <= 1 && sourceBox.height <= 1, 'source line is not drawn');
+  // Nothing on the board itself is in Korean.
+  assert.doesNotMatch(await text(page, '#container'), /[가-힣]/);
   await page.screenshot({ path: path.join(evidence, 'board.png') });
 
   // Keyboard: Tab reveals and focuses the button, Enter opens, focus is kept inside.
@@ -145,7 +150,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#notice').count(), 0);
   await page.clock.runFor(10000);
   await page.evaluate(() => { navigator.wakeLock.request = () => Promise.reject(Object.assign(new Error('Denied'), { name: 'NotAllowedError' })); return testSentinel.release(); });
-  await page.waitForFunction(() => document.getElementById('notice')?.textContent === '화면 유지 꺼짐');
+  await page.waitForFunction(() => document.getElementById('notice')?.textContent === 'SCREEN MAY SLEEP');
   assert.equal(await page.locator('#overlay-title').count(), 0);
   await page.evaluate(() => { navigator.wakeLock.request = window.realWakeRequest; });
   await page.getByRole('button', { name: '화면 켜짐 유지 다시 시도' }).click();
@@ -156,11 +161,11 @@ async function board(browser, base) {
   await page.evaluate(() => { suppressTicks = true; });
   await page.getByRole('button', { name: 'USDT · 바이낸스', exact: true }).click();
   assert.equal(await text(page, '#price-main'), '—');
-  assert.equal(await text(page, '#price-source'), '바이낸스 · BTC/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
   assert.equal(await text(page, '#change'), '▲ 2.50%');
-  assert.equal(await text(page, '#change-label'), '24h');
+  assert.equal(await text(page, '#change-label'), '24H');
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
   // Escape closes and returns focus; the button hides again when idle.
@@ -185,7 +190,7 @@ async function board(browser, base) {
     assert.equal(await page.locator('#admin-symbol-error').isVisible(), true, bad);
   }
   assert.equal(await text(page, '#admin-symbol-error'), '영문·숫자 1~20자로 입력하세요');
-  assert.equal(await text(page, '#price-source'), '바이낸스 · BTC/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   assert.equal((await saved(page)).ticker, 'BTC');
   // Enter applies; lower case and stray spaces are tidied.
   await page.locator('#admin-symbol').fill(' eth '); await page.locator('#admin-symbol').press('Enter');
@@ -193,10 +198,10 @@ async function board(browser, base) {
   assert.equal(await page.locator('#admin-symbol').inputValue(), 'ETH');
   assert.equal((await saved(page)).ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
-  assert.equal(await text(page, '#price-source'), '바이낸스 · ETH/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
   // One tap on a common coin switches to it.
   await page.locator('#ticker-presets [data-ticker="XRP"]').click();
-  assert.equal(await text(page, '#price-source'), '바이낸스 · XRP/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · XRP/USDT');
   assert.equal(await page.locator('#ticker-presets [data-ticker="XRP"]').getAttribute('aria-pressed'), 'true');
   assert.equal(await page.locator('#admin-symbol').inputValue(), 'XRP');
   await page.locator('#ticker-presets [data-ticker="ETH"]').click();
@@ -229,7 +234,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   // Settings survive a reload.
   await page.reload(); await page.clock.runFor(3000); await live(page);
-  assert.equal(await text(page, '#price-source'), '바이낸스 · ETH/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   await open(page); await page.locator('#admin-debug').uncheck(); await page.locator('#admin-brightness').fill('100');
   await page.locator('#admin-close').click();
@@ -256,7 +261,7 @@ async function board(browser, base) {
   await page.evaluate(() => { suppressTicks = false; sockets.at(-1).emit(); }); await live(page);
   // Silence is shown as a delay with the last price kept on screen.
   await page.evaluate(() => { suppressTicks = true; }); await page.clock.fastForward(16000);
-  await page.waitForFunction(() => /시세 지연 · 마지막 가격/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /DELAYED · LAST PRICE/.test(document.getElementById('overlay-title')?.textContent || ''));
   assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
@@ -272,17 +277,17 @@ async function board(browser, base) {
   await page.evaluate(() => { suppressTicks = true; });
   await page.locator('#admin-symbol').fill('NOPE'); await page.locator('#admin-symbol-apply').click();
   await page.clock.runFor(40000);
-  assert.equal(await text(page, '#overlay-title'), '티커 확인 필요');
+  assert.equal(await text(page, '#overlay-title'), 'CHECK TICKER');
   assert.match(await text(page, '#overlay-msg'), /지원하지 않는 티커일 수 있습니다/);
   // Being offline is the more useful thing to say than doubting the ticker.
   await context.setOffline(true);
-  await page.waitForFunction(() => /^오프라인/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
   await context.setOffline(false);
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(35000); await live(page);
   assert.equal(await page.locator('#overlay-title').count(), 0);
   // An exchange error stops retrying and offers a manual reconnect.
   await page.evaluate(() => sockets.at(-1).onmessage({ data: JSON.stringify({ error: { name: 'INVALID_PARAM' } }) }));
-  await page.waitForFunction(() => /^시세 오류/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /^ERROR/.test(document.getElementById('overlay-title')?.textContent || ''));
   await page.getByRole('button', { name: '시세 다시 연결' }).click();
   await page.clock.runFor(3000); await live(page);
 
@@ -327,12 +332,12 @@ async function lockedStorage(browser, base) {
   });
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
-  assert.equal(await text(page, '#price-main'), '₩98,000,000');
+  assert.equal(await text(page, '#price-main'), '98,000,000 KRW');
   await open(page);
   await page.getByRole('button', { name: 'USDT · 바이낸스', exact: true }).click();
   assert.match(await text(page, '#toast'), /저장하지 못했습니다/);
   await live(page);
-  assert.equal(await text(page, '#price-source'), '바이낸스 · BTC/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');
@@ -344,7 +349,7 @@ async function carriedSettings(browser, base) {
     if (!localStorage.getItem('coinboard-settings')) localStorage.setItem('btc-kiosk-settings', JSON.stringify({ ticker: 'ETH', currency: 'USDT', debug: false, brightness: 60 }));
   });
   const page = await context.newPage(); await page.goto(base); await live(page);
-  assert.equal(await text(page, '#price-source'), '바이낸스 · ETH/USDT');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(60%)');
   await context.close();
   console.log('PASS carried settings: settings saved by btc-price-kiosk are picked up');
@@ -368,8 +373,8 @@ async function offlineShell(browser, base) {
   await context.setOffline(true);
   for (const entry of ['', 'index.html', '?source=home']) {
     await page.goto(base + entry);
-    await page.waitForFunction(() => /^오프라인/.test(document.getElementById('overlay-title')?.textContent || ''));
-    assert.equal(await text(page, '#price-source'), '업비트 · KRW-BTC');
+    await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
+    assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
     assert.equal(await text(page, '#price-main'), '—');
   }
   await context.close();

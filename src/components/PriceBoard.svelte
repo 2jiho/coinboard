@@ -19,10 +19,11 @@
   let failedIcon = $state(null);
   const iconFailed = $derived(failedIcon === iconSrc);
 
-  const parts = $derived(tick ? priceParts(tick.selection.currency, tick.price) : { prefix: '', digits: '—', suffix: '' });
+  const parts = $derived(tick ? priceParts(tick.selection.currency, tick.price) : { digits: '—', unit: '' });
   const changeText = $derived(tick ? formatChange(tick.change) : '—');
   const changeDirection = $derived(tick ? direction(tick.change) : 0);
-  const source = $derived(settings.currency === 'KRW' ? `업비트 · KRW-${settings.ticker}` : `바이낸스 · ${settings.ticker}/USDT`);
+  // The board is English only; Korean lives in the settings panel.
+  const source = $derived(settings.currency === 'KRW' ? `UPBIT · KRW-${settings.ticker}` : `BINANCE · ${settings.ticker}/USDT`);
   const tone = value => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
 
   // Flash the price green or red for half a second when it moves.
@@ -97,7 +98,7 @@
           onerror={() => { failedIcon = iconSrc; }} />
       {/if}
       <div>
-        <p id="price-main" class={tone(flash)} aria-live="polite" aria-atomic="true">{#if parts.prefix}<span class="unit">{parts.prefix}</span>{/if}{parts.digits}{#if parts.suffix}<span class="unit">{parts.suffix}</span>{/if}</p>
+        <p id="price-main" class={tone(flash)} aria-live="polite" aria-atomic="true">{parts.digits}{#if parts.unit}<span class="unit">{' ' + parts.unit}</span>{/if}</p>
         <p id="price-source">{source}</p>
         {#if status.titleShown || notice}
           <div id="status-overlay">
@@ -108,7 +109,7 @@
       </div>
       <div>
         <p id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{changeText}</p>
-        <p id="change-label">{settings.currency === 'KRW' ? '전일 대비' : '24h'}</p>
+        <p id="change-label">{settings.currency === 'KRW' ? '1D' : '24H'}</p>
       </div>
     </div>
   </div>

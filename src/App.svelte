@@ -41,7 +41,7 @@
     : `버전 ${version} · 설치된 사본 ${cacheVersion}`);
   // Only a lost or refused lock is worth a line on the board; a device without
   // the feature is reported in the settings panel alone.
-  const notice = $derived(wake.kind === 'released' || wake.kind === 'failed' ? '화면 유지 꺼짐' : '');
+  const notice = $derived(wake.kind === 'released' || wake.kind === 'failed' ? 'SCREEN MAY SLEEP' : '');
 
   $effect(() => {
     document.body.classList.toggle('controls-visible', controlsVisible);

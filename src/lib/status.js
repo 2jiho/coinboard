@@ -17,11 +17,13 @@ export function describeState(state, now) {
       label = state.reason + " · 재연결 " + Math.max(0, Math.ceil((state.retryAt - now) / 1000)) + "초 후";
   }
   var problem = ["backoff", "error", "offline"].includes(kind);
-  var title = kind === "error" ? "시세 오류" : kind === "offline" ? "오프라인" :
-    kind === "backoff" && /지연/.test(state.reason) ? "시세 지연" : "새 시세 대기";
-  if (kind !== "live" && state.last) title += " · 마지막 가격";
+  // The title is shown on the board, which is English only. Everything else
+  // here is for the settings panel.
+  var title = kind === "error" ? "ERROR" : kind === "offline" ? "OFFLINE" :
+    kind === "backoff" && /지연/.test(state.reason) ? "DELAYED" : "WAITING";
+  if (kind !== "live" && state.last) title += " · LAST PRICE";
   // Offline and exchange errors already say what is wrong.
-  if (state.tickerSuspect && ["backoff", "connecting", "waiting"].includes(kind)) title = "티커 확인 필요";
+  if (state.tickerSuspect && ["backoff", "connecting", "waiting"].includes(kind)) title = "CHECK TICKER";
   var detail = "";
   if (kind !== "live") {
     detail = state.last ? "마지막 시세: " + price(state.last.selection.currency, state.last.price) + " · " +

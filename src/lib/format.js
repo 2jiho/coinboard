@@ -1,21 +1,21 @@
 // Price and change strings. Pure: no DOM, no settings.
-var krw = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
-var usdt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-// Coins worth less than ₩100 or 1 USDT would round to zero with the fixed
+var whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+var cents = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Coins worth less than 100 KRW or 1 USDT would round to zero with the fixed
 // decimals above, so they show exactly four significant digits instead
 // (a fixed count keeps the width from jumping between 0.25 and 0.2501).
-var smallKrw = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", minimumSignificantDigits: 4, maximumSignificantDigits: 4 });
-var smallUsdt = new Intl.NumberFormat("en-US", { minimumSignificantDigits: 4, maximumSignificantDigits: 4 });
-export function price(currency, value) {
-  if (currency === "KRW") return (value >= 100 ? krw : smallKrw).format(value);
-  return (value >= 1 ? usdt : smallUsdt).format(value) + " USDT";
-}
-// The same text as price(), split so the currency mark can be set smaller
-// than the digits.
+var small = new Intl.NumberFormat("en-US", { minimumSignificantDigits: 4, maximumSignificantDigits: 4 });
+
+// The digits and the currency code separately, so the code can be set smaller.
+// The code always follows the digits, whatever the currency.
 export function priceParts(currency, value) {
-  var text = price(currency, value);
-  if (currency === "KRW") return { prefix: text.charAt(0), digits: text.slice(1), suffix: "" };
-  return { prefix: "", digits: text.slice(0, -5), suffix: " USDT" };
+  if (currency === "KRW") return { digits: (value >= 100 ? whole : small).format(value), unit: "KRW" };
+  return { digits: (value >= 1 ? cents : small).format(value), unit: "USDT" };
+}
+// "98,000,000 KRW", "70,000.10 USDT"
+export function price(currency, value) {
+  var parts = priceParts(currency, value);
+  return parts.digits + " " + parts.unit;
 }
 // -1, 0 or 1 for the change as displayed, so +0.004% is neither up nor down.
 export function direction(value) {
