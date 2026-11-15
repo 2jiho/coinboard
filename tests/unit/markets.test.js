@@ -51,3 +51,21 @@ test('duplicates and junk entries are dropped', async () => {
   const f = fixture({ 'api.upbit.com': { body: [{ market: 'KRW-ETH' }, { market: 'KRW-ETH' }, {}, { market: 'KRW-btc' }, { market: 'KRW-BTC' }] } });
   assert.deepEqual(await f.list.load('KRW'), ['BTC', 'ETH']);
 });
+test('the list request takes its turn with the price connection: it waits, then counts as a request itself', async () => {
+  // Measured on the live site: Upbit refuses a browser request made within
+  // ten seconds of the last one, and the price connection is one of them.
+  const events = []; let wait = 7000;
+  const pacer = { waitFor: () => wait, mark: currency => { events.push('mark ' + currency); } };
+  const list = createMarketList({ pacer, sleep: async ms => { events.push('sleep ' + ms); wait = 0; },
+    fetch: async () => { events.push('fetch'); return { ok: true, json: async () => UPBIT }; } });
+  assert.deepEqual(await list.load('KRW'), ['BTC', 'ETH', 'XRP']);
+  assert.deepEqual(events, ['sleep 7000', 'mark KRW', 'fetch']);
+});
+test('if something else used the turn while it waited, it waits again', async () => {
+  const waits = [5000, 3000, 0], events = [];
+  const pacer = { waitFor: () => waits[0], mark: () => { events.push('mark'); } };
+  const list = createMarketList({ pacer, sleep: async ms => { events.push('sleep ' + ms); waits.shift(); },
+    fetch: async () => { events.push('fetch'); return { ok: true, json: async () => UPBIT }; } });
+  await list.load('KRW');
+  assert.deepEqual(events, ['sleep 5000', 'sleep 3000', 'mark', 'fetch']);
+});
