@@ -61,14 +61,15 @@ body {
   #icon { width: 150px; height: 150px; }
   #board-text { align-items: center; }
 }
-#price-main { margin-top: 30px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1; color: #fff; transition: color 0.5s ease-out; }
+/* Line height leaves room for the comma's tail above the change line. */
+#price-main { margin-top: 16px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; color: #fff; transition: color 0.5s ease-out; }
 /* 억 and 만 are units, so they are smaller and quieter than the figures. */
 #price-main .mark { margin-left: 0.04em; font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: #a1a1a6; }
 #price-main.up { color: #7ee2a0; transition: none; }
 #price-main.down { color: #ff8a80; transition: none; }
 /* The exchange and market are not drawn. They stay in the page for screen readers. */
 #price-source { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-#board-foot { display: flex; align-items: baseline; gap: 22px; margin-top: 46px; font-size: 72px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
+#board-foot { display: flex; align-items: baseline; gap: 22px; margin-top: 26px; font-size: 72px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
 /* The change is plain coloured text with a small arrow: no badge around it. */
 #change { color: #d1d1d6; transition: color 0.4s; }
 #change.up { color: #30d158; }
@@ -110,7 +111,7 @@ body {
   max-height: calc(100dvh - var(--panel-top) - var(--panel-bottom));
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 14px;
   padding: 0 18px 20px;
   overflow: auto;
   overscroll-behavior: contain;
@@ -177,7 +178,7 @@ a:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 2px; }
 #currency-controls span { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--secondary); }
 
 /* Coin presets: chips */
-#ticker-presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+#ticker-presets { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
 #admin-panel #ticker-presets button { min-width: 0; min-height: 44px; padding: 0; border-radius: 999px; background: var(--group); color: var(--secondary); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
 #admin-panel #ticker-presets button[aria-pressed="true"] { background: #f2f2f7; color: #000; }
 

@@ -149,7 +149,12 @@ async function board(browser, base) {
   assert.ok(mark.width >= 44 && mark.height >= 44, 'the icon is still a full-size touch target');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
-  assert.deepEqual(await page.locator('#admin-panel h3').allTextContents(), ['시세', '화면', '앱']);
+  // A healthy board has nothing to report: no headings, no status lines, no extra input.
+  assert.equal(await page.locator('#admin-panel h3').count(), 0);
+  for (const quiet of ['#status-indicator', '#overlay-msg', '#wake-lock-status', '#admin-symbol', '#market-retry', '#wake-lock-retry', '#app-update']) {
+    assert.equal(await page.locator(quiet).isVisible(), false, quiet + ' is hidden while all is well');
+  }
+  assert.equal(await page.locator('#admin-debug').count(), 0);
   assert.equal(await text(page, '#status-indicator'), '업비트 · 실시간 연결됨');
   // The installed copy matches the page, so only one version is shown.
   await until(page, async () => !!navigator.serviceWorker.controller);
@@ -198,8 +203,13 @@ async function board(browser, base) {
   await page.screenshot({ path: path.join(evidence, 'board-button.png') });
   await page.touchscreen.tap(corner.x, corner.y);
   assert.equal(await page.locator('#admin-panel').isVisible(), true);
+  await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
   await page.screenshot({ path: path.join(evidence, 'settings.png') });
 
+  // Any other coin: "기타" opens a field for its ticker.
+  await page.locator('#ticker-other').click();
+  assert.equal(await page.locator('#admin-symbol').isVisible(), true);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-symbol');
   // Invalid tickers are refused in place; nothing changes.
   for (const bad of ['bad!', '비트', '   ']) {
     await page.locator('#admin-symbol').fill(bad); await page.locator('#admin-symbol-apply').click();
@@ -219,7 +229,8 @@ async function board(browser, base) {
   await page.locator('#ticker-presets [data-ticker="XRP"]').click();
   assert.equal(await text(page, '#price-source'), 'BINANCE · XRP/USDT');
   assert.equal(await page.locator('#ticker-presets [data-ticker="XRP"]').getAttribute('aria-pressed'), 'true');
-  assert.equal(await page.locator('#admin-symbol').inputValue(), 'XRP');
+  // Back on a listed coin, the field for other tickers folds away again.
+  assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   await page.locator('#ticker-presets [data-ticker="ETH"]').click();
   assert.equal((await saved(page)).ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
@@ -227,14 +238,15 @@ async function board(browser, base) {
   await page.waitForFunction(() => { const icon = document.getElementById('icon'); return icon && icon.complete && icon.naturalWidth > 0; });
   assert.match(await page.locator('#icon').getAttribute('src'), /^\.\/coins\/eth\.svg$/);
   // Text typed but not applied is thrown away when the panel closes.
-  await page.locator('#admin-symbol').fill('SOL'); await page.locator('#admin-close').click();
-  await open(page); assert.equal(await page.locator('#admin-symbol').inputValue(), 'ETH');
-  // Brightness and debug apply and save without an apply button.
+  await page.locator('#ticker-other').click();
+  await page.locator('#admin-symbol').fill('LINK'); await page.locator('#admin-close').click();
+  await open(page); assert.equal(await page.locator('#admin-symbol').isVisible(), false);
+  assert.equal(await page.locator('#ticker-presets [data-ticker="ETH"]').getAttribute('aria-pressed'), 'true');
+  // Brightness applies and saves without an apply button.
   await page.locator('#admin-brightness').fill('50');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  await page.locator('#admin-debug').check();
-  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', debug: true, brightness: 50, burnIn: true });
+  assert.deepEqual(await saved(page), { ticker: 'ETH', currency: 'USDT', brightness: 50, burnIn: true });
   // Burn-in protection keeps the board near the middle; switched off, exactly in the middle.
   const drift = () => page.locator('#drift').evaluate(el => (el.style.transform.match(/-?[\d.]+(?=px)/g) || []).map(Number));
   await page.clock.runFor(62000);
@@ -260,7 +272,7 @@ async function board(browser, base) {
   await page.reload(); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
-  await open(page); await page.locator('#admin-debug').uncheck(); await page.locator('#admin-brightness').fill('100');
+  await open(page); await page.locator('#admin-brightness').fill('100');
   await page.locator('#admin-close').click();
   // Focus stays on the button after closing; a tap elsewhere lets it hide again.
   await tapBoard(page); await page.clock.fastForward(6000);
@@ -270,7 +282,7 @@ async function board(browser, base) {
   await open(page);
   await page.clock.runFor(110000);
   assert.equal(await page.locator('#admin-panel').isVisible(), true);
-  await page.locator('#admin-symbol').focus(); await page.keyboard.press('ArrowRight');
+  await page.locator('#admin-brightness').focus(); await page.keyboard.press('Shift');
   await page.clock.runFor(110000);
   assert.equal(await page.locator('#admin-panel').isVisible(), true, 'a key press keeps it open');
   await page.clock.runFor(11000);
@@ -299,13 +311,20 @@ async function board(browser, base) {
   // A ticker the exchange never answers for.
   await open(page);
   await page.evaluate(() => { suppressTicks = true; });
+  await page.locator('#ticker-other').click();
   await page.locator('#admin-symbol').fill('NOPE'); await page.locator('#admin-symbol-apply').click();
+  // A coin that is not on the list keeps its field open, showing what is selected.
+  assert.equal(await page.locator('#admin-symbol').isVisible(), true);
+  assert.equal(await page.locator('#ticker-other').getAttribute('aria-pressed'), 'true');
   await page.clock.runFor(40000);
   assert.equal(await text(page, '#overlay-title'), 'CHECK TICKER');
   // A coin without an icon simply has none: its ticker is already in the head line.
   assert.equal(await page.locator('#icon').count(), 0);
   assert.equal(await text(page, '#coin'), 'NOPE');
   assert.match(await text(page, '#overlay-msg'), /지원하지 않는 티커일 수 있습니다/);
+  // Now there is something to report, so the status lines show.
+  assert.equal(await page.locator('#status-indicator').isVisible(), true);
+  assert.equal(await page.locator('#overlay-msg').isVisible(), true);
   // Being offline is the more useful thing to say than doubting the ticker.
   await context.setOffline(true);
   await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
@@ -465,6 +484,7 @@ async function layouts(browser, base) {
     await page.locator('#settings-toggle').tap();
     // The worst case for height: every optional button showing.
     await page.evaluate(() => { for (const id of ['wake-lock-retry', 'app-update', 'market-retry']) document.getElementById(id).hidden = false; });
+    await page.locator('#ticker-other').tap();
     // Measure the sheet where it comes to rest, not partway through its entrance.
     await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
     const dialog = await page.locator('#admin-panel').boundingBox();
@@ -473,7 +493,7 @@ async function layouts(browser, base) {
       assert.ok(box.y >= Math.max(48, s.top + 16) - 1, s.name + ' top'); assert.ok(box.y + box.height <= s.height - s.bottom - 15, s.name + ' bottom');
     };
     inside(dialog);
-    await page.locator('#admin-debug').scrollIntoViewIfNeeded();
+    await page.locator('#admin-repo').scrollIntoViewIfNeeded();
     inside(await page.locator('#admin-close').boundingBox());
     if (s.name.startsWith('ipad-') && !s.name.endsWith('zero')) await page.screenshot({ path: path.join(evidence, `settings-${s.name}.png`) });
     records.push({ ...s, toggle, dialog });

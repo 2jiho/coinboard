@@ -1,14 +1,30 @@
 <script>
   // Everything here applies as soon as it is changed. The ticker is the one
   // field that needs a decision, because typing is not choosing.
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { normalizeTicker } from '../lib/settings.js';
   import { PRESETS } from '../lib/presets.js';
 
   let { settings, status, wake, versionLabel, updateReady,
-    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onDebug, onRetryFeed, onRetryWake, onUpdate } = $props();
+    onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onRetryFeed, onRetryWake, onUpdate } = $props();
 
-  let panel, closeButton;
+  let panel, closeButton, tickerInput;
+  // The field for other tickers stays folded away unless the selected coin is
+  // not one of the buttons, or "기타" has been pressed.
+  const listed = $derived(PRESETS.includes(settings.ticker));
+  let otherOpen = $state(false);
+  const showOther = $derived(otherOpen || !listed);
+  // Worth a line only when something is wrong.
+  const wakeTrouble = $derived(['unsupported', 'released', 'failed'].includes(wake.kind));
+  async function openOther() {
+    otherOpen = true; tickerText = listed ? '' : settings.ticker; tickerError = false;
+    await tick();
+    tickerInput.focus();
+  }
+  function choosePreset(preset) {
+    otherOpen = false; tickerError = false; tickerText = preset;
+    if (preset !== settings.ticker) onTicker(preset);
+  }
   // The panel starts from the saved values and then holds what is being typed.
   let tickerText = $state(untrack(() => settings.ticker));
   let tickerError = $state(false);
@@ -20,6 +36,7 @@
     tickerError = false;
     tickerText = ticker;
     if (ticker !== settings.ticker) onTicker(ticker);
+    otherOpen = false;
   }
   function onKeydown(event) {
     if (event.key === 'Escape') { onClose(true); return; }
@@ -43,23 +60,22 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
     </button>
   </div>
-  <section class="settings-section" aria-labelledby="section-market">
-    <h3 id="section-market">시세</h3>
+  <section class="settings-section" aria-label="시세">
     <div id="currency-controls" role="group" aria-label="표시 통화 및 거래소 선택">
       <button type="button" data-currency="KRW" aria-pressed={settings.currency === 'KRW'} aria-label="원화 · 업비트" onclick={() => onCurrency('KRW')}>원화<span>업비트</span></button>
       <button type="button" data-currency="USDT" aria-pressed={settings.currency === 'USDT'} aria-label="USDT · 바이낸스" onclick={() => onCurrency('USDT')}>USDT<span>바이낸스</span></button>
     </div>
-    <div id="ticker-presets" role="group" aria-label="자주 쓰는 코인">
+    <div id="ticker-presets" role="group" aria-label="코인 선택">
       {#each PRESETS as preset}
-        <button type="button" data-ticker={preset} aria-pressed={settings.ticker === preset}
-          onclick={() => { tickerText = preset; applyTicker(); }}>{preset}</button>
+        <button type="button" data-ticker={preset} aria-pressed={settings.ticker === preset && !otherOpen} onclick={() => choosePreset(preset)}>{preset}</button>
       {/each}
+      <button id="ticker-other" type="button" aria-pressed={showOther} aria-expanded={showOther} aria-controls="ticker-other-row" onclick={openOther}>기타</button>
     </div>
-    <div class="settings-group">
+    <div id="ticker-other-row" class="settings-group" hidden={!showOther}>
       <div class="settings-row">
-        <label for="admin-symbol">다른 티커</label>
+        <label for="admin-symbol">티커</label>
         <div class="ticker-row">
-          <input type="text" id="admin-symbol" placeholder="BTC" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
+          <input type="text" id="admin-symbol" bind:this={tickerInput} placeholder="예: LINK" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
             enterkeyhint="done" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
             bind:value={tickerText} oninput={() => { tickerError = false; }}
             onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
@@ -68,12 +84,11 @@
       </div>
     </div>
     <p id="admin-symbol-error" role="alert" hidden={!tickerError}>영문·숫자 1~20자로 입력하세요</p>
-    <p id="status-indicator" class={status.tone} role="status" aria-live="polite">{status.text}</p>
+    <p id="status-indicator" class={status.tone} role="status" aria-live="polite" hidden={status.tone === 'connected'}>{status.text}</p>
     <p id="overlay-msg" hidden={!status.detail}>{status.detail}</p>
     <button id="market-retry" type="button" hidden={!status.canRetry} onclick={onRetryFeed}>시세 다시 연결</button>
   </section>
-  <section class="settings-section" aria-labelledby="section-screen">
-    <h3 id="section-screen">화면</h3>
+  <section class="settings-section" aria-label="화면">
     <div class="settings-group">
       <div class="settings-row">
         <label for="admin-brightness">밝기</label>
@@ -85,21 +100,12 @@
         </div>
       </div>
       <div class="settings-row">
-        <label for="admin-burn-in">번인 방지 <span class="hint">가운데 근처에서 천천히 움직임</span></label>
+        <label for="admin-burn-in">번인 방지</label>
         <input type="checkbox" role="switch" id="admin-burn-in" checked={settings.burnIn} onchange={event => onBurnIn(event.currentTarget.checked)} />
       </div>
     </div>
-    <p id="wake-lock-status" role="status" aria-live="polite">{wake.message}</p>
+    <p id="wake-lock-status" role="status" aria-live="polite" hidden={!wakeTrouble}>{wake.message}</p>
     <button id="wake-lock-retry" type="button" hidden={!wake.canRetry} onclick={onRetryWake}>화면 켜짐 유지 다시 시도</button>
-  </section>
-  <section class="settings-section" aria-labelledby="section-app">
-    <h3 id="section-app">앱</h3>
-    <div class="settings-group">
-      <div class="settings-row">
-        <label for="admin-debug">디버그 모드</label>
-        <input type="checkbox" role="switch" id="admin-debug" checked={settings.debug} onchange={event => onDebug(event.currentTarget.checked)} />
-      </div>
-    </div>
     <button id="app-update" type="button" hidden={!updateReady} onclick={onUpdate}>새 버전 적용</button>
   </section>
   <footer class="settings-footer">

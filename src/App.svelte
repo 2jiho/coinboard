@@ -87,7 +87,6 @@
       active: visible, online: navigator.onLine,
       onTick(next) { if (next.selection.currency === settings.currency && next.selection.ticker === settings.ticker) tick = next; },
       onState(next) { feedState = next; },
-      onError(error) { if (settings.debug) console.warn('시세 메시지 오류:', error); },
     });
     applySelection();
     wakeLock = createWakeLock({ navigator, document, window, onChange(next) { wake = next; } });
@@ -139,7 +138,6 @@
     onBrightnessPreview={value => { previewBrightness = value; }}
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
     onBurnIn={burnIn => save({ burnIn })}
-    onDebug={debug => save({ debug })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}
     onUpdate={() => updater.reload()} />

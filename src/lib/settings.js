@@ -9,14 +9,13 @@ export function normalizeTicker(text) {
   return TICKER.test(ticker) ? ticker : null;
 }
 export function createSettings(storage) {
-  const settings = { ticker: "BTC", currency: "KRW", debug: false, brightness: 100, burnIn: true };
+  const settings = { ticker: "BTC", currency: "KRW", brightness: 100, burnIn: true };
   try {
     const saved = JSON.parse(storage.getItem(KEY) || storage.getItem(OLD_KEY));
     if (saved && typeof saved === "object") {
       const ticker = normalizeTicker(saved.ticker);
       if (ticker) settings.ticker = ticker;
       if (["KRW", "USDT"].includes(saved.currency)) settings.currency = saved.currency;
-      settings.debug = saved.debug === true;
       // On unless it was explicitly switched off.
       settings.burnIn = saved.burnIn !== false;
       const brightness = Number(saved.brightness);
@@ -26,11 +25,11 @@ export function createSettings(storage) {
     storage.removeItem("btc-last-exchange-rate");
   } catch (error) { /* Unreadable storage: run on defaults. */ }
   function get() {
-    return { ticker: settings.ticker, currency: settings.currency, debug: settings.debug, brightness: settings.brightness, burnIn: settings.burnIn };
+    return { ticker: settings.ticker, currency: settings.currency, brightness: settings.brightness, burnIn: settings.burnIn };
   }
   // Callers pass validated values; a failed write still applies for this run.
   function update(patch) {
-    ["ticker", "currency", "debug", "brightness", "burnIn"].forEach((key) => {
+    ["ticker", "currency", "brightness", "burnIn"].forEach((key) => {
       if (patch[key] !== undefined) settings[key] = patch[key];
     });
     try { storage.setItem(KEY, JSON.stringify(settings)); storage.removeItem(OLD_KEY); return { saved: true }; }
