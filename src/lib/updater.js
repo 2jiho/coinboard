@@ -29,11 +29,15 @@ export function createUpdater(options) {
     };
     worker.postMessage({ type: "GET_APP_VERSION" }, [channel.port2]);
   }
+  // The installed offline copy, reported as a state and a version; how to word
+  // it is the page's business.
+  //   unsupported: no service workers here      waiting: none in control yet
+  //   unknown: the worker would not say         known: version holds it
   function showCacheVersion(done) {
-    if (!("serviceWorker" in navigator)) { onCacheVersion("미지원"); return; }
-    if (!navigator.serviceWorker.controller) { onCacheVersion("대기"); return; }
+    if (!("serviceWorker" in navigator)) { onCacheVersion({ state: "unsupported", version: null }); return; }
+    if (!navigator.serviceWorker.controller) { onCacheVersion({ state: "waiting", version: null }); return; }
     queryCacheVersion((cacheVersion) => {
-      onCacheVersion(cacheVersion || "확인 불가");
+      onCacheVersion(cacheVersion ? { state: "known", version: cacheVersion } : { state: "unknown", version: null });
       if (done) done(cacheVersion);
     });
   }
@@ -80,9 +84,9 @@ export function createUpdater(options) {
   }
   return {
     start,
-    reload () { options.location.reload(); },
+    reload() { options.location.reload(); },
     // Call when the settings panel closes: a waiting update applies now.
-    settingsClosed () {
+    settingsClosed() {
       if (!reloadPending) return;
       reloadPending = false;
       if (mayAutoReload(pendingVersion)) options.location.reload();

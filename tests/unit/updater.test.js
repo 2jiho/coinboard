@@ -19,7 +19,7 @@ function fixture({ controlled = true, cacheVersion = '0.8.1', storage = memory()
   const updater = createUpdater({ navigator: { serviceWorker }, location: { reload() { state.reloads++; } }, document, storage,
     clock: { setInterval: (cb, ms) => { intervals.push({ cb, ms }); } }, version: '0.8.0', workerUrl: './sw.js', queryTimeoutMs: 5,
     window: { addEventListener: (name, cb) => { win[name] = cb; } },
-    onCacheVersion: text => { label.textContent = '버전 0.8.0 · 캐시 ' + text; }, onUpdateReady: () => { button.hidden = false; },
+    onCacheVersion: cache => { state.cache = cache; label.textContent = '버전 0.8.0 · 캐시 ' + (cache.version || cache.state); }, onUpdateReady: () => { button.hidden = false; },
     isSettingsOpen: () => state.open });
   button.click = () => updater.reload();
   updater.start();
@@ -83,9 +83,15 @@ test('a worker that never answers is asked three times, then left to the button'
   const f = fixture(); await settle(); const before = f.state.queries;
   f.state.silentReplies = 99; f.takeOver(); await settle(); await settle();
   assert.equal(f.state.queries - before, 3); assert.equal(f.state.reloads, 0);
-  assert.equal(f.button.hidden, false); assert.equal(f.label.textContent, '버전 0.8.0 · 캐시 확인 불가');
+  assert.equal(f.button.hidden, false); assert.deepEqual(f.state.cache, { state: 'unknown', version: null });
 });
 test('checks for updates when the network comes back', async () => {
   const f = fixture(); await settle(); assert.equal(f.state.updates, 1);
   f.online(); assert.equal(f.state.updates, 2);
+});
+test('the installed copy is reported as a state and a version, never as display text', async () => {
+  const known = fixture({ cacheVersion: '0.8.0' }); await settle();
+  assert.deepEqual(known.state.cache, { state: 'known', version: '0.8.0' });
+  const waiting = fixture({ controlled: false }); await settle();
+  assert.deepEqual(waiting.state.cache, { state: 'waiting', version: null });
 });

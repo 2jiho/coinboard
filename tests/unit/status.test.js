@@ -12,7 +12,7 @@ test('live: connected, no title, no detail', () => {
   assert.equal(s.unavailable, false); assert.equal(s.titleShown, false); assert.equal(s.detail, '');
 });
 test('backoff counts down and keeps the last price in view', () => {
-  const s = describeState({ kind: 'backoff', reason: '시세 업데이트 지연', retryAt: 9000, selection, last }, 6000);
+  const s = describeState({ kind: 'backoff', cause: 'stale', reason: '시세 업데이트 지연', retryAt: 9000, selection, last }, 6000);
   assert.equal(s.text, '업비트 · 시세 업데이트 지연 · 재연결 3초 후'); assert.equal(s.tone, 'error');
   assert.equal(s.title, 'DELAYED · LAST PRICE'); assert.equal(s.titleShown, true);
   assert.equal(s.detail, '마지막 시세: 9800만 KRW · 5초 전\n시세 업데이트 지연');
@@ -40,4 +40,9 @@ test('what the board shows is in English; the settings line stays in Korean', ()
     const title = describeState({ kind, reason: '시세 수신 시간 초과', retryAt: 1, selection, last, tickerSuspect: true }, 0).title;
     assert.doesNotMatch(title, /[가-힣]/, kind);
   }
+});
+test('DELAYED is decided by the cause, not by the wording of the reason', () => {
+  const state = { kind: 'backoff', retryAt: 9000, selection, last: null };
+  assert.equal(describeState({ ...state, cause: 'stale', reason: 'anything at all' }, 0).title, 'DELAYED');
+  assert.equal(describeState({ ...state, cause: 'timeout', reason: '시세 업데이트 지연' }, 0).title, 'WAITING');
 });

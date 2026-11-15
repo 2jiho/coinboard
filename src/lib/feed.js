@@ -6,6 +6,30 @@ import { binance } from "./exchanges/binance.js";
 
 const EXCHANGES = { KRW: upbit, USDT: binance };
 
+// Why the feed is not live, as a code. The words are for the settings panel;
+// anything that decides behaviour or the board's wording uses the code.
+const REASONS = {
+  "rate-wait": "연결 요청 간격 대기",
+  "connect-failed": "연결 생성 실패",
+  timeout: "시세 수신 시간 초과",
+  stale: "시세 업데이트 지연",
+  "subscribe-failed": "구독 요청 실패",
+  "heartbeat-failed": "연결 유지 요청 실패",
+  "rate-limited": "요청 한도 초과",
+  restart: "거래소 연결 재시작",
+  network: "네트워크 연결 오류",
+  closed: "거래소 연결 끊김",
+  hidden: "앱 복귀 시 새 시세를 확인합니다",
+  offline: "네트워크 연결을 확인하세요",
+};
+
+// One market, named the way each part of the app needs it.
+export function describeMarket(currency, ticker) {
+  const exchange = EXCHANGES[currency];
+  return { currency, ticker, exchange: exchange.name, label: exchange.label,
+    market: exchange.market(ticker), pair: exchange.pair(ticker), changeLabel: exchange.changeLabel };
+}
+
 export function createMarketFeed(options) {
   options = options || {};
   const WS = options.WebSocket || globalThis.WebSocket;
@@ -28,21 +52,15 @@ export function createMarketFeed(options) {
   if (store) {
     ["KRW", "USDT"].forEach((currency) => {
       try {
-        const value = Number(store.getItem(`coinboard-connect-${  currency}`));
+        const value = Number(store.getItem(`coinboard-connect-${currency}`));
         if (value > 0 && value <= clock.now() && value > clock.now() - 60000) lastAttempt[currency] = value;
       } catch (_) {}
     });
   }
 
-  function describe(currency, ticker) {
-    return { currency, ticker,
-      exchange: EXCHANGES[currency].name,
-      market: EXCHANGES[currency].market(ticker),
-      changeLabel: EXCHANGES[currency].changeLabel,
-    };
-  }
-  function emit(kind, reason, retryAt) {
-    onState({ kind, reason: reason || "", retryAt: retryAt || null, selection, last,
+  // cause: a key of REASONS, "exchange-error", or null when nothing is wrong.
+  function emit(kind, cause, retryAt, detail) {
+    onState({ kind, cause: cause || null, reason: detail || REASONS[cause] || "", retryAt: retryAt || null, selection, last,
       tickerSuspect: !everTicked && silentAttempts >= 2 });
   }
   function clearTimers() {
@@ -66,21 +84,21 @@ export function createMarketFeed(options) {
     const minimum = EXCHANGES[selection.currency].minConnectInterval;
     return Math.max(0, lastAttempt[selection.currency] + minimum - clock.now());
   }
-  function schedule(delay, reason) {
-    if (!eligible()) { emit(!online ? "offline" : "paused", reason); return; }
+  function schedule(delay, cause) {
+    if (!eligible()) { emit(!online ? "offline" : "paused", cause); return; }
     delay = Math.max(delay || 0, rateWait());
     if (delay === 0) { connect(); return; }
     const token = generation;
-    emit("backoff", reason || "연결 요청 간격 대기", clock.now() + delay);
+    emit("backoff", cause || "rate-wait", clock.now() + delay);
     retryTimer = clock.setTimeout(() => {
       retryTimer = null;
       if (token === generation && eligible()) connect();
     }, delay);
   }
-  function fail(reason, minimumDelay) {
+  function fail(cause, minimumDelay) {
     disconnect();
     const backoff = Math.min(30000, 1000 * Math.pow(2, Math.min(failures++, 5)));
-    schedule(Math.max(minimumDelay || 0, backoff + Math.floor(random() * backoff * 0.25)), reason);
+    schedule(Math.max(minimumDelay || 0, backoff + Math.floor(random() * backoff * 0.25)), cause);
   }
   async function decode(data) {
     if (typeof data === "string") return JSON.parse(data);
@@ -99,36 +117,36 @@ export function createMarketFeed(options) {
     let lastMessageAt = startedAt, lastEventTime = -Infinity;
     lastAttempt[current.currency] = startedAt;
     if (store) {
-      try { store.setItem(`coinboard-connect-${  current.currency}`, String(startedAt)); } catch (_) {}
+      try { store.setItem(`coinboard-connect-${current.currency}`, String(startedAt)); } catch (_) {}
     }
     emit("connecting");
     let connection;
     try {
       connection = new WS(exchange.url(current.market));
       connection.binaryType = "arraybuffer";
-    } catch (error) { fail(`연결 생성 실패: ${  error.name}`); return; }
+    } catch (error) { fail("connect-failed"); return; }
     socket = connection;
     function isCurrent() { return token === generation && socket === connection && eligible(); }
     healthTimer = clock.setInterval(() => {
       if (!isCurrent()) return;
       if (!gotTick && clock.now() - startedAt >= staleMs) {
         silentAttempts++;
-        fail("시세 수신 시간 초과");
+        fail("timeout");
       } else if (gotTick && clock.now() - lastMessageAt >= staleMs) {
-        fail("시세 업데이트 지연");
+        fail("stale");
       }
     }, 1000);
     connection.onopen = () => {
       if (!isCurrent()) return;
       emit("waiting");
       try {
-        exchange.subscribe(current.market, `${startedAt  }-${  token}`).forEach((frame) => { connection.send(frame); });
+        exchange.subscribe(current.market, `${startedAt}-${token}`).forEach((frame) => { connection.send(frame); });
         if (exchange.heartbeat) connection.send(exchange.heartbeat);
-      } catch (error) { fail("구독 요청 실패"); return; }
+      } catch (error) { fail("subscribe-failed"); return; }
       if (exchange.heartbeat) {
         heartbeatTimer = clock.setInterval(() => {
           if (isCurrent() && connection.readyState === WS.OPEN) {
-            try { connection.send(exchange.heartbeat); } catch (_) { fail("연결 유지 요청 실패"); }
+            try { connection.send(exchange.heartbeat); } catch (_) { fail("heartbeat-failed"); }
           }
         }, exchange.heartbeatMs);
       }
@@ -141,12 +159,12 @@ export function createMarketFeed(options) {
         const message = exchange.read(data, current.market);
         if (!message) return;
         if (message.type === "error") {
-          if (message.code === "TOO_MANY_REQUEST") { fail("요청 한도 초과", 30000); return; }
+          if (message.code === "TOO_MANY_REQUEST") { fail("rate-limited", 30000); return; }
           disconnect();
-          emit("error", `거래소 오류: ${  message.code  } · 지원하는 티커를 확인하세요`);
+          emit("error", "exchange-error", null, `거래소 오류: ${message.code} · 지원하는 티커를 확인하세요`);
           return;
         }
-        if (message.type === "restart") { fail("거래소 연결 재시작"); return; }
+        if (message.type === "restart") { fail("restart"); return; }
         if (message.type === "alive") { lastMessageAt = clock.now(); return; }
         const price = message.price, change = message.change, eventTime = message.eventTime;
         if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(change) ||
@@ -164,15 +182,15 @@ export function createMarketFeed(options) {
         if (isCurrent() && options.onError) options.onError(error);
       }
     };
-    connection.onerror = () => { if (isCurrent()) fail("네트워크 연결 오류"); };
-    connection.onclose = () => { if (isCurrent()) fail("거래소 연결 끊김"); };
+    connection.onerror = () => { if (isCurrent()) fail("network"); };
+    connection.onclose = () => { if (isCurrent()) fail("closed"); };
   }
   function select(currency, ticker) {
     ticker = (ticker || "BTC").toUpperCase();
     if (!["KRW", "USDT"].includes(currency) || !/^[A-Z0-9]{1,20}$/.test(ticker)) throw new Error("Invalid market selection");
     if (selection && selection.currency === currency && selection.ticker === ticker) return;
     disconnect();
-    selection = describe(currency, ticker); last = null; failures = 0;
+    selection = describeMarket(currency, ticker); last = null; failures = 0;
     silentAttempts = 0; everTicked = false;
     schedule(0);
   }
@@ -180,17 +198,17 @@ export function createMarketFeed(options) {
     value = !!value;
     if (value === active || disposed) return;
     active = value; disconnect();
-    if (active) schedule(0); else emit("paused", "앱 복귀 시 새 시세를 확인합니다");
+    if (active) schedule(0); else emit("paused", "hidden");
   }
   function setOnline(value) {
     value = !!value;
     if (value === online || disposed) return;
     online = value; disconnect();
-    if (online) schedule(0); else emit("offline", "네트워크 연결을 확인하세요");
+    if (online) schedule(0); else emit("offline", "offline");
   }
   return {
     select, setActive, setOnline,
-    retry () { if (eligible()) { disconnect(); schedule(0); } },
-    dispose () { disposed = true; disconnect(); },
+    retry() { if (eligible()) { disconnect(); schedule(0); } },
+    dispose() { disposed = true; disconnect(); },
   };
 }

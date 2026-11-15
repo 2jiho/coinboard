@@ -68,7 +68,7 @@ export function createWakeLock(options) {
       } catch (error) {
         console.warn("Wake Lock request failed:", error);
         if (requestEpoch === epoch && !suspended) {
-          show("failed", `화면 켜짐 유지 실패 (${  error.name  }) · 저전력 모드·배터리·권한을 확인하세요`, true);
+          show("failed", `화면 켜짐 유지 실패 (${error.name}) · 저전력 모드·배터리·권한을 확인하세요`, true);
         }
       } finally {
         pending = null;
@@ -107,8 +107,8 @@ export function createWakeLock(options) {
   window.addEventListener("pageshow", resume);
   acquire(false);
   return {
-    retry () { return acquire(false); },
-    dispose () {
+    retry() { return acquire(false); },
+    dispose() {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", suspend);

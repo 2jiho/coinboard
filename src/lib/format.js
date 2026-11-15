@@ -40,7 +40,7 @@ export function priceParts(currency, value) {
 // "1억 2340만 KRW", "451.2만 KRW", "70,123 USDT", "152.3 USDT"
 export function price(currency, value) {
   const parts = priceParts(currency, value);
-  return `${parts.pieces.map((piece) => { return piece.number + piece.mark; }).join(" ")  } ${  parts.unit}`;
+  return `${parts.pieces.map((piece) => { return piece.number + piece.mark; }).join(" ")  } ${parts.unit}`;
 }
 // -1, 0 or 1 for the change as displayed, so +0.004% is neither up nor down.
 export function direction(value) {
@@ -52,5 +52,5 @@ export function direction(value) {
 export function change(value) {
   const sign = direction(value);
   if (sign === 0) return "0.00%";
-  return `${(sign > 0 ? "▲ " : "▼ ") + Math.abs(value).toFixed(2)  }%`;
+  return `${(sign > 0 ? "▲ " : "▼ ") + Math.abs(value).toFixed(2)}%`;
 }

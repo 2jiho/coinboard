@@ -3,18 +3,21 @@ import { number } from "./number.js";
 
 export const binance = {
   name: "바이낸스",
-  changeLabel: "24h",
+  label: "BINANCE",
+  // The change is over a rolling 24 hours.
+  changeLabel: "24H",
   // At least 2 seconds between connection attempts (limit: 300 per 5 minutes).
   minConnectInterval: 2000,
   // Protocol PING/PONG is handled by the browser and is invisible here, so
   // there is no heartbeat: liveness is judged by tickers alone.
   heartbeat: null,
   heartbeatMs: 0,
-  market (ticker) { return `${ticker  }USDT`; },
-  url (market) { return `wss://stream.binance.com:443/ws/${  market.toLowerCase()  }@ticker`; },
+  market(ticker) { return `${ticker}USDT`; },
+  pair(ticker) { return `${ticker}/USDT`; },
+  url(market) { return `wss://stream.binance.com:443/ws/${market.toLowerCase()}@ticker`; },
   // The stream is chosen by the URL; nothing to send.
-  subscribe () { return []; },
-  read (data, market) {
+  subscribe() { return []; },
+  read(data, market) {
     // Errors arrive bare ({ code, msg }) or wrapped ({ error: { code, msg } }).
     if (data.error) return { type: "error", code: String(data.error.code !== undefined ? data.error.code : data.error.name || "UNKNOWN") };
     if (data.code !== undefined && data.msg) return { type: "error", code: String(data.code) };

@@ -3,6 +3,7 @@
   // It is laid out at a fixed design size and scaled to fill the screen.
   import { onMount } from 'svelte';
   import { priceParts, change as formatChange, direction } from '../lib/format.js';
+  import { describeMarket } from '../lib/feed.js';
 
   let { settings, tick, status, notice, brightness, active } = $props();
 
@@ -25,8 +26,9 @@
   // "▼ 2.50%" is drawn as a small arrow and the number; together they read the same.
   const changeArrow = $derived(changeText.includes(' ') ? changeText.split(' ')[0] : '');
   const changeNumber = $derived(changeArrow ? changeText.slice(changeArrow.length) : changeText);
-  // The board is English only; Korean lives in the settings panel.
-  const source = $derived(settings.currency === 'KRW' ? `UPBIT · KRW-${settings.ticker}` : `BINANCE · ${settings.ticker}/USDT`);
+  // Names for this market come from its exchange. The board is English only;
+  // Korean lives in the settings panel.
+  const market = $derived(describeMarket(settings.currency, settings.ticker));
   const tone = value => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
 
   // Flash the price green or red for half a second when it moves.
@@ -109,10 +111,10 @@
       <div id="board-text">
         <p id="board-head"><span id="coin">{settings.ticker}</span><span id="unit">{settings.currency}</span></p>
         <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true">{#each parts.pieces as piece, index}{index ? ' ' : ''}{piece.number}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</p>
-        <p id="price-source">{source}</p>
+        <p id="price-source">{market.label} · {market.pair}</p>
         <p id="board-foot">
           <span id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{#if changeArrow}<span class="arrow">{changeArrow}</span>{/if}{changeNumber}</span>
-          <span id="change-label">{settings.currency === 'KRW' ? '1D' : '24H'}</span>
+          <span id="change-label">{market.changeLabel}</span>
         </p>
         {#if status.titleShown || notice}
           <div id="status-overlay">

@@ -3,7 +3,7 @@
 const APP_VERSION = "__APP_VERSION__";
 const SHELL_FILES = "__SHELL_FILES__";
 const SCOPE = new URL(self.registration.scope);
-const CACHE_PREFIX = `coinboard:${  SCOPE.pathname  }:`;
+const CACHE_PREFIX = `coinboard:${SCOPE.pathname}:`;
 const CACHE_NAME = CACHE_PREFIX + APP_VERSION;
 const INDEX_URL = new URL("index.html", SCOPE).href;
 const SHELL_URLS = SHELL_FILES.map((path) => { return new URL(path, SCOPE).href; });

@@ -23,7 +23,7 @@
   let now = $state(Date.now());
   let visible = $state(document.visibilityState === 'visible');
   let wake = $state({ kind: 'pending', message: '', canRetry: false });
-  let cacheVersion = $state(null);
+  let cache = $state({ state: 'waiting', version: null });
   let updateReady = $state(false);
   let controlsVisible = $state(false);
   let panelOpen = $state(false);
@@ -35,10 +35,10 @@
   const status = $derived(describeState(feedState, now));
   // The installed offline copy normally matches the page. Say so only when it
   // does not: that is a board still showing an older page.
-  const versionLabel = $derived(!cacheVersion || cacheVersion === version ? `버전 ${version}`
-    : cacheVersion === '미지원' ? `버전 ${version} · 오프라인 실행 미지원`
-    : cacheVersion === '확인 불가' ? `버전 ${version} · 설치된 사본 확인 불가`
-    : `버전 ${version} · 설치된 사본 ${cacheVersion}`);
+  const versionLabel = $derived(cache.state === 'unsupported' ? `버전 ${version} · 오프라인 실행 미지원`
+    : cache.state === 'unknown' ? `버전 ${version} · 설치된 사본 확인 불가`
+    : cache.state === 'known' && cache.version !== version ? `버전 ${version} · 설치된 사본 ${cache.version}`
+    : `버전 ${version}`);
   // Only a lost or refused lock is worth a line on the board; a device without
   // the feature is reported in the settings panel alone.
   const notice = $derived(wake.kind === 'released' || wake.kind === 'failed' ? 'SCREEN MAY SLEEP' : '');
@@ -114,7 +114,7 @@
       navigator, location: window.location, document, version, workerUrl: './sw.js',
       storage: storage('sessionStorage'), clock: { setInterval: window.setInterval.bind(window) }, window,
       isSettingsOpen: () => panelOpen,
-      onCacheVersion(text) { cacheVersion = text === '대기' ? null : text; }, onUpdateReady() { updateReady = true; },
+      onCacheVersion(next) { cache = next; }, onUpdateReady() { updateReady = true; },
     });
     updater.start();
 
