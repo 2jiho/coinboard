@@ -1,0 +1,19 @@
+# Third-party notices
+
+Coinboard itself is under the [MIT License](LICENSE). It ships the following third-party material. The full license texts are distributed with the app (paths below are as served from the deployed site; in this repository they are under `public/`).
+
+(한국어: Coinboard는 MIT 라이선스이며, 아래의 제3자 자료를 함께 배포합니다. 각 라이선스 원문은 앱과 함께 배포됩니다.)
+
+| Component | Use | License | Full text |
+|---|---|---|---|
+| [Pretendard](https://github.com/orioncactus/pretendard) by Kil Hyung-jin | Font of the board and settings (the official 1.3.9 subset files, unmodified) | SIL Open Font License 1.1 | `licenses/Pretendard-OFL.txt` |
+| [cryptocurrency-icons](https://github.com/spothq/cryptocurrency-icons) | Coin icons in `coins/` | CC0 1.0 Universal | `coins/LICENSE.md` |
+| [Svelte](https://github.com/sveltejs/svelte) | Runtime compiled into the app's script | MIT | `licenses/svelte-MIT.txt` |
+| [clsx](https://github.com/lukeed/clsx) by Luke Edwards | Used by the Svelte runtime | MIT | `licenses/clsx-MIT.txt` |
+| [esm-env](https://github.com/benmccann/esm-env) by Ben McCann | Used by the Svelte runtime | MIT | `licenses/esm-env-MIT.txt` |
+
+Build and test tools (Vite, Playwright and others in `devDependencies`) are not shipped with the app.
+
+## Market data and names
+
+Prices are public market data from Upbit and Binance, received by the viewer's browser directly. That data, and the names Upbit and Binance, belong to their owners. Coinboard is not affiliated with or endorsed by either exchange. Coin names and icons are used to identify the coins only.
