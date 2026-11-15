@@ -8,7 +8,7 @@ input, button {
 }
 :root {
   /* Up and down, and their brighter flash on the price itself. */
-  --up: #30d158; --down: #ff453a; --up-flash: #cdf3d8; --down-flash: #ffd6d2;
+  --up: #30d158; --down: #ff453a; --up-flash: #7fe39e; --down-flash: #ff8f86;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -73,7 +73,7 @@ body {
 #price-text { display: inline-block; transform-origin: left center; }
 /* 억 and 만 are units, so they are smaller and quieter than the figures. */
 #price-main .mark { margin-left: 0.04em; font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: #a1a1a6; }
-/* A move tints the price faintly and lets it fade back: a breath, not a flash. */
+/* A move tints the price with its colour and lets it fade back slowly. */
 #price-main.up { color: var(--up-flash); transition: color 0.5s ease-in-out; }
 #price-main.down { color: var(--down-flash); transition: color 0.5s ease-in-out; }
 /* The exchange and market are not drawn. They stay in the page for screen readers. */
@@ -88,7 +88,7 @@ body {
 #container.price-unavailable #price-main { opacity: 0.55; }
 /* The Korean convention: up is red, down is blue. */
 body[data-palette="red-blue"] {
-  --up: #ff453a; --down: #4b8dff; --up-flash: #ffd6d2; --down-flash: #d3e3ff;
+  --up: #ff453a; --down: #4b8dff; --up-flash: #ff8f86; --down-flash: #8fb6ff;
 }
 /* A changed digit pushes the old one out of its window, like a counter wheel,
    and the movement goes the way the price went: up when it rose, down when it
