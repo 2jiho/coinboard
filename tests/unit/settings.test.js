@@ -7,8 +7,8 @@ function memory(initial = {}) {
     removeItem: key => { data.delete(key); } };
 }
 const one = (ticker, currency) => ({ assets: [{ currency, ticker }] });
-const defaults = { ...one('BTC', 'KRW'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red' };
-test('defaults when storage is empty, missing or throws', () => {
+const defaults = { ...one('BTC', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red' };
+test('defaults when storage is empty, missing or throws: Bitcoin on Binance spot', () => {
   assert.deepEqual(createSettings(memory()).get(), defaults);
   assert.deepEqual(createSettings(null).get(), defaults);
   assert.deepEqual(createSettings({ getItem() { throw new Error('denied'); }, setItem() {}, removeItem() {} }).get(), defaults);
@@ -16,7 +16,7 @@ test('defaults when storage is empty, missing or throws', () => {
 });
 test('settings saved before the grid (one coin) are read as one asset; invalid fields are ignored', () => {
   const store = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'eth', currency: 'EUR', brightness: 5 }) });
-  assert.deepEqual(createSettings(store).get(), { ...one('ETH', 'KRW'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red' });
+  assert.deepEqual(createSettings(store).get(), { ...one('ETH', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red' });
   const full = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'XRP', currency: 'USDT', brightness: 55 }) });
   assert.deepEqual(createSettings(full).get(), { ...one('XRP', 'USDT'), columns: 0, brightness: 55, burnIn: true, palette: 'green-red' });
 });
@@ -34,7 +34,7 @@ test('a failed write still applies for this run', () => {
 });
 test('get returns a copy callers cannot corrupt', () => {
   const settings = createSettings(memory()); settings.get().assets[0].ticker = 'ZZZ'; settings.get().assets.push({ currency: 'KRW', ticker: 'ETH' });
-  assert.deepEqual(settings.get().assets, [{ currency: 'KRW', ticker: 'BTC' }]);
+  assert.deepEqual(settings.get().assets, [{ currency: 'USDT', ticker: 'BTC' }]);
 });
 test('normalizeTicker trims and upper-cases valid tickers and rejects the rest', () => {
   const settings = createSettings(memory());
@@ -67,12 +67,12 @@ test('the up/down colours are green and red unless the red-and-blue pair was cho
     assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ palette: odd }) })).get().palette, 'green-red', String(odd));
   }
 });
-test('the market can be Upbit, Binance spot or Binance perpetual futures; anything else falls back to Upbit', () => {
+test('the market can be Upbit, Binance spot or Binance perpetual futures; anything else falls back to Binance spot', () => {
   for (const market of ['KRW', 'USDT', 'USDT-PERP']) {
     assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ currency: market }) })).get().assets[0].currency, market);
   }
   for (const odd of ['USD', 'PERP', '', null, 3]) {
-    assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ currency: odd }) })).get().assets[0].currency, 'KRW', String(odd));
+    assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ currency: odd }) })).get().assets[0].currency, 'USDT', String(odd));
   }
 });
 test('a list of assets: kept in order, repaired, never empty, never repeated, capped', () => {
@@ -83,7 +83,7 @@ test('a list of assets: kept in order, repaired, never empty, never repeated, ca
   assert.deepEqual(read([{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT', ticker: 'BTC' }, { currency: 'KRW', ticker: 'btc' }]),
     [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT', ticker: 'BTC' }]);
   assert.equal(read(Array.from({ length: MAX_ASSETS + 3 }, (_, n) => ({ currency: 'KRW', ticker: `C${n}` }))).length, MAX_ASSETS);
-  for (const odd of [[], null, 'BTC', [null, 3]]) assert.deepEqual(read(odd), [{ currency: 'KRW', ticker: 'BTC' }], JSON.stringify(odd));
+  for (const odd of [[], null, 'BTC', [null, 3]]) assert.deepEqual(read(odd), [{ currency: 'USDT', ticker: 'BTC' }], JSON.stringify(odd));
   const store = memory(); const settings = createSettings(store);
   settings.update({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT', ticker: 'ETH' }] });
   assert.deepEqual(createSettings(store).get().assets, [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT', ticker: 'ETH' }]);

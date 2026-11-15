@@ -29,8 +29,13 @@ const server = http.createServer((req, res) => {
 });
 
 // Scripted exchanges and wake lock: no real network, no machine-dependent grants.
-async function scripted(context) {
+// Most scenarios start from one Upbit asset (seed); a new board's own default
+// (Binance) is checked where nothing is seeded.
+async function scripted(context, { seed = true } = {}) {
   await context.route('https://**/*', route => route.abort());
+  if (seed) await context.addInitScript(() => {
+    try { if (!localStorage.getItem('coinboard-settings')) localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }] })); } catch {}
+  });
   await context.addInitScript(() => {
     window.sockets = []; window.sent = []; window.suppressTicks = false;
     // Markets that never answer (as a coin the exchange does not list would not).
@@ -736,15 +741,22 @@ async function gridBoard(browser, base) {
   assert.deepEqual(await openUrls(), ['wss://api.upbit.com/websocket/v1']);
 
   // Settings saved before the grid open as the one asset they named.
-  const old = await browser.newContext(); await scripted(old);
+  const old = await browser.newContext(); await scripted(old, { seed: false });
   await old.addInitScript(() => { if (!localStorage.getItem('coinboard-settings')) localStorage.setItem('coinboard-settings', JSON.stringify({ ticker: 'ETH', currency: 'USDT', brightness: 60 })); });
   const oldPage = await old.newPage(); await oldPage.goto(base); await live(oldPage);
   assert.equal(await text(oldPage, '#price-source'), 'BINANCE · ETH/USDT');
   await old.close();
+  // A new board, nothing saved: Bitcoin on Binance spot.
+  const fresh = await browser.newContext(); await scripted(fresh, { seed: false });
+  const freshPage = await fresh.newPage(); await freshPage.goto(base); await live(freshPage);
+  assert.equal(await text(freshPage, '#price-source'), 'BINANCE · BTC/USDT');
+  assert.equal(await text(freshPage, '#price-main'), '70,000');
+  assert.deepEqual(await freshPage.evaluate(() => sockets.map(socket => socket.url)), ['wss://stream.binance.com:443/ws/btcusdt@ticker']);
+  await fresh.close();
 
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS grid: add, edit, reorder, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one');
+  console.log('PASS grid: add, edit, reorder, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one, Binance by default');
 }
 
 // The page's own load events (pageshow, visibilitychange) must not cut a
@@ -799,12 +811,14 @@ async function lockedStorage(browser, base) {
   });
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
-  assert.equal(await text(page, '#price-main'), '9800만');
+  // Nothing can be read, so the board starts on its default: Bitcoin on Binance spot.
+  assert.equal(await text(page, '#price-main'), '70,000');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await openEditor(page);
-  await page.locator('#admin-currency').selectOption('USDT');
+  await page.locator('#admin-currency').selectOption('KRW');
   assert.match(await text(page, '#toast'), /저장하지 못했습니다/);
   await live(page);
-  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
+  assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');

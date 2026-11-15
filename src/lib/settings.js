@@ -15,11 +15,13 @@ export function normalizeTicker(text) {
 }
 // One thing on the board: a coin in a market. "currency" holds the market:
 // KRW (Upbit), USDT (Binance) or USDT-PERP (Binance futures).
+// What a new board shows: Bitcoin on Binance (USDT spot).
+export const DEFAULT_ASSET = Object.freeze({ currency: "USDT", ticker: "BTC" });
 export function sameAsset(a, b) { return a.currency === b.currency && a.ticker === b.ticker; }
 function readAsset(saved) {
   if (!saved || typeof saved !== "object") return null;
   const ticker = normalizeTicker(saved.ticker) || "BTC";
-  const currency = typeof saved.currency === "string" && Object.hasOwn(EXCHANGES, saved.currency) ? saved.currency : "KRW";
+  const currency = typeof saved.currency === "string" && Object.hasOwn(EXCHANGES, saved.currency) ? saved.currency : DEFAULT_ASSET.currency;
   return { currency, ticker };
 }
 // At least one asset, at most MAX_ASSETS, none twice.
@@ -33,7 +35,7 @@ function readAssets(list) {
 }
 export function createSettings(storage) {
   // columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
-  const settings = { assets: [{ currency: "KRW", ticker: "BTC" }], columns: 0, brightness: 100, burnIn: true, palette: "green-red" };
+  const settings = { assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red" };
   try {
     const saved = JSON.parse(storage.getItem(KEY));
     if (saved && typeof saved === "object") {
