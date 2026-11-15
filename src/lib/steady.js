@@ -1,35 +1,47 @@
-// Lets the screen change at a calm pace however fast prices arrive: a value
-// is shown at once if nothing was shown in the last few seconds; otherwise
-// it is held, and when the time is up the latest one held is shown. Nothing is
-// invented and nothing is delayed for longer than the interval.
-export function createSteady(options) {
-  const intervalMs = options.intervalMs, onValue = options.onValue;
+// One beat for the whole board: prices may arrive many times a second and at
+// a different moment for each coin, but the screen changes at most once every
+// few seconds, and when it does, every coin with a newer price changes at the
+// same moment. The latest price held for each coin is what is shown. Nothing
+// is invented and nothing is delayed for longer than the interval.
+//
+// A coin's first price is shown at once: an empty place does not wait for the
+// beat. After a quiet spell (no beat for a whole interval) a price is shown at
+// once too, and the beat starts again from there.
+export function createBeat(options) {
+  const intervalMs = options.intervalMs, onValues = options.onValues;
   const now = options.now || Date.now;
   const timers = options.timers || { setTimeout: globalThis.setTimeout.bind(globalThis), clearTimeout: globalThis.clearTimeout.bind(globalThis) };
-  let shownAt = -Infinity, held, holding = false, timer = null;
+  // Keys shown at least once; values waiting for the beat; when the screen last changed.
+  const shown = new Set();
+  let held = new Map(), lastBeat = -Infinity, timer = null, dueAt = 0;
 
-  function show(value) { shownAt = now(); onValue(value); }
+  function show(batch) { lastBeat = now(); onValues(batch); }
+  function cancel() { if (timer !== null) timers.clearTimeout(timer); timer = null; }
+  function beat() {
+    cancel();
+    if (!held.size) return;
+    const batch = held; held = new Map();
+    show(batch);
+  }
   return {
-    push(value) {
-      const wait = shownAt + intervalMs - now();
-      if (wait <= 0 && !holding) { show(value); return; }
-      // The time is up but the timer has not fired (a hidden tab's timers can
-      // be slowed to one a minute): show this one now and drop the timer.
-      if (wait <= 0) {
-        if (timer !== null) timers.clearTimeout(timer);
-        timer = null; holding = false;
-        show(value);
+    // key names the place on the board (one coin in one market).
+    push(key, value) {
+      if (!shown.has(key)) { shown.add(key); held.delete(key); show(new Map([[key, value]])); return; }
+      held.set(key, value);
+      if (timer !== null) {
+        // The beat is due but its timer has not fired (a hidden tab's timers
+        // can be slowed to one a minute): beat now.
+        if (now() >= dueAt) beat();
         return;
       }
-      held = value;
-      if (holding) return;
-      holding = true;
-      timer = timers.setTimeout(() => { timer = null; holding = false; show(held); }, Math.max(0, wait));
+      const wait = lastBeat + intervalMs - now();
+      if (wait <= 0) { beat(); return; }
+      dueAt = now() + wait;
+      timer = timers.setTimeout(beat, wait);
     },
-    // A different coin: forget what was held, and show its first price at once.
-    reset() {
-      if (timer !== null) timers.clearTimeout(timer);
-      timer = null; holding = false; held = undefined; shownAt = -Infinity;
-    },
+    // A coin no longer on the board: drop what was held for it; if it comes
+    // back, its first price is shown at once again.
+    forget(key) { shown.delete(key); held.delete(key); if (!held.size) cancel(); },
+    reset() { cancel(); held = new Map(); shown.clear(); lastBeat = -Infinity; },
   };
 }

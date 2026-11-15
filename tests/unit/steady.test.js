@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSteady } from '../../src/lib/steady.js';
+import { createBeat } from '../../src/lib/steady.js';
 
 function fixture(intervalMs = 3000) {
-  const shown = [], timers = new Map(); let time = 0, id = 0;
-  const steady = createSteady({ intervalMs, now: () => time, onValue: value => shown.push(value),
+  const batches = [], timers = new Map(); let time = 0, id = 0;
+  const beat = createBeat({ intervalMs, now: () => time, onValues: batch => batches.push({ at: time, values: Object.fromEntries(batch) }),
     timers: { setTimeout: (cb, ms) => { timers.set(++id, { cb, at: time + ms }); return id; }, clearTimeout: key => { timers.delete(key); } } });
   function advance(ms) {
     const end = time + ms;
@@ -15,44 +15,64 @@ function fixture(intervalMs = 3000) {
     }
     time = end;
   }
-  return { steady, shown, advance, pending: () => timers.size };
+  const shown = key => batches.filter(batch => key in batch.values).map(batch => batch.values[key]);
+  return { beat, batches, shown, advance, pending: () => timers.size };
 }
-test('the first value is shown at once', () => {
-  const f = fixture(); f.steady.push('a');
-  assert.deepEqual(f.shown, ['a']);
+test('a coin\'s first price is shown at once', () => {
+  const f = fixture(); f.beat.push('BTC', 'a');
+  assert.deepEqual(f.shown('BTC'), ['a']);
 });
-test('values arriving within three seconds are held, and only the latest is shown when the three seconds are up', () => {
-  const f = fixture(); f.steady.push('a');
-  f.advance(500); f.steady.push('b'); f.advance(500); f.steady.push('c'); f.advance(1000); f.steady.push('d');
-  assert.deepEqual(f.shown, ['a']);
-  f.advance(999); assert.deepEqual(f.shown, ['a']);
-  f.advance(1); assert.deepEqual(f.shown, ['a', 'd']);
+test('prices arriving within three seconds are held, and only the latest is shown on the beat', () => {
+  const f = fixture(); f.beat.push('BTC', 'a');
+  f.advance(500); f.beat.push('BTC', 'b'); f.advance(500); f.beat.push('BTC', 'c'); f.advance(1000); f.beat.push('BTC', 'd');
+  assert.deepEqual(f.shown('BTC'), ['a']);
+  f.advance(999); assert.deepEqual(f.shown('BTC'), ['a']);
+  f.advance(1); assert.deepEqual(f.shown('BTC'), ['a', 'd']);
 });
-test('however fast values arrive, the screen changes at most once every three seconds', () => {
-  const f = fixture(); const times = [];
-  for (let ms = 0; ms <= 30000; ms += 100) { const before = f.shown.length; f.steady.push(ms); if (f.shown.length > before) times.push(ms); f.advance(100); }
-  assert.ok(f.shown.length >= 10 && f.shown.length <= 11);
-  for (let i = 1; i < f.shown.length; i++) assert.ok(f.shown[i] - f.shown[i - 1] >= 2900, 'shown values are about three seconds apart');
+test('every coin with a newer price changes on the same beat, together', () => {
+  const f = fixture();
+  f.beat.push('BTC', 1); f.beat.push('ETH', 1); f.beat.push('XRP', 1);
+  f.advance(400); f.beat.push('BTC', 2);
+  f.advance(1700); f.beat.push('ETH', 2);
+  f.advance(800); f.beat.push('BTC', 3);
+  f.advance(100);
+  const last = f.batches.at(-1);
+  assert.deepEqual(last, { at: 3000, values: { BTC: 3, ETH: 2 } }, 'one change for both, three seconds on; XRP had nothing new');
+  f.advance(2000); f.beat.push('XRP', 2); f.advance(500); f.beat.push('ETH', 3);
+  f.advance(500);
+  assert.deepEqual(f.batches.at(-1), { at: 6000, values: { XRP: 2, ETH: 3 } });
 });
-test('after a quiet spell the next value is shown at once again', () => {
-  const f = fixture(); f.steady.push('a'); f.advance(10000); f.steady.push('b');
-  assert.deepEqual(f.shown, ['a', 'b']);
+test('however fast prices arrive, the screen changes at most once every three seconds', () => {
+  const f = fixture();
+  for (let ms = 0; ms <= 30000; ms += 100) { f.beat.push('BTC', ms); f.beat.push('ETH', ms + 1); f.advance(100); }
+  const times = f.batches.map(batch => batch.at);
+  for (let i = 2; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 3000, 'beats are three seconds apart');
+  assert.ok(times.length >= 10 && times.length <= 12);
+});
+test('after a quiet spell the next price is shown at once again', () => {
+  const f = fixture(); f.beat.push('BTC', 'a'); f.advance(10000); f.beat.push('BTC', 'b');
+  assert.deepEqual(f.shown('BTC'), ['a', 'b']);
   assert.equal(f.pending(), 0);
 });
-test('reset drops what was held and starts over: the next value is shown at once', () => {
-  const f = fixture(); f.steady.push('a'); f.advance(1000); f.steady.push('old coin');
-  f.steady.reset(); assert.equal(f.pending(), 0);
-  f.steady.push('new coin'); assert.deepEqual(f.shown, ['a', 'new coin']);
-  f.advance(10000); assert.deepEqual(f.shown, ['a', 'new coin']);
+test('a coin taken off the board is forgotten: nothing held is shown, and its next first price is shown at once', () => {
+  const f = fixture(); f.beat.push('BTC', 'a'); f.beat.push('ETH', 'a');
+  f.advance(1000); f.beat.push('ETH', 'old');
+  f.beat.forget('ETH'); assert.equal(f.pending(), 0);
+  f.advance(5000); assert.deepEqual(f.shown('ETH'), ['a']);
+  f.beat.push('ETH', 'back'); assert.deepEqual(f.shown('ETH'), ['a', 'back']);
 });
-test('a late timer does not hold a value back: once the three seconds are up, the next arrival shows at once', () => {
+test('reset drops everything held', () => {
+  const f = fixture(); f.beat.push('BTC', 'a'); f.advance(1000); f.beat.push('BTC', 'b');
+  f.beat.reset(); assert.equal(f.pending(), 0);
+  f.advance(10000); assert.deepEqual(f.shown('BTC'), ['a']);
+});
+test('a late timer does not hold prices back: once the beat is due, the next arrival brings it', () => {
   // A hidden tab's timers may be slowed to one a minute, but prices keep arriving.
-  const f = fixture(); f.steady.push('a');
-  f.advance(1000); f.steady.push('b');
-  // Time passes without the timer having fired (simulated by pushing "later" on the same clock).
-  let late = 0; const slow = createSteady({ intervalMs: 3000, now: () => late, onValue: v => f.shown.push('slow:' + v), timers: { setTimeout: () => 1, clearTimeout() {} } });
-  slow.push('x'); late = 1000; slow.push('y'); assert.deepEqual(f.shown.slice(-1), ['slow:x']);
-  late = 3500; slow.push('z');
-  assert.deepEqual(f.shown.slice(-1), ['slow:z'], 'shown on arrival, the stalled timer notwithstanding');
-  late = 4000; slow.push('w'); assert.deepEqual(f.shown.slice(-1), ['slow:z'], 'and the pace still holds afterwards');
+  let time = 0; const batches = [];
+  const slow = createBeat({ intervalMs: 3000, now: () => time, onValues: batch => batches.push(Object.fromEntries(batch)), timers: { setTimeout: () => 1, clearTimeout() {} } });
+  slow.push('BTC', 'x'); slow.push('ETH', 'x');
+  time = 1000; slow.push('BTC', 'y'); assert.equal(batches.length, 2);
+  time = 3500; slow.push('ETH', 'z');
+  assert.deepEqual(batches.at(-1), { BTC: 'y', ETH: 'z' }, 'shown on arrival, the stalled timer notwithstanding');
+  time = 4000; slow.push('BTC', 'w'); assert.equal(batches.length, 3, 'and the pace still holds afterwards');
 });

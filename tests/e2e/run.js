@@ -29,8 +29,13 @@ const server = http.createServer((req, res) => {
 });
 
 // Scripted exchanges and wake lock: no real network, no machine-dependent grants.
-async function scripted(context) {
+// Most scenarios start from one Upbit asset (seed); a new board's own default
+// (Binance) is checked where nothing is seeded.
+async function scripted(context, { seed = true } = {}) {
   await context.route('https://**/*', route => route.abort());
+  if (seed) await context.addInitScript(() => {
+    try { if (!localStorage.getItem('coinboard-settings')) localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }] })); } catch {}
+  });
   await context.addInitScript(() => {
     window.sockets = []; window.sent = []; window.suppressTicks = false;
     // Markets that never answer (as a coin the exchange does not list would not).
@@ -109,6 +114,11 @@ async function open(page) {
   if (!await page.locator('#settings-toggle').isVisible()) await page.keyboard.press('Tab');
   await page.locator('#settings-toggle').click();
   assert.equal(await page.locator('#admin-panel').isVisible(), true);
+}
+// The chosen asset's market and coin rows show once its row is tapped.
+async function openEditor(page) {
+  await open(page);
+  if (!await page.locator('#admin-coin').isVisible()) await page.locator('.asset-pick[aria-pressed="true"]').click();
 }
 function watch(page) {
   const problems = [];
@@ -214,6 +224,13 @@ async function board(browser, base) {
   // The board is one fixed size: a shorter or longer price, or none yet, does not resize it.
   const boardSize = () => page.locator('#container').evaluate(el => el.style.transform);
   const steadySize = await boardSize();
+  // Market and coin are folded away until the asset's row is tapped; a second tap folds them again.
+  assert.equal(await page.locator('#admin-currency').count(), 0);
+  await page.locator('.asset-pick').first().click();
+  assert.equal(await page.locator('.asset-pick').first().getAttribute('aria-expanded'), 'true');
+  await page.locator('.asset-pick').first().click();
+  assert.equal(await page.locator('#admin-currency').count(), 0);
+  await page.locator('.asset-pick').first().click();
   await page.evaluate(() => { suppressTicks = true; });
   await page.locator('#admin-currency').selectOption('USDT');
   assert.equal(await text(page, '#price-main'), '—');
@@ -282,6 +299,9 @@ async function board(browser, base) {
   await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
   await page.screenshot({ path: path.join(evidence, 'settings.png') });
 
+  // The panel opens on the asset list; the asset's market and coin unfold from its row.
+  assert.equal(await page.locator('#admin-coin').count(), 0);
+  await page.locator('.asset-pick').first().click();
   // Any other coin: "직접 입력…" opens a field for its ticker.
   // Coin and currency are two one-line choices.
   assert.deepEqual(await page.locator('#admin-coin option').allTextContents(), ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', '직접 입력…']);
@@ -319,7 +339,7 @@ async function board(browser, base) {
   // Text typed but not applied is thrown away when the panel closes.
   await page.locator('#admin-coin').selectOption('__other');
   await page.locator('#admin-symbol').fill('LINK'); await page.locator('#admin-close').click();
-  await open(page); assert.equal(await page.locator('#admin-symbol').isVisible(), false);
+  await openEditor(page); assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
   // Brightness applies and saves without an apply button.
   await page.locator('#admin-brightness').fill('50');
@@ -498,7 +518,7 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '70,000');
 
   // A ticker the exchange never answers for.
-  await open(page);
+  await openEditor(page);
   await page.evaluate(() => { suppressTicks = true; });
   await page.locator('#admin-coin').selectOption('__other');
   await page.locator('#admin-symbol').fill('NOPE'); await page.locator('#admin-symbol-apply').click();
@@ -584,11 +604,13 @@ async function gridBoard(browser, base) {
   assert.equal(await text(page, '#asset-new-error'), '이미 표시 중인 자산입니다');
   assert.deepEqual(await assets(), ['BTC:KRW']);
   await page.locator('#asset-new-cancel').click();
-  // Adding takes the first listed coin not yet shown, in the same market, and chooses it for editing.
+  // Adding takes the first listed coin not yet shown, in the same market, and chooses it (folded until tapped).
   assert.equal(await page.locator('#admin-columns').count(), 0, 'no columns to choose for one asset');
   await addAsset();
   assert.deepEqual(await assets(), ['BTC:KRW', 'ETH:KRW']);
   assert.deepEqual(await page.locator('.asset-pick').evaluateAll(els => els.map(el => el.getAttribute('aria-pressed'))), ['false', 'true']);
+  assert.equal(await page.locator('#admin-coin').count(), 0, 'no rows left open after adding');
+  await page.locator('.asset-pick').nth(1).click();
   assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
   assert.equal(await page.locator('#grid').getAttribute('data-count'), '2');
   // Upbit carries both coins on one connection, after its ten-second pace; BTC keeps its price meanwhile.
@@ -606,6 +628,7 @@ async function gridBoard(browser, base) {
   // Adding again takes the market being edited. The same asset twice is refused, and the choice goes back.
   await addAsset();
   assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP']);
+  await page.locator('.asset-pick').nth(2).click();
   await page.locator('#admin-coin').selectOption('SOL');
   assert.equal(await text(page, '#admin-symbol-error'), '이미 표시 중인 자산입니다');
   assert.equal(await page.locator('#admin-coin').inputValue(), 'BTC');
@@ -718,15 +741,22 @@ async function gridBoard(browser, base) {
   assert.deepEqual(await openUrls(), ['wss://api.upbit.com/websocket/v1']);
 
   // Settings saved before the grid open as the one asset they named.
-  const old = await browser.newContext(); await scripted(old);
+  const old = await browser.newContext(); await scripted(old, { seed: false });
   await old.addInitScript(() => { if (!localStorage.getItem('coinboard-settings')) localStorage.setItem('coinboard-settings', JSON.stringify({ ticker: 'ETH', currency: 'USDT', brightness: 60 })); });
   const oldPage = await old.newPage(); await oldPage.goto(base); await live(oldPage);
   assert.equal(await text(oldPage, '#price-source'), 'BINANCE · ETH/USDT');
   await old.close();
+  // A new board, nothing saved: Bitcoin on Binance spot.
+  const fresh = await browser.newContext(); await scripted(fresh, { seed: false });
+  const freshPage = await fresh.newPage(); await freshPage.goto(base); await live(freshPage);
+  assert.equal(await text(freshPage, '#price-source'), 'BINANCE · BTC/USDT');
+  assert.equal(await text(freshPage, '#price-main'), '70,000');
+  assert.deepEqual(await freshPage.evaluate(() => sockets.map(socket => socket.url)), ['wss://stream.binance.com:443/ws/btcusdt@ticker']);
+  await fresh.close();
 
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS grid: add, edit, reorder, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one');
+  console.log('PASS grid: add, edit, reorder, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one, Binance by default');
 }
 
 // The page's own load events (pageshow, visibilitychange) must not cut a
@@ -781,12 +811,14 @@ async function lockedStorage(browser, base) {
   });
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
-  assert.equal(await text(page, '#price-main'), '9800만');
-  await open(page);
-  await page.locator('#admin-currency').selectOption('USDT');
+  // Nothing can be read, so the board starts on its default: Bitcoin on Binance spot.
+  assert.equal(await text(page, '#price-main'), '70,000');
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
+  await openEditor(page);
+  await page.locator('#admin-currency').selectOption('KRW');
   assert.match(await text(page, '#toast'), /저장하지 못했습니다/);
   await live(page);
-  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
+  assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');
@@ -842,7 +874,7 @@ async function coinList(browser, base) {
   await page.mouse.move(500, 300);
   assert.equal(await page.locator('#status-tip').isVisible(), false, 'a mouse click leaves nothing behind');
 
-  await open(page);
+  await openEditor(page);
   await page.locator('#admin-coin').selectOption('__other');
   // The field completes from the coins the exchange really lists.
   await page.waitForFunction(() => document.querySelectorAll('#ticker-list option').length === 3);
@@ -956,6 +988,7 @@ async function layouts(browser, base) {
     await page.locator('#settings-toggle').tap();
     // The worst case for height: every optional button showing.
     await page.evaluate(() => { for (const id of ['wake-lock-retry', 'app-update', 'market-retry']) document.getElementById(id).hidden = false; });
+    await page.locator('.asset-pick').first().click();
     await page.locator('#admin-coin').selectOption('__other');
     // Measure the sheet where it comes to rest, not partway through its entrance.
     await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));

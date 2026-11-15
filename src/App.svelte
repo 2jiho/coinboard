@@ -13,7 +13,7 @@
   import { createQuietControls } from './lib/quiet-controls.js';
   import { createMarketList } from './lib/markets.js';
   import { createPacer } from './lib/pace.js';
-  import { createSteady } from './lib/steady.js';
+  import { createBeat } from './lib/steady.js';
 
   const version = __APP_VERSION__;
   // Storage can throw on access (private mode): run on defaults without it.
@@ -41,18 +41,11 @@
   let toggleButton;
   let feed, wakeLock, updater, controls, toastTimer, cursorTimer;
   const assetKey = asset => `${asset.currency}:${asset.ticker}`;
-  // Prices can arrive several times a second. Each asset's place on the screen
-  // takes one at most every three seconds, the latest, so the digits are not
-  // forever in motion.
-  const displays = new Map();
-  function displayFor(key) {
-    let display = displays.get(key);
-    if (!display) {
-      display = createSteady({ intervalMs: 3000, onValue(next) { ticks = { ...ticks, [key]: next }; } });
-      displays.set(key, display);
-    }
-    return display;
-  }
+  // Prices can arrive several times a second and at a different moment for
+  // each coin. The board changes on one beat, every three seconds at most,
+  // all its places at once, each to the latest price it was sent; a place's
+  // first price is shown at once.
+  const beat = createBeat({ intervalMs: 3000, onValues(batch) { ticks = { ...ticks, ...Object.fromEntries(batch) }; } });
 
   const statuses = $derived(settings.assets.map(asset => describeState(feedStates[assetKey(asset)] ?? null, now)));
   const assetTicks = $derived(settings.assets.map(asset => ticks[assetKey(asset)] ?? null));
@@ -121,7 +114,7 @@
   function applySelection() {
     // Forget prices of assets no longer shown, so one that comes back starts afresh.
     const keys = new Set(settings.assets.map(assetKey));
-    for (const [key, display] of displays) if (!keys.has(key)) { display.reset(); displays.delete(key); }
+    for (const key of Object.keys(ticks)) if (!keys.has(key)) beat.forget(key);
     ticks = Object.fromEntries(Object.entries(ticks).filter(([key]) => keys.has(key)));
     feedStates = Object.fromEntries(Object.entries(feedStates).filter(([key]) => keys.has(key)));
     selected = Math.min(selected, settings.assets.length - 1);
@@ -176,7 +169,7 @@
       online: navigator.onLine, pacer,
       onTick(next) {
         const key = assetKey(next.selection);
-        if (settings.assets.some(asset => assetKey(asset) === key)) displayFor(key).push(next);
+        if (settings.assets.some(asset => assetKey(asset) === key)) beat.push(key, next);
       },
       onState(next) {
         const key = assetKey(next.selection);
@@ -234,7 +227,7 @@
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
       clearTimeout(toastTimer); clearTimeout(cursorTimer); clearTimeout(tipTimer);
-      controls.dispose(); feed.dispose(); wakeLock.dispose(); for (const display of displays.values()) display.reset();
+      controls.dispose(); feed.dispose(); wakeLock.dispose(); beat.reset();
     };
   });
 </script>
