@@ -39,9 +39,12 @@
   let flash = $state(0);
   let trend = $state(0);
   let lastPrice = null, flashTimer;
+  // The digit each window showed last (see roll, below).
+  const lastShown = new Map();
   $effect.pre(() => {
     const next = tick ? tick.price : null;
-    if (next === null) { clearTimeout(flashTimer); flash = 0; trend = 0; lastPrice = null; return; }
+    // No price (a different coin is on its way): its digits will simply appear.
+    if (next === null) { clearTimeout(flashTimer); flash = 0; trend = 0; lastPrice = null; lastShown.clear(); return; }
     if (lastPrice !== null && next !== lastPrice) {
       trend = flash = next > lastPrice ? 1 : -1;
       clearTimeout(flashTimer);
@@ -50,12 +53,19 @@
     lastPrice = next;
   });
 
-  // A digit learns its direction once, when it appears, and keeps it. If the
-  // direction were tied to the current trend instead, every digit would change
-  // class when the price turned round, and all of them would move at once.
-  function roll(node) {
-    const direction = untrack(() => trend);
-    if (direction) node.classList.add(direction > 0 ? 'up' : 'down');
+  // A new digit pushes the old one out of its window, like a counter wheel, and
+  // moves the way the price did: up from below when it rose, down from above
+  // when it fell. So a
+  // digit learns two things once, when it appears, and keeps them: which way
+  // the price went, and which digit it replaces (drawn by CSS from data-old).
+  // If the direction followed the current trend instead, every digit would
+  // change class when the price turned round, and all would move at once.
+  function roll(node, slot) {
+    const direction = untrack(() => trend), old = lastShown.get(slot);
+    lastShown.set(slot, node.textContent);
+    if (!direction || old === undefined) return;
+    node.dataset.old = old;
+    node.classList.add(direction > 0 ? 'up' : 'down');
   }
 
   let container, priceLine, priceText;
@@ -132,7 +142,7 @@
       {/if}
       <div id="board-text">
         <p id="board-head"><span id="coin">{settings.ticker}</span><span id="unit">{settings.currency}</span></p>
-        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true"><span id="price-text" bind:this={priceText} style:transform="scale({priceScale})">{#each parts.pieces as piece, index}{index ? ' ' : ''}{#each [...piece.number] as char, place (place)}{#key char}<span class="digit" use:roll>{char}</span>{/key}{/each}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</span></p>
+        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true"><span id="price-text" bind:this={priceText} style:transform="scale({priceScale})">{#each parts.pieces as piece, index}{index ? ' ' : ''}{#each [...piece.number] as char, place (place)}<span class="slot">{#key char}<span class="digit" use:roll={`${index}:${place}`}>{char}</span>{/key}</span>{/each}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</span></p>
         <p id="price-source">{market.label} · {market.pair}</p>
         <p id="board-foot">
           <span id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{#if changeArrow}<span class="arrow">{changeArrow}</span>{/if}{changeNumber}</span>

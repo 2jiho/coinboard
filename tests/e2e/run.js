@@ -362,6 +362,15 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '70,010');
   assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
   assert.match(await page.locator('#price-text .digit').nth(4).getAttribute('class'), /\bup\b/);
+  // The new digit pushes the old one out, so it knows which digit it replaces,
+  // and each digit sits in a window that hides whatever is pushed past its edge.
+  const pushed = () => page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.old ?? ''));
+  assert.deepEqual(await pushed(), ['', '', '', '', '0', '']);
+  assert.equal(await page.locator('#price-text .slot').count(), 6);
+  assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el, '::before').content), '"0"');
+  assert.notEqual(await page.locator('#price-text .slot').nth(4).evaluate(el => getComputedStyle(el).clipPath), 'none');
+  // The price rose, so the movement is upwards: the new digit rises from below.
+  assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'push-up');
   // Only that digit moves. The others carry no direction and are not animating:
   // not now, and not when the price turns round and falls.
   const moving = () => page.locator('#price-text .digit').evaluateAll(els => els.map(el => (/\b(up|down)\b/.exec(el.className) || ['still'])[0] + (el.getAnimations().length ? '*' : '')));
@@ -372,6 +381,9 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
   assert.deepEqual((await moving()).map(state => state.replace('*', '')), ['still', 'still', 'still', 'still', 'down', 'still'], 'a change of direction moves only the changed digit');
+  // The price fell, so the movement is downwards: the new digit descends, pushing the old "1" down and out.
+  assert.deepEqual(await pushed(), ['', '', '', '', '1', '']);
+  assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'push-down');
   assert.deepEqual((await moving()).filter(state => state.endsWith('*')).length <= 1, true);
   await page.evaluate(() => sockets.at(-1).emit());
   assert.equal(await text(page, '#price-main'), '70,000');
