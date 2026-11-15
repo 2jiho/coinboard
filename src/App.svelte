@@ -23,15 +23,22 @@
   let now = $state(Date.now());
   let visible = $state(document.visibilityState === 'visible');
   let wake = $state({ kind: 'pending', message: '', canRetry: false });
-  let cacheLabel = $state('확인 중');
+  let cacheVersion = $state(null);
   let updateReady = $state(false);
   let controlsVisible = $state(false);
   let panelOpen = $state(false);
   let toast = $state('');
   let toggleButton;
-  let feed, wakeLock, updater, toastTimer, controlsTimer, cursorTimer, revealOnlyClick = false;
+  let feed, wakeLock, updater, toastTimer, controlsTimer, cursorTimer, panelTimer, revealOnlyClick = false;
+  const PANEL_IDLE_MS = 120000;
 
   const status = $derived(describeState(feedState, now));
+  // The installed offline copy normally matches the page. Say so only when it
+  // does not: that is a board still showing an older page.
+  const versionLabel = $derived(!cacheVersion || cacheVersion === version ? `버전 ${version}`
+    : cacheVersion === '미지원' ? `버전 ${version} · 오프라인 실행 미지원`
+    : cacheVersion === '확인 불가' ? `버전 ${version} · 설치된 사본 확인 불가`
+    : `버전 ${version} · 설치된 사본 ${cacheVersion}`);
   // Only a lost or refused lock is worth a line on the board; a device without
   // the feature is reported in the settings panel alone.
   const notice = $derived(wake.kind === 'released' || wake.kind === 'failed' ? '화면 유지 꺼짐' : '');
@@ -76,10 +83,17 @@
     }, 5000);
   }
   function revealControls() { controlsVisible = true; scheduleControlsHide(); }
-  function openPanel() { panelOpen = true; revealControls(); }
+  // A panel left open would hold back automatic updates and leave the board
+  // half covered, so it closes itself after two minutes without a touch.
+  function keepPanel() {
+    clearTimeout(panelTimer);
+    if (panelOpen) panelTimer = setTimeout(() => closePanel(false), PANEL_IDLE_MS);
+  }
+  function openPanel() { panelOpen = true; revealControls(); keepPanel(); }
   // returnFocus is false for a tap outside, which is a way of leaving.
   async function closePanel(returnFocus) {
     panelOpen = false;
+    clearTimeout(panelTimer);
     previewBrightness = null;
     await flushed();
     if (returnFocus) toggleButton.focus();
@@ -98,15 +112,16 @@
     wakeLock = createWakeLock({ navigator, document, window, onChange(next) { wake = next; } });
     updater = createUpdater({
       navigator, location: window.location, document, version, workerUrl: './sw.js',
-      storage: storage('sessionStorage'), clock: { setInterval: window.setInterval.bind(window) },
+      storage: storage('sessionStorage'), clock: { setInterval: window.setInterval.bind(window) }, window,
       isSettingsOpen: () => panelOpen,
-      onCacheVersion(text) { cacheLabel = text; }, onUpdateReady() { updateReady = true; },
+      onCacheVersion(text) { cacheVersion = text === '대기' ? null : text; }, onUpdateReady() { updateReady = true; },
     });
     updater.start();
 
     function setVisible(value) { visible = value; feed.setActive(value); }
     const listeners = [
       [document, 'pointerdown', event => {
+        keepPanel();
         revealOnlyClick = !controlsVisible;
         // Revealing beneath a finger must not activate the newly visible button
         // on pointerup/click or leave it focused after that first tap.
@@ -119,7 +134,8 @@
         if (revealOnlyClick && event.detail > 0) { revealOnlyClick = false; event.preventDefault(); event.stopImmediatePropagation(); }
       }, true],
       [document, 'pointercancel', () => { revealOnlyClick = false; }],
-      [document, 'keydown', event => { if (event.key === 'Tab' || event.key === 'Enter' || event.key === ' ') revealControls(); }, true],
+      [document, 'keydown', event => { keepPanel(); if (event.key === 'Tab' || event.key === 'Enter' || event.key === ' ') revealControls(); }, true],
+      [document, 'input', keepPanel, true],
       [document, 'focusin', event => { if (event.target.closest(CONTROLS)) revealControls(); }],
       [document, 'focusout', () => { queueMicrotask(scheduleControlsHide); }],
       [document, 'visibilitychange', () => {
@@ -139,14 +155,14 @@
     for (const [target, name, handler, capture] of listeners) target.addEventListener(name, handler, capture);
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
-      clearTimeout(toastTimer); clearTimeout(controlsTimer); clearTimeout(cursorTimer);
+      clearTimeout(toastTimer); clearTimeout(controlsTimer); clearTimeout(cursorTimer); clearTimeout(panelTimer);
       feed.dispose(); wakeLock.dispose();
     };
   });
 </script>
 
 {#if panelOpen}
-  <SettingsPanel {settings} {status} {wake} {version} {cacheLabel} {updateReady}
+  <SettingsPanel {settings} {status} {wake} {versionLabel} {updateReady}
     onClose={closePanel}
     onCurrency={currency => { if (currency !== settings.currency) changeSelection({ currency }); }}
     onTicker={ticker => changeSelection({ ticker })}

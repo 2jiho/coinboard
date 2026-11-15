@@ -7,7 +7,6 @@ input, button {
   user-select: text;
 }
 :root {
-  --reference-size: calc(min(1vw, 2vh));
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -23,44 +22,50 @@ body {
   width: 100vw;
   background-color: #000;
   color: #ffffff;
-  font-family: Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Apple SD Gothic Neo", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
   text-align: center;
   margin: 0;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
 }
+/* The board is laid out at a fixed design size and then scaled to fill the
+   screen (see PriceBoard.svelte), so these are design pixels, not screen pixels. */
+#stage { position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+/* Burn-in protection: the board floats slowly towards a new spot every minute. */
+#drift { transition: transform 60s linear; will-change: transform; }
 #container {
+  display: flex;
+  align-items: center;
+  gap: 56px;
+  width: max-content;
+  white-space: nowrap;
+  transform-origin: center;
+  /* Fixed-width digits: the price does not shimmy as numbers change. */
+  font-variant-numeric: tabular-nums;
+}
+#container p { margin: 0; }
+#icon, #icon-fallback { width: 168px; height: 168px; flex: none; }
+#icon-fallback {
   display: flex;
   justify-content: center;
   align-items: center;
-  position: relative;
-  user-select: none;
-  -webkit-user-select: none;
+  font-size: 44px;
+  font-weight: 700;
+  color: #fff;
+  background: #333;
+  border-radius: 50%;
 }
-#icon {
-  height: calc(var(--reference-size) * 15);
-  margin-right: calc(var(--reference-size) * 5);
-}
-#price-main {
-  margin: 0;
-  font-size: calc(var(--reference-size) * 5);
-  margin-right: calc(var(--reference-size) * 5);
-}
-#price-source {
-  color: #aaa;
-  margin: 0;
-  font-size: calc(var(--reference-size) * 2);
-  margin-right: calc(var(--reference-size) * 5);
-}
-#change {
-  margin: 0;
-  font-size: calc(var(--reference-size) * 3);
-}
-#change-label {
-  margin: 0;
-  font-size: calc(var(--reference-size) * 2);
-  color: gray;
+#price-main { font-size: 128px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.05; }
+#price-source { margin-top: 10px; font-size: 30px; color: #8c8c8c; }
+#change { font-size: 60px; font-weight: 500; line-height: 1.1; }
+#change-label { margin-top: 8px; font-size: 28px; color: #8c8c8c; }
+#status-overlay { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 12px; }
+#overlay-title, #notice { color: #b88d8d; font-size: 24px; line-height: 1.4; }
+#container.price-unavailable #price-main { opacity: 0.55; }
+@media (orientation: portrait) {
+  #container { flex-direction: column; gap: 36px; }
+  #icon, #icon-fallback { width: 220px; height: 220px; }
 }
 #admin-panel {
   position: fixed;
@@ -113,19 +118,6 @@ body {
 #status-indicator, #overlay-msg, #wake-lock-status { font-size: 12px; line-height: 1.6; color: #888; margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
 #status-indicator.error { color: #c99191; }
 #app-version { color: #666; font-size: 11px; margin: 0; }
-#icon-fallback {
-  display: flex;
-  height: calc(var(--reference-size) * 15);
-  width: calc(var(--reference-size) * 15);
-  justify-content: center;
-  align-items: center;
-  font-size: calc(var(--reference-size) * 4);
-  font-weight: bold;
-  color: #fff;
-  background: #333;
-  border-radius: 50%;
-  margin-right: calc(var(--reference-size) * 5);
-}
 /* Toast notification for admin UX */
 #toast {
   position: fixed;
@@ -159,8 +151,7 @@ body {
 button:focus-visible, input:focus-visible { outline: 2px solid #aaa; outline-offset: 3px; }
 body:not(.controls-visible) #settings-toggle,
 body.settings-open #settings-toggle { visibility: hidden; pointer-events: none; }
-#status-overlay { display: flex; flex-direction: column; align-items: center; margin-top: 8px; }
-#overlay-title { color: #b88d8d; font-size: 12px; line-height: 1.5; margin: 0; }
-#notice { color: #b88d8d; font-size: 12px; line-height: 1.5; margin: 0; }
-#container.price-unavailable #price-main { opacity: 0.55; }
 [hidden] { display: none !important; }
+#ticker-presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+#ticker-presets button { min-width: 0; padding: 10px 0; font-size: 12px; color: #999; background: #202020; }
+#ticker-presets button[aria-pressed="true"] { background: #303030; color: #fff; }

@@ -21,11 +21,12 @@ test('sub-unit prices always show exactly four significant digits', () => {
   assert.equal(price('USDT', 0.00001234), '0.00001234 USDT');
   assert.equal(price('USDT', 0.000012345678), '0.00001235 USDT');
 });
-test('signed percentage change with two decimals', () => {
-  assert.equal(change(1.234), '+1.23%');
-  assert.equal(change(-0.5), '-0.50%');
+test('change shows its direction as an arrow, readable without colour', () => {
+  assert.equal(change(1.234), '▲ 1.23%');
+  assert.equal(change(-0.5), '▼ 0.50%');
+  assert.equal(change(-12.345), '▼ 12.35%');
 });
-test('a change that rounds to zero carries no sign and no direction', () => {
+test('a change that rounds to zero carries no arrow and no direction', () => {
   for (const tiny of [-0.004, 0, 0.004]) { assert.equal(change(tiny), '0.00%'); assert.equal(direction(tiny), 0); }
   assert.equal(direction(0.005), 1); assert.equal(direction(-0.02), -1);
 });

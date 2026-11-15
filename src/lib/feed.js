@@ -1,4 +1,11 @@
 // Public market data only. No keys, price polling, or currency conversion.
+// What is specific to an exchange lives in ./exchanges; this file owns the
+// connection: when to connect, when to give up, when a price counts as live.
+import { upbit } from "./exchanges/upbit.js";
+import { binance } from "./exchanges/binance.js";
+
+var EXCHANGES = { KRW: upbit, USDT: binance };
+
 export function createMarketFeed(options) {
   options = options || {};
   var WS = options.WebSocket || globalThis.WebSocket;
@@ -29,9 +36,9 @@ export function createMarketFeed(options) {
 
   function describe(currency, ticker) {
     return { currency: currency, ticker: ticker,
-      exchange: currency === "KRW" ? "업비트" : "바이낸스",
-      market: currency === "KRW" ? "KRW-" + ticker : ticker + "USDT",
-      changeLabel: currency === "KRW" ? "전일 대비" : "24h",
+      exchange: EXCHANGES[currency].name,
+      market: EXCHANGES[currency].market(ticker),
+      changeLabel: EXCHANGES[currency].changeLabel,
     };
   }
   function emit(kind, reason, retryAt) {
@@ -56,9 +63,7 @@ export function createMarketFeed(options) {
   }
   function eligible() { return !disposed && active && online && !!selection; }
   function rateWait() {
-    // Browsers send Origin: Upbit limits these requests to one per 10 seconds.
-    // Binance: at least 2 seconds between attempts (<300 attempts / 5 min).
-    var minimum = selection.currency === "KRW" ? 10000 : 2000;
+    var minimum = EXCHANGES[selection.currency].minConnectInterval;
     return Math.max(0, lastAttempt[selection.currency] + minimum - clock.now());
   }
   function schedule(delay, reason) {
@@ -82,14 +87,10 @@ export function createMarketFeed(options) {
     if (data && typeof data.text === "function") return JSON.parse(await data.text());
     return JSON.parse(new TextDecoder().decode(data));
   }
-  function number(value) {
-    if (typeof value !== "number" && (typeof value !== "string" || value.trim() === "")) return NaN;
-    return Number(value);
-  }
   function connect() {
     if (!eligible()) return;
     if (rateWait() > 0) { schedule(0); return; }
-    var current = selection;
+    var current = selection, exchange = EXCHANGES[current.currency];
     var token = generation;
     var startedAt = clock.now(), gotTick = false;
     // Liveness is judged by when this device received something, never by
@@ -103,8 +104,7 @@ export function createMarketFeed(options) {
     emit("connecting");
     var connection;
     try {
-      connection = new WS(current.currency === "KRW" ? "wss://api.upbit.com/websocket/v1" :
-        "wss://stream.binance.com:443/ws/" + current.market.toLowerCase() + "@ticker");
+      connection = new WS(exchange.url(current.market));
       connection.binaryType = "arraybuffer";
     } catch (error) { fail("연결 생성 실패: " + error.name); return; }
     socket = connection;
@@ -121,53 +121,34 @@ export function createMarketFeed(options) {
     connection.onopen = function () {
       if (!isCurrent()) return;
       emit("waiting");
-      if (current.currency === "KRW") {
-        try {
-          connection.send(JSON.stringify([
-            { ticket: "coinboard-" + startedAt + "-" + token },
-            { type: "ticker", codes: [current.market] }, { format: "DEFAULT" },
-          ]));
-          // Upbit only sends a ticker when a trade happens. After the first
-          // text PING it sends {"status":"UP"} every 10 seconds, which shows the
-          // connection is alive while the market is quiet.
-          connection.send("PING");
-        } catch (error) { fail("구독 요청 실패"); return; }
+      try {
+        exchange.subscribe(current.market, startedAt + "-" + token).forEach(function (frame) { connection.send(frame); });
+        if (exchange.heartbeat) connection.send(exchange.heartbeat);
+      } catch (error) { fail("구독 요청 실패"); return; }
+      if (exchange.heartbeat) {
         heartbeatTimer = clock.setInterval(function () {
           if (isCurrent() && connection.readyState === WS.OPEN) {
-            try { connection.send("PING"); } catch (_) { fail("연결 유지 요청 실패"); }
+            try { connection.send(exchange.heartbeat); } catch (_) { fail("연결 유지 요청 실패"); }
           }
-        }, 10000);
+        }, exchange.heartbeatMs);
       }
-      // Binance protocol PING/PONG is handled by the browser, not JSON ping.
     };
     connection.onmessage = async function (event) {
       if (!isCurrent()) return;
       try {
         var data = await decode(event.data);
         if (!isCurrent()) return; // Includes a Blob decoding across a switch.
-        if (data.error || (data.code !== undefined && data.msg)) {
-          var code = data.error ? data.error.name : String(data.code);
-          if (code === "TOO_MANY_REQUEST") { fail("요청 한도 초과", 30000); return; }
+        var message = exchange.read(data, current.market);
+        if (!message) return;
+        if (message.type === "error") {
+          if (message.code === "TOO_MANY_REQUEST") { fail("요청 한도 초과", 30000); return; }
           disconnect();
-          emit("error", "거래소 오류: " + code + " · 지원하는 티커를 확인하세요");
+          emit("error", "거래소 오류: " + message.code + " · 지원하는 티커를 확인하세요");
           return;
         }
-        if (data.e === "serverShutdown") { fail("거래소 연결 재시작"); return; }
-        if (data.status === "UP") {
-          // Binance has no such message; its liveness stays tick-based.
-          if (current.currency === "KRW") lastMessageAt = clock.now();
-          return;
-        }
-        var price, change, eventTime;
-        if (current.currency === "KRW") {
-          if (data.type !== "ticker" || data.code !== current.market) return;
-          price = number(data.trade_price);
-          change = number(data.signed_change_rate) * 100;
-          eventTime = number(data.timestamp);
-        } else {
-          if (data.e !== "24hrTicker" || data.s !== current.market) return;
-          price = number(data.c); change = number(data.P); eventTime = number(data.E);
-        }
+        if (message.type === "restart") { fail("거래소 연결 재시작"); return; }
+        if (message.type === "alive") { lastMessageAt = clock.now(); return; }
+        var price = message.price, change = message.change, eventTime = message.eventTime;
         if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(change) ||
             !Number.isFinite(eventTime) || eventTime <= 0) return;
         if (eventTime < lastEventTime) return;

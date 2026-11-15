@@ -4,7 +4,7 @@
   import { onMount, untrack } from 'svelte';
   import { normalizeTicker } from '../lib/settings.js';
 
-  let { settings, status, wake, version, cacheLabel, updateReady,
+  let { settings, status, wake, versionLabel, updateReady,
     onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onDebug, onRetryFeed, onRetryWake, onUpdate } = $props();
 
   let panel, closeButton;
@@ -12,6 +12,9 @@
   let tickerText = $state(untrack(() => settings.ticker));
   let tickerError = $state(false);
   let brightness = $state(untrack(() => settings.brightness));
+
+  // Listed on both Upbit (KRW) and Binance (USDT).
+  const PRESETS = ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA'];
 
   function applyTicker() {
     const ticker = normalizeTicker(tickerText);
@@ -48,8 +51,14 @@
       <button type="button" data-currency="KRW" aria-pressed={settings.currency === 'KRW'} aria-label="원화 · 업비트" onclick={() => onCurrency('KRW')}>원화<span>업비트</span></button>
       <button type="button" data-currency="USDT" aria-pressed={settings.currency === 'USDT'} aria-label="USDT · 바이낸스" onclick={() => onCurrency('USDT')}>USDT<span>바이낸스</span></button>
     </div>
+    <div id="ticker-presets" role="group" aria-label="자주 쓰는 코인">
+      {#each PRESETS as preset}
+        <button type="button" data-ticker={preset} aria-pressed={settings.ticker === preset}
+          onclick={() => { tickerText = preset; applyTicker(); }}>{preset}</button>
+      {/each}
+    </div>
     <div class="settings-row">
-      <label for="admin-symbol">코인 티커</label>
+      <label for="admin-symbol">다른 티커</label>
       <div class="ticker-row">
         <input type="text" id="admin-symbol" placeholder="BTC" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
           enterkeyhint="done" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
@@ -78,7 +87,7 @@
   </section>
   <section class="settings-section" aria-labelledby="section-app">
     <h3 id="section-app">앱</h3>
-    <p id="app-version">버전 {version} · 캐시 {cacheLabel}</p>
+    <p id="app-version">{versionLabel}</p>
     <button id="app-update" type="button" hidden={!updateReady} onclick={onUpdate}>새 버전 적용</button>
     <div class="settings-row">
       <label for="admin-debug">디버그 모드</label>

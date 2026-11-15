@@ -10,16 +10,24 @@ export function createUpdater(options) {
   var onUpdateReady = options.onUpdateReady || function () {};
   var reloadPending = false, pendingVersion = null;
 
-  // Ask the controlling worker which cache it serves; null if it cannot say.
-  function queryCacheVersion(done) {
+  // Ask the controlling worker which cache it serves. A worker that has just
+  // taken over can be slow to answer, so ask up to three times; null if it
+  // never says.
+  function queryCacheVersion(done, attempt) {
+    attempt = attempt || 1;
+    var worker = navigator.serviceWorker.controller;
+    if (!worker) { done(null); return; }
     var channel = new MessageChannel();
-    var timer = setTimeout(function () { channel.port1.close(); done(null); }, 1500);
+    var timer = setTimeout(function () {
+      channel.port1.close();
+      if (attempt < 3) queryCacheVersion(done, attempt + 1); else done(null);
+    }, options.queryTimeoutMs || 1500);
     channel.port1.onmessage = function (event) {
       clearTimeout(timer); channel.port1.close();
       var cache = event.data && event.data.cacheName;
       done(typeof cache === "string" ? cache.split(":").pop() : null);
     };
-    navigator.serviceWorker.controller.postMessage({ type: "GET_APP_VERSION" }, [channel.port2]);
+    worker.postMessage({ type: "GET_APP_VERSION" }, [channel.port2]);
   }
   function showCacheVersion(done) {
     if (!("serviceWorker" in navigator)) { onCacheVersion("미지원"); return; }
@@ -66,6 +74,8 @@ export function createUpdater(options) {
       checkUpdate();
       options.clock.setInterval(checkUpdate, CHECK_MS);
       document.addEventListener("visibilitychange", checkUpdate);
+      // A board that was offline may have missed a release.
+      if (options.window) options.window.addEventListener("online", checkUpdate);
     }).catch(function (error) { console.warn("Service Worker 등록 실패:", error); });
   }
   return {

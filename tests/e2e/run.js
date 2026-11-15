@@ -83,6 +83,8 @@ async function until(page, predicate, arg) {
   }
   throw new Error('Condition not met within 30s');
 }
+// The board floats slowly, so it is tapped by position, not by element.
+const tapBoard = page => page.touchscreen.tap(Math.round(page.viewportSize().width / 2), Math.round(page.viewportSize().height / 2));
 const text = (page, selector) => page.locator(selector).textContent();
 const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('coinboard-settings')));
 async function open(page) {
@@ -107,7 +109,7 @@ async function board(browser, base) {
 
   // The board at rest: price only, nothing to press.
   assert.equal(await text(page, '#price-main'), '₩98,000,000');
-  assert.equal(await text(page, '#change'), '-2.50%');
+  assert.equal(await text(page, '#change'), '▼ 2.50%');
   assert.equal(await text(page, '#change-label'), '전일 대비');
   assert.equal(await text(page, '#price-source'), '업비트 · KRW-BTC');
   assert.equal(await page.evaluate(() => sockets.length), 1);
@@ -129,7 +131,9 @@ async function board(browser, base) {
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
   assert.deepEqual(await page.locator('#admin-panel h3').allTextContents(), ['시세', '화면', '앱']);
   assert.equal(await text(page, '#status-indicator'), '업비트 · 실시간 연결됨');
-  await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION} · 캐시 ${VERSION}`);
+  // The installed copy matches the page, so only one version is shown.
+  await until(page, async () => !!navigator.serviceWorker.controller);
+  await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION}`);
   assert.equal(await page.locator('#app-update').isVisible(), false);
 
   // Wake lock: a system release is recovered; a failed recovery shows under the price.
@@ -155,7 +159,7 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-source'), '바이낸스 · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-main'), '70,000.10 USDT');
-  assert.equal(await text(page, '#change'), '+2.50%');
+  assert.equal(await text(page, '#change'), '▲ 2.50%');
   assert.equal(await text(page, '#change-label'), '24h');
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
@@ -163,7 +167,7 @@ async function board(browser, base) {
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#admin-panel').count(), 0);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'settings-toggle');
-  await page.locator('#price-main').tap(); await page.clock.fastForward(6000);
+  await tapBoard(page); await page.clock.fastForward(6000);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   // The tap that reveals the button must not press it.
   const corner = { x: 1024 - 40, y: 768 - 40 };
@@ -190,8 +194,16 @@ async function board(browser, base) {
   assert.equal((await saved(page)).ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-source'), '바이낸스 · ETH/USDT');
+  // One tap on a common coin switches to it.
+  await page.locator('#ticker-presets [data-ticker="XRP"]').click();
+  assert.equal(await text(page, '#price-source'), '바이낸스 · XRP/USDT');
+  assert.equal(await page.locator('#ticker-presets [data-ticker="XRP"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#admin-symbol').inputValue(), 'XRP');
+  await page.locator('#ticker-presets [data-ticker="ETH"]').click();
+  assert.equal((await saved(page)).ticker, 'ETH');
+  await page.clock.runFor(3000); await live(page);
   // Text typed but not applied is thrown away when the panel closes.
-  await page.locator('#admin-symbol').fill('XRP'); await page.locator('#admin-close').click();
+  await page.locator('#admin-symbol').fill('SOL'); await page.locator('#admin-close').click();
   await open(page); assert.equal(await page.locator('#admin-symbol').inputValue(), 'ETH');
   // Brightness and debug apply and save without an apply button.
   await page.locator('#admin-brightness').fill('50');
@@ -210,8 +222,18 @@ async function board(browser, base) {
   await open(page); await page.locator('#admin-debug').uncheck(); await page.locator('#admin-brightness').fill('100');
   await page.locator('#admin-close').click();
   // Focus stays on the button after closing; a tap elsewhere lets it hide again.
-  await page.locator('#price-main').tap(); await page.clock.fastForward(6000);
+  await tapBoard(page); await page.clock.fastForward(6000);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
+
+  // A panel nobody is touching closes itself after two minutes.
+  await open(page);
+  await page.clock.runFor(110000);
+  assert.equal(await page.locator('#admin-panel').isVisible(), true);
+  await page.locator('#admin-symbol').focus(); await page.keyboard.press('ArrowRight');
+  await page.clock.runFor(110000);
+  assert.equal(await page.locator('#admin-panel').isVisible(), true, 'a key press keeps it open');
+  await page.clock.runFor(11000);
+  assert.equal(await page.locator('#admin-panel').count(), 0);
 
   // Background: sockets close; coming back waits for a fresh price.
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
@@ -256,7 +278,7 @@ async function board(browser, base) {
   flags.nextWorker = true;
   await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
   await page.waitForFunction(() => document.getElementById('app-update') && !document.getElementById('app-update').hidden);
-  await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION} · 캐시 ${NEXT_VERSION}`);
+  await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION} · 설치된 사본 ${NEXT_VERSION}`);
   await page.evaluate(() => { window.beforeReload = true; });
   await page.locator('#admin-close').click();
   await page.waitForFunction(() => !window.beforeReload && !!document.getElementById('container'));
@@ -357,8 +379,20 @@ async function layouts(browser, base) {
     { name: 'short-landscape', width: 1024, height: 360, top: 0, right: 24, bottom: 20, left: 24 },
   ]) {
     await page.setViewportSize({ width: s.width, height: s.height });
-    await page.evaluate(s => { for (const side of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty('--safe-' + side, s[side] + 'px'); }, s);
-    await page.locator('#price-main').tap();
+    await page.evaluate(s => { for (const side of ['top', 'right', 'bottom', 'left']) document.documentElement.style.setProperty('--safe-' + side, s[side] + 'px');
+      // On a device the insets change with a rotation, which also fires resize.
+      window.dispatchEvent(new Event('resize')); }, s);
+    // The board fills the screen in one direction and never leaves it.
+    await page.waitForFunction(() => document.getElementById('container').style.transform.startsWith('scale('));
+    const area = { width: s.width - s.left - s.right, height: s.height - s.top - s.bottom };
+    const portrait = s.height > s.width;
+    const face = await page.locator('#container').boundingBox();
+    assert.ok(face.x >= 0 && face.y >= 0 && face.x + face.width <= s.width && face.y + face.height <= s.height, s.name + ' board on screen');
+    const fills = Math.max(face.width / (area.width * 0.86), face.height / (area.height * (portrait ? 0.72 : 0.6)));
+    assert.ok(fills > 0.98 && fills < 1.02, s.name + ' board fills the screen: ' + fills);
+    assert.equal(await page.locator('#container').evaluate(el => getComputedStyle(el).flexDirection), portrait ? 'column' : 'row', s.name + ' orientation');
+    if (['ipad-portrait', 'ipad-landscape', 'phone'].includes(s.name)) await page.screenshot({ path: path.join(evidence, `board-${s.name}.png`) });
+    await tapBoard(page);
     const toggle = await page.locator('#settings-toggle').boundingBox();
     assert.equal(toggle.width, 48); assert.equal(toggle.height, 48);
     assert.equal(toggle.y + toggle.height, s.height - s.bottom - 16, s.name + ' button bottom');
@@ -382,7 +416,7 @@ async function layouts(browser, base) {
   }
   fs.writeFileSync(path.join(evidence, 'layouts.json'), JSON.stringify(records, null, 2));
   await context.close();
-  console.log('PASS layout: 8 sizes and safe-area sets; 48px button in the corner, panel inside the safe area, close button reachable after scrolling');
+  console.log('PASS layout: 8 sizes and safe-area sets; board scaled to fill and stacked in portrait, 48px button in the corner, panel inside the safe area, close button reachable after scrolling');
 }
 
 async function liveExchanges(browser, base) {

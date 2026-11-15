@@ -7,9 +7,9 @@ function memory() {
   const data = new Map();
   return { getItem: key => data.has(key) ? data.get(key) : null, setItem: (key, value) => { data.set(key, String(value)); } };
 }
-function fixture({ controlled = true, cacheVersion = '0.8.1', storage = memory(), settingsOpen = false } = {}) {
-  const sw = {}, doc = {}, state = { reloads: 0, updates: 0, open: settingsOpen, cacheVersion, visibility: 'visible' };
-  const controller = { postMessage(message, ports) { ports[0].postMessage({ type: 'APP_VERSION', cacheName: 'coinboard:/coinboard/:' + state.cacheVersion }); ports[0].close(); } };
+function fixture({ controlled = true, cacheVersion = '0.8.1', storage = memory(), settingsOpen = false, silentReplies = 0 } = {}) {
+  const sw = {}, doc = {}, win = {}, state = { reloads: 0, updates: 0, open: settingsOpen, cacheVersion, visibility: 'visible', silentReplies, queries: 0 };
+  const controller = { postMessage(message, ports) { state.queries++; if (state.silentReplies-- > 0) return; ports[0].postMessage({ type: 'APP_VERSION', cacheName: 'coinboard:/coinboard/:' + state.cacheVersion }); ports[0].close(); } };
   const serviceWorker = { controller: controlled ? controller : null,
     addEventListener: (name, cb) => { sw[name] = cb; },
     register: async () => ({ update: async () => { state.updates++; } }) };
@@ -17,7 +17,8 @@ function fixture({ controlled = true, cacheVersion = '0.8.1', storage = memory()
   // label/button stand in for what the page shows from the updater's callbacks.
   const label = { textContent: '' }, button = { hidden: true }, intervals = [];
   const updater = createUpdater({ navigator: { serviceWorker }, location: { reload() { state.reloads++; } }, document, storage,
-    clock: { setInterval: (cb, ms) => { intervals.push({ cb, ms }); } }, version: '0.8.0', workerUrl: './sw.js',
+    clock: { setInterval: (cb, ms) => { intervals.push({ cb, ms }); } }, version: '0.8.0', workerUrl: './sw.js', queryTimeoutMs: 5,
+    window: { addEventListener: (name, cb) => { win[name] = cb; } },
     onCacheVersion: text => { label.textContent = '버전 0.8.0 · 캐시 ' + text; }, onUpdateReady: () => { button.hidden = false; },
     isSettingsOpen: () => state.open });
   button.click = () => updater.reload();
@@ -25,7 +26,7 @@ function fixture({ controlled = true, cacheVersion = '0.8.1', storage = memory()
   return { state, label, button, storage, intervals,
     takeOver() { serviceWorker.controller = controller; sw.controllerchange(); },
     closeSettings() { state.open = false; updater.settingsClosed(); },
-    visibility(value) { state.visibility = value; doc.visibilitychange(); } };
+    visibility(value) { state.visibility = value; doc.visibilitychange(); }, online() { win.online(); } };
 }
 test('shows the page version and the controlling cache version', async () => {
   const f = fixture({ cacheVersion: '0.8.0' }); await settle();
@@ -72,4 +73,19 @@ test('a new controller that serves the page\'s own version is not an update', as
   // more with identical code. There is nothing newer to load.
   const f = fixture({ cacheVersion: '0.8.0' }); await settle(); f.takeOver(); await settle();
   assert.equal(f.state.reloads, 0); assert.equal(f.button.hidden, true); assert.equal(f.storage.getItem(KEY), null);
+});
+test('a worker that is slow to say its version is asked again, so the update is not missed', async () => {
+  const f = fixture(); await settle();
+  f.state.silentReplies = 2; f.takeOver(); await settle(); await settle();
+  assert.equal(f.state.reloads, 1); assert.equal(f.storage.getItem(KEY), '0.8.1');
+});
+test('a worker that never answers is asked three times, then left to the button', async () => {
+  const f = fixture(); await settle(); const before = f.state.queries;
+  f.state.silentReplies = 99; f.takeOver(); await settle(); await settle();
+  assert.equal(f.state.queries - before, 3); assert.equal(f.state.reloads, 0);
+  assert.equal(f.button.hidden, false); assert.equal(f.label.textContent, '버전 0.8.0 · 캐시 확인 불가');
+});
+test('checks for updates when the network comes back', async () => {
+  const f = fixture(); await settle(); assert.equal(f.state.updates, 1);
+  f.online(); assert.equal(f.state.updates, 2);
 });

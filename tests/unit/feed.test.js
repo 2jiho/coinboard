@@ -188,3 +188,10 @@ test('a ticker that has delivered prices is not suspect after timeouts; switchin
   g.advance(g.state().retryAt - g.now()); g.sockets[1].open(); g.advance(15000); assert.equal(g.state().tickerSuspect, true);
   g.feed.select('USDT', 'BTC'); assert.equal(g.state().tickerSuspect, false);
 });
+test('Binance error replies in either shape stop retries', async () => {
+  for (const reply of [{ code: -1121, msg: 'Invalid symbol.' }, { error: { code: 2, msg: 'Invalid request' } }, { error: { name: 'INVALID_PARAM' } }]) {
+    const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open();
+    await f.message(reply); assert.equal(f.state().kind, 'error', JSON.stringify(reply));
+    f.advance(60000); assert.equal(f.sockets.length, 1);
+  }
+});

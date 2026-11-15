@@ -15,7 +15,10 @@ export function direction(value) {
   var rounded = Number(value.toFixed(2));
   return rounded > 0 ? 1 : rounded < 0 ? -1 : 0;
 }
+// "▲ 1.23%" / "▼ 0.50%": the arrow carries the direction, so it reads from
+// across a room and without relying on colour.
 export function change(value) {
   var sign = direction(value);
-  return (sign > 0 ? "+" : "") + (sign === 0 ? "0.00" : value.toFixed(2)) + "%";
+  if (sign === 0) return "0.00%";
+  return (sign > 0 ? "▲ " : "▼ ") + Math.abs(value).toFixed(2) + "%";
 }
