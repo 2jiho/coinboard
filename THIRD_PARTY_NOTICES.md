@@ -12,6 +12,15 @@ Coinboard itself is under the [MIT License](LICENSE). It ships the following thi
 | [clsx](https://github.com/lukeed/clsx) by Luke Edwards | Used by the Svelte runtime | MIT | `licenses/clsx-MIT.txt` |
 | [esm-env](https://github.com/benmccann/esm-env) by Ben McCann | Used by the Svelte runtime | MIT | `licenses/esm-env-MIT.txt` |
 | [Paraglide JS](https://github.com/opral/paraglide-js) by Opral | Its runtime, generated into the app's script with the translated messages | MIT | `licenses/paraglide-js-MIT.txt` |
+| [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) by Tailwind Labs | The settings panel's styles (generated CSS) | MIT | `licenses/tailwindcss-MIT.txt` |
+| [tw-animate-css](https://github.com/Wombosvideo/tw-animate-css) | Panel animations (CSS) | MIT | `licenses/tw-animate-css-MIT.txt` |
+| [shadcn-svelte](https://github.com/huntabyte/shadcn-svelte) | Settings components, copied into `src/lib/components/ui`, and their CSS variants | MIT | `licenses/shadcn-svelte-MIT.txt` |
+| [Bits UI](https://github.com/huntabyte/bits-ui) | Accessible switch and slider under those components | MIT | `licenses/bits-ui-MIT.txt` |
+| [svelte-toolbelt](https://github.com/svecosystem/svelte-toolbelt), [Runed](https://github.com/svecosystem/runed) | Used by Bits UI | MIT | `licenses/svelte-toolbelt-MIT.txt`, `licenses/runed-MIT.txt` |
+| [style-to-object](https://github.com/remarkablemark/style-to-object), [inline-style-parser](https://github.com/remarkablemark/inline-style-parser) | Used by Bits UI | MIT | `licenses/style-to-object-MIT.txt`, `licenses/inline-style-parser-MIT.txt` |
+| [Tailwind Variants](https://github.com/heroui-inc/tailwind-variants), [tailwind-merge](https://github.com/dcastil/tailwind-merge) | Combining the components' classes | MIT | `licenses/tailwind-variants-MIT.txt`, `licenses/tailwind-merge-MIT.txt` |
+| [svelte-sonner](https://github.com/wobsoriano/svelte-sonner) | Toast messages | MIT | `licenses/svelte-sonner-MIT.txt` |
+| [Hugeicons](https://github.com/hugeicons/hugeicons-svelte) (free icons, Svelte) | Icons in settings | MIT | `licenses/hugeicons-core-free-icons-MIT.txt`, `licenses/hugeicons-svelte-MIT.txt` |
 
 Build and test tools (Vite, Playwright and others in `devDependencies`) are not shipped with the app. The messages themselves are this project's own.
 

@@ -16,6 +16,8 @@
   import { createBeat } from './lib/steady.js';
   import { m } from './paraglide/messages.js';
   import { getLocale } from './paraglide/runtime.js';
+  import { Toaster } from '$lib/components/ui/sonner/index.js';
+  import { toast } from 'svelte-sonner';
 
   const version = __APP_VERSION__;
   // Storage can throw on access (private mode): run on defaults without it.
@@ -39,9 +41,8 @@
   let updateReady = $state(false);
   let controlsVisible = $state(false);
   let panelOpen = $state(false);
-  let toast = $state('');
   let toggleButton;
-  let feed, wakeLock, updater, controls, toastTimer, cursorTimer;
+  let feed, wakeLock, updater, controls, cursorTimer;
   const assetKey = asset => `${asset.currency}:${asset.ticker}`;
   // Prices can arrive several times a second and at a different moment for
   // each coin. The board changes on one beat, every three seconds at most,
@@ -103,11 +104,8 @@
     return () => clearInterval(timer);
   });
 
-  function showToast(message) {
-    toast = message;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toast = ''; }, 2000);
-  }
+  // A short message at the bottom of the screen (a toast).
+  function showToast(message) { toast(message, { duration: 2500 }); }
   function save(patch) {
     const { saved } = store.update(patch);
     settings = store.get();
@@ -230,7 +228,7 @@
     for (const [target, name, handler, capture] of listeners) target.addEventListener(name, handler, capture);
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
-      clearTimeout(toastTimer); clearTimeout(cursorTimer); clearTimeout(tipTimer);
+      clearTimeout(cursorTimer); clearTimeout(tipTimer);
       controls.dispose(); feed.dispose(); wakeLock.dispose(); beat.reset();
     };
   });
@@ -259,6 +257,6 @@
 <button id="settings-toggle" bind:this={toggleButton} type="button" aria-label={m.settings_open()} aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
 </button>
-<div id="toast" class:show={!!toast} role="status">{toast}</div>
+<Toaster position="bottom-center" />
 <div id="status-dot" data-level={level} class:show={tipShown} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
 <PriceBoard {settings} ticks={assetTicks} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />
