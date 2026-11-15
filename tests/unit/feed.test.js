@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMarketFeed, describeMarket } from '../../src/lib/feed.js';
+import { createMarketFeed, createBoardFeed, describeMarket } from '../../src/lib/feed.js';
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function fixture(extra = {}) {
   let time = 1800000000000, id = 0;
@@ -229,4 +229,76 @@ test('spot and futures of the same coin are different selections, each paced on 
   const f = fixture(); f.feed.select('USDT', 'BTC'); f.feed.select('USDT-PERP', 'BTC');
   assert.equal(f.sockets.length, 2); assert.match(f.sockets[1].url, /^wss:\/\/fstream\.binance\.com\//);
   assert.throws(() => f.feed.select('USD', 'BTC'), /Invalid market selection/);
+});
+test('several Upbit coins share one connection and one subscription; each reports its own state', async () => {
+  const f = fixture(); f.feed.select('KRW', ['BTC', 'ETH']); f.sockets[0].open();
+  assert.equal(f.sockets.length, 1);
+  assert.deepEqual(JSON.parse(f.sockets[0].sent[0])[1], { type: 'ticker', codes: ['KRW-BTC', 'KRW-ETH'] });
+  await f.message(f.tick('KRW'));
+  await f.message(f.tick('KRW', { code: 'KRW-XRP', trade_price: 900 }));
+  assert.deepEqual(f.ticks.map(t => t.selection.ticker), ['BTC']);
+  const latest = ticker => f.states.filter(s => s.selection.ticker === ticker).at(-1);
+  assert.equal(latest('BTC').kind, 'live'); assert.equal(latest('ETH').kind, 'waiting');
+  await f.message(f.tick('KRW', { code: 'KRW-ETH', trade_price: 5000000 }));
+  assert.equal(f.ticks.at(-1).selection.ticker, 'ETH'); assert.equal(f.ticks.at(-1).price, 5000000);
+  assert.equal(latest('ETH').kind, 'live'); assert.equal(latest('ETH').last.price, 5000000);
+});
+test('several Binance coins use one combined stream, whose messages come wrapped', async () => {
+  for (const [currency, base] of [['USDT', 'wss://stream.binance.com:443'], ['USDT-PERP', 'wss://fstream.binance.com/market']]) {
+    const f = fixture(); f.feed.select(currency, ['BTC', 'ETH']); f.sockets[0].open();
+    assert.equal(f.sockets[0].url, `${base}/stream?streams=btcusdt@ticker/ethusdt@ticker`);
+    await f.message({ stream: 'ethusdt@ticker', data: f.tick('USDT', { s: 'ETHUSDT', c: '3500.5' }) });
+    await f.message({ stream: 'btcusdt@ticker', data: f.tick('USDT') });
+    assert.deepEqual(f.ticks.map(t => [t.selection.ticker, t.price]), [['ETH', 3500.5], ['BTC', 70000.1]]);
+  }
+});
+test('each coin keeps its own order guard: one coin\'s time does not hold back another', async () => {
+  const f = fixture(); f.feed.select('USDT', ['BTC', 'ETH']); f.sockets[0].open();
+  await f.message({ stream: 'btcusdt@ticker', data: f.tick('USDT', { E: f.now() + 5000 }) });
+  await f.message({ stream: 'ethusdt@ticker', data: f.tick('USDT', { s: 'ETHUSDT', E: f.now() }) });
+  assert.equal(f.ticks.length, 2);
+});
+test('a coin silent on a working connection is marked suspect; the others stay live and connected', async () => {
+  const f = fixture(); f.feed.select('KRW', ['BTC', 'NOPE']); f.sockets[0].open();
+  const latest = ticker => f.states.filter(s => s.selection.ticker === ticker).at(-1);
+  await f.message(f.tick('KRW'));
+  for (let n = 0; n < 16; n++) { f.advance(1000); await f.message({ status: 'UP' }); }
+  assert.equal(f.sockets.length, 1);
+  assert.equal(latest('NOPE').tickerSuspect, true); assert.equal(latest('NOPE').kind, 'waiting');
+  assert.equal(latest('BTC').tickerSuspect, false); assert.equal(latest('BTC').kind, 'live');
+});
+test('adding a coin reconnects once and keeps the prices of the coins that stay', async () => {
+  const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open(); await f.message(f.tick('USDT'));
+  f.feed.select('USDT', ['BTC', 'ETH']); f.advance(2000);
+  assert.equal(f.sockets.length, 2); assert.match(f.sockets[1].url, /streams=btcusdt@ticker\/ethusdt@ticker$/);
+  const btc = f.states.filter(s => s.selection.ticker === 'BTC').at(-1);
+  assert.equal(btc.last.price, 70000.1);
+  // The same coins again, in the same order: nothing to do.
+  f.feed.select('USDT', ['BTC', 'ETH']); assert.equal(f.sockets.length, 2);
+  // Another market: nothing carries over.
+  f.feed.select('KRW', ['BTC']);
+  assert.equal(f.states.filter(s => s.selection.currency === 'KRW').at(-1).last, null);
+});
+test('the board feed opens one connection per market kind and closes the ones no longer used', async () => {
+  const sockets = [];
+  class Socket { static OPEN = 1; constructor(url) { this.url = url; this.readyState = 0; sockets.push(this); } send() {} close() { this.readyState = 3; } }
+  const states = [];
+  const board = createBoardFeed({ WebSocket: Socket, attemptStore: null, onState: s => states.push(s), random: () => 0 });
+  board.select([{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT-PERP', ticker: 'SOL' }]);
+  assert.deepEqual(sockets.map(s => s.url), ['wss://api.upbit.com/websocket/v1', 'wss://stream.binance.com:443/ws/btcusdt@ticker', 'wss://fstream.binance.com/market/ws/solusdt@ticker']);
+  board.select([{ currency: 'KRW', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }]);
+  assert.deepEqual(sockets.map(s => s.readyState), [0, 3, 3]);
+  board.dispose(); assert.deepEqual(sockets.map(s => s.readyState), [3, 3, 3]);
+});
+test('retrying the board leaves a working connection alone', async () => {
+  const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open(); await f.message(f.tick('USDT'));
+  assert.equal(f.feed.live, true);
+  const sockets = [];
+  class Socket { static OPEN = 1; constructor(url) { this.url = url; this.readyState = 0; sockets.push(this); } send() {} close() { this.readyState = 3; } }
+  const board = createBoardFeed({ WebSocket: Socket, attemptStore: null, random: () => 0 });
+  board.select([{ currency: 'USDT', ticker: 'BTC' }]);
+  sockets[0].readyState = 1; sockets[0].onopen();
+  await sockets[0].onmessage({ data: JSON.stringify({ e: '24hrTicker', s: 'BTCUSDT', c: '1', P: '1', E: Date.now() }) });
+  board.retry(); assert.equal(sockets.length, 1);
+  board.dispose();
 });
