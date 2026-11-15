@@ -24,7 +24,7 @@
   function onKeydown(event) {
     if (event.key === 'Escape') { onClose(true); return; }
     if (event.key !== 'Tab') return;
-    const focusable = Array.from(panel.querySelectorAll('input, button')).filter(el => !el.disabled && el.getClientRects().length);
+    const focusable = Array.from(panel.querySelectorAll('input, button, a[href]')).filter(el => !el.disabled && el.getClientRects().length);
     const first = focusable[0], last = focusable[focusable.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -100,6 +100,10 @@
         <input type="checkbox" role="switch" id="admin-debug" checked={settings.debug} onchange={event => onDebug(event.currentTarget.checked)} />
       </div>
       <div class="settings-row"><p id="app-version">{versionLabel}</p></div>
+      <a id="admin-repo" class="settings-row" href="https://github.com/2jiho/coinboard" target="_blank" rel="noopener noreferrer">
+        <span>GitHub 저장소</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M11 7H6v11h11v-5"/></svg>
+      </a>
     </div>
     <button id="app-update" type="button" hidden={!updateReady} onclick={onUpdate}>새 버전 적용</button>
   </section>

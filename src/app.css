@@ -150,6 +150,12 @@ body {
 #admin-panel label { font-size: 15px; color: var(--label); }
 #admin-panel label .hint { display: block; margin-top: 2px; font-size: 12px; color: var(--secondary); }
 
+/* A row that is a link out of the app */
+#admin-panel a.settings-row { color: var(--label); font-size: 15px; text-decoration: none; -webkit-tap-highlight-color: transparent; border-radius: 0 0 14px 14px; }
+#admin-panel a.settings-row:active { background: var(--control); }
+#admin-panel a.settings-row svg { width: 18px; height: 18px; margin: 0; color: var(--secondary); }
+a:focus-visible { outline: 2px solid #f2f2f7; outline-offset: -2px; }
+
 /* Buttons */
 #admin-panel button, #settings-toggle {
   border: 0; font: inherit; color: var(--label); cursor: pointer;
