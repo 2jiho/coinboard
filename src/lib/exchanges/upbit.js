@@ -11,8 +11,11 @@ export const upbit = {
   tag: "",
   // The change is against the previous day's close.
   changeLabel: "1D",
-  // Browsers send Origin: Upbit limits these connection requests to one per 10 seconds.
-  minConnectInterval: 10000,
+  // Browsers send Origin: Upbit limits these connection requests to one per 10
+  // seconds. Exactly 10 is too close: with a little network delay Upbit sees
+  // less than 10, refuses (429), and counts the refusal too, so the next try
+  // ten seconds on is refused again. Hence a second of margin.
+  minConnectInterval: 11000,
   // Upbit only sends a ticker when a trade happens. After the first text PING
   // it sends {"status":"UP"} every 10 seconds, which shows the connection is
   // alive while the market is quiet. So: PING at open, then every 10 seconds.

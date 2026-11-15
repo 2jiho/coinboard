@@ -207,6 +207,8 @@
     // is the board's own activity: its countdown and its burn-in drift.
     function setVisible(value) {
       visible = value;
+      // Shown again after a pagehide that no pageshow followed: switch back on.
+      if (value) feed.setActive(true);
       // Back in view with a feed that is not live: reconnect now rather than
       // wait out a backoff that began while nobody was looking.
       if (value && Object.values(feedStates).some(state => state.kind !== 'live')) feed.retry();
@@ -215,7 +217,11 @@
       [document, 'visibilitychange', () => setVisible(document.visibilityState === 'visible')],
       [document, 'pointerdown', event => { if (tipShown && !event.target.closest('#status-dot')) hideTip(); }],
       [window, 'pagehide', () => { visible = false; feed.setActive(false); }],
-      [window, 'pageshow', () => { feed.setActive(true); setVisible(document.visibilityState === 'visible'); }],
+      // pageshow also fires when the page first loads. The feed is switched on
+      // either way (a no-op when it already is, so the connection being made is
+      // kept); only a page brought back from the back-forward cache (persisted)
+      // has anything to catch up on.
+      [window, 'pageshow', event => { feed.setActive(true); if (event.persisted) setVisible(document.visibilityState === 'visible'); }],
       [window, 'online', () => feed.setOnline(true)],
       [window, 'offline', () => feed.setOnline(false)],
       // Hide the mouse pointer on an idle fullscreen board.
