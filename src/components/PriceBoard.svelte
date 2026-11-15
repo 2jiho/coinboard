@@ -3,7 +3,7 @@
   // Every part has a zone of fixed size, and the whole is scaled to the screen,
   // so the board is the same size whatever the price. A price too long for its
   // zone is drawn smaller inside that zone; nothing else moves.
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { priceParts, change as formatChange, direction } from '../lib/format.js';
   import { describeMarket } from '../lib/feed.js';
 
@@ -34,7 +34,7 @@
   const tone = value => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
 
   // When the price moves, which way: changed digits roll in from that side and
-  // the price flashes its colour for half a second. This runs before the screen
+  // the price is tinted with its colour for a moment. This runs before the screen
   // is updated, so new digits are born knowing their direction.
   let flash = $state(0);
   let trend = $state(0);
@@ -45,10 +45,18 @@
     if (lastPrice !== null && next !== lastPrice) {
       trend = flash = next > lastPrice ? 1 : -1;
       clearTimeout(flashTimer);
-      flashTimer = setTimeout(() => { flash = 0; }, 500);
+      flashTimer = setTimeout(() => { flash = 0; }, 700);
     }
     lastPrice = next;
   });
+
+  // A digit learns its direction once, when it appears, and keeps it. If the
+  // direction were tied to the current trend instead, every digit would change
+  // class when the price turned round, and all of them would move at once.
+  function roll(node) {
+    const direction = untrack(() => trend);
+    if (direction) node.classList.add(direction > 0 ? 'up' : 'down');
+  }
 
   let container, priceLine, priceText;
   // 1 normally; less when the price is wider than its zone.
@@ -124,7 +132,7 @@
       {/if}
       <div id="board-text">
         <p id="board-head"><span id="coin">{settings.ticker}</span><span id="unit">{settings.currency}</span></p>
-        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true"><span id="price-text" bind:this={priceText} style:transform="scale({priceScale})">{#each parts.pieces as piece, index}{index ? ' ' : ''}{#each [...piece.number] as char, place (place)}{#key char}<span class="digit {tone(trend)}">{char}</span>{/key}{/each}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</span></p>
+        <p id="price-main" bind:this={priceLine} class={tone(flash)} aria-live="polite" aria-atomic="true"><span id="price-text" bind:this={priceText} style:transform="scale({priceScale})">{#each parts.pieces as piece, index}{index ? ' ' : ''}{#each [...piece.number] as char, place (place)}{#key char}<span class="digit" use:roll>{char}</span>{/key}{/each}{#if piece.mark}<span class="mark">{piece.mark}</span>{/if}{/each}</span></p>
         <p id="price-source">{market.label} · {market.pair}</p>
         <p id="board-foot">
           <span id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{#if changeArrow}<span class="arrow">{changeArrow}</span>{/if}{changeNumber}</span>
