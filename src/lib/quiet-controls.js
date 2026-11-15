@@ -7,11 +7,15 @@ export function createQuietControls(options) {
   const controls = options.controls, panel = options.panel;
   const timers = options.timers || { setTimeout: globalThis.setTimeout.bind(globalThis), clearTimeout: globalThis.clearTimeout.bind(globalThis) };
   const defer = options.defer || queueMicrotask;
+  const now = options.now || Date.now;
   const HIDE_AFTER_MS = 5000;
+  // The button fades out over this long (app.css) and can still be pressed
+  // meanwhile; a press on it then is meant, not a tap to reveal it.
+  const FADE_MS = 600;
   // A panel left open would hold back automatic updates and leave the board
   // half covered.
   const PANEL_IDLE_MS = 120000;
-  let visible = false, hideTimer = null, idleTimer = null, revealOnlyClick = false;
+  let visible = false, hideTimer = null, idleTimer = null, revealOnlyClick = false, hiddenAt = -Infinity;
 
   function inUse() {
     return isPanelOpen() || !!(document.activeElement && document.activeElement.closest(controls));
@@ -19,6 +23,7 @@ export function createQuietControls(options) {
   function setVisible(value) {
     if (value === visible) return;
     visible = value;
+    if (!value) hiddenAt = now();
     onVisible(value);
   }
   // Start (or restart) the countdown to hiding the button.
@@ -40,7 +45,8 @@ export function createQuietControls(options) {
   const listeners = [
     ["pointerdown", (event) => {
       touch();
-      revealOnlyClick = !visible;
+      const fading = now() - hiddenAt < FADE_MS && !!event.target.closest(controls);
+      revealOnlyClick = !visible && !fading;
       // Revealing beneath a finger must not activate the newly visible button
       // on pointerup/click or leave it focused after that first tap.
       if (revealOnlyClick) event.preventDefault();

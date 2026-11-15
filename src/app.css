@@ -7,14 +7,22 @@
 @font-face { font-family: Pretendard; font-weight: 600; font-display: swap; src: url("./fonts/Pretendard-SemiBold.subset.woff2") format("woff2"); }
 @font-face { font-family: Pretendard; font-weight: 700; font-display: swap; src: url("./fonts/Pretendard-Bold.subset.woff2") format("woff2"); }
 
+/* Nothing on the board or in the panel is text to select: a slightly long
+   press on a button should press it, not start a selection or a callout.
+   Only the ticker fields take text. */
 * {
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
 }
-input, button {
+input {
   -webkit-user-select: text;
   user-select: text;
 }
+/* No double-tap zoom: on iOS two quick taps (one to show the button, one to
+   press it, or ▲ twice) would otherwise be taken as a zoom, and the second
+   tap would not click. */
+html { touch-action: manipulation; }
 :root {
   /* Up and down, and their brighter flash on the price itself. */
   --up: #30d158; --down: #ff453a; --up-flash: #7fe39e; --down-flash: #ff8f86;
@@ -368,11 +376,15 @@ select:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 1px; }
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   border: 1px solid var(--hairline); box-sizing: border-box;
   z-index: 1500;
+  transition: opacity 0.15s;
 }
 #settings-toggle svg { width: 22px; height: 22px; }
 button:focus-visible, input:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 3px; }
-body:not(.controls-visible) #settings-toggle,
-body.settings-open #settings-toggle { visibility: hidden; pointer-events: none; }
+/* Hiding fades over 0.6 s and the button can still be pressed until it is
+   gone, so a tap just as it starts to go is not lost (quiet-controls.js lets
+   that tap through). Opening the panel hides it at once. */
+body:not(.controls-visible) #settings-toggle { opacity: 0; visibility: hidden; transition: opacity 0.6s, visibility 0s linear 0.6s; }
+body.settings-open #settings-toggle { visibility: hidden; pointer-events: none; transition: none; }
 
 #toast {
   position: fixed;

@@ -17,7 +17,7 @@ function fixture() {
   const controls = createQuietControls({
     document, controls: CONTROLS, panel: PANEL,
     timers: { setTimeout: (cb, ms) => { timers.set(++id, { cb, at: time + ms }); return id; }, clearTimeout: key => { timers.delete(key); } },
-    defer: cb => cb(),
+    defer: cb => cb(), now: () => time,
     isPanelOpen: () => state.panelOpen,
     onVisible: value => { state.visible = value; },
     onOutsideTap: () => { state.outsideTaps++; state.panelOpen = false; },
@@ -103,4 +103,21 @@ test('with the panel closed nothing is waiting to close it', () => {
 test('dispose removes every listener it added', () => {
   const f = fixture(); f.controls.dispose();
   assert.deepEqual(f.removed.sort(), Object.keys(f.handlers).sort());
+});
+test('a press on the button as it fades out is a press, not a tap to reveal it', () => {
+  const f = fixture(); f.tap(f.board);
+  f.advance(5000); assert.equal(f.state.visible, false);
+  f.advance(300);
+  assert.deepEqual(f.tap(f.button), { downPrevented: false, clickSwallowed: false });
+  assert.equal(f.state.visible, true);
+});
+test('once the fade is over, the next tap only reveals it again', () => {
+  const f = fixture(); f.tap(f.board);
+  f.advance(5000 + 600);
+  assert.deepEqual(f.tap(f.button), { downPrevented: true, clickSwallowed: true });
+});
+test('a tap elsewhere while the button fades only reveals it', () => {
+  const f = fixture(); f.tap(f.board);
+  f.advance(5300);
+  assert.deepEqual(f.tap(f.board), { downPrevented: true, clickSwallowed: true });
 });
