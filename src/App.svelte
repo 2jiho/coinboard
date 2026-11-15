@@ -162,6 +162,7 @@
 </script>
 
 {#if panelOpen}
+  <div id="scrim"></div>
   <SettingsPanel {settings} {status} {wake} {versionLabel} {updateReady}
     onClose={closePanel}
     onCurrency={currency => { if (currency !== settings.currency) changeSelection({ currency }); }}

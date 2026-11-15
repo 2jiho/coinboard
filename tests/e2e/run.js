@@ -412,6 +412,8 @@ async function layouts(browser, base) {
     await page.locator('#settings-toggle').tap();
     // The worst case for height: every optional button showing.
     await page.evaluate(() => { for (const id of ['wake-lock-retry', 'app-update', 'market-retry']) document.getElementById(id).hidden = false; });
+    // Measure the sheet where it comes to rest, not partway through its entrance.
+    await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
     const dialog = await page.locator('#admin-panel').boundingBox();
     const inside = box => {
       assert.ok(box.x >= s.left + 15, s.name + ' left'); assert.ok(box.x + box.width <= s.width - s.right - 15, s.name + ' right');

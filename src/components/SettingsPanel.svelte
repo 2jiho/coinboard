@@ -57,14 +57,16 @@
           onclick={() => { tickerText = preset; applyTicker(); }}>{preset}</button>
       {/each}
     </div>
-    <div class="settings-row">
-      <label for="admin-symbol">다른 티커</label>
-      <div class="ticker-row">
-        <input type="text" id="admin-symbol" placeholder="BTC" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
-          enterkeyhint="done" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
-          bind:value={tickerText} oninput={() => { tickerError = false; }}
-          onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
-        <button id="admin-symbol-apply" type="button" onclick={applyTicker}>변경</button>
+    <div class="settings-group">
+      <div class="settings-row">
+        <label for="admin-symbol">다른 티커</label>
+        <div class="ticker-row">
+          <input type="text" id="admin-symbol" placeholder="BTC" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
+            enterkeyhint="done" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
+            bind:value={tickerText} oninput={() => { tickerError = false; }}
+            onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
+          <button id="admin-symbol-apply" type="button" onclick={applyTicker}>변경</button>
+        </div>
       </div>
     </div>
     <p id="admin-symbol-error" role="alert" hidden={!tickerError}>영문·숫자 1~20자로 입력하세요</p>
@@ -74,28 +76,33 @@
   </section>
   <section class="settings-section" aria-labelledby="section-screen">
     <h3 id="section-screen">화면</h3>
-    <div class="settings-row">
-      <label for="admin-brightness">화면 밝기</label>
-      <div class="brightness-row">
-        <input type="range" id="admin-brightness" min="10" max="100" step="5" bind:value={brightness}
-          oninput={() => onBrightnessPreview(Number(brightness))} onchange={() => onBrightness(Number(brightness))} />
-        <span id="brightness-value">{brightness}%</span>
+    <div class="settings-group">
+      <div class="settings-row">
+        <label for="admin-brightness">밝기</label>
+        <div class="brightness-row">
+          <input type="range" id="admin-brightness" min="10" max="100" step="5" bind:value={brightness}
+            style:--fill="{(brightness - 10) / 90 * 100}%"
+            oninput={() => onBrightnessPreview(Number(brightness))} onchange={() => onBrightness(Number(brightness))} />
+          <span id="brightness-value">{brightness}%</span>
+        </div>
       </div>
-    </div>
-    <div class="settings-row">
-      <label for="admin-burn-in">번인 방지 <span class="hint">가운데 근처에서 천천히 움직임</span></label>
-      <input type="checkbox" id="admin-burn-in" checked={settings.burnIn} onchange={event => onBurnIn(event.currentTarget.checked)} />
+      <div class="settings-row">
+        <label for="admin-burn-in">번인 방지 <span class="hint">가운데 근처에서 천천히 움직임</span></label>
+        <input type="checkbox" role="switch" id="admin-burn-in" checked={settings.burnIn} onchange={event => onBurnIn(event.currentTarget.checked)} />
+      </div>
     </div>
     <p id="wake-lock-status" role="status" aria-live="polite">{wake.message}</p>
     <button id="wake-lock-retry" type="button" hidden={!wake.canRetry} onclick={onRetryWake}>화면 켜짐 유지 다시 시도</button>
   </section>
   <section class="settings-section" aria-labelledby="section-app">
     <h3 id="section-app">앱</h3>
-    <p id="app-version">{versionLabel}</p>
-    <button id="app-update" type="button" hidden={!updateReady} onclick={onUpdate}>새 버전 적용</button>
-    <div class="settings-row">
-      <label for="admin-debug">디버그 모드</label>
-      <input type="checkbox" id="admin-debug" checked={settings.debug} onchange={event => onDebug(event.currentTarget.checked)} />
+    <div class="settings-group">
+      <div class="settings-row">
+        <label for="admin-debug">디버그 모드</label>
+        <input type="checkbox" role="switch" id="admin-debug" checked={settings.debug} onchange={event => onDebug(event.currentTarget.checked)} />
+      </div>
+      <div class="settings-row"><p id="app-version">{versionLabel}</p></div>
     </div>
+    <button id="app-update" type="button" hidden={!updateReady} onclick={onUpdate}>새 버전 적용</button>
   </section>
 </div>
