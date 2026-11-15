@@ -898,9 +898,10 @@ async function statusTipOnTouch(browser, base) {
   const tapDot = () => page.touchscreen.tap(dot.x + dot.width / 2, dot.y + dot.height / 2);
   assert.equal(await shown(), false);
   // A tap opens the detail; it closes by itself after a few seconds.
+  // (The test clock also moves with real time, so the checks keep a margin around the four seconds.)
   await tapDot(); assert.equal(await shown(), true);
-  await page.clock.runFor(3900); assert.equal(await shown(), true);
-  await page.clock.runFor(200); assert.equal(await shown(), false, 'closes by itself');
+  await page.clock.runFor(3000); assert.equal(await shown(), true);
+  await page.clock.runFor(1200); assert.equal(await shown(), false, 'closes by itself');
   // A second tap closes it at once.
   await tapDot(); assert.equal(await shown(), true);
   await tapDot(); assert.equal(await shown(), false, 'second tap closes');

@@ -6,7 +6,7 @@ How to use the board is in the [user guide](guide.md). This document is for chan
 
 ## Development
 
-Node.js 22 or later.
+Node.js 22 or later. Dependencies are kept at their latest stable releases.
 
 ~~~bash
 npm install
@@ -51,7 +51,7 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `src/app.css` | Styles |
 | `messages/ko.json`, `messages/en.json` | Text for settings and the like (Korean, English) |
 | `project.inlang/settings.json` | Translation settings (languages, base language, message format) |
-| `src/paraglide/` | Code generated from the messages at build time (not in git; do not edit) |
+| `src/paraglide/` | Code generated from the messages by `npm run i18n`, for the unit tests (not in git; do not edit) |
 
 The modules in `src/lib` are plain JavaScript that knows nothing of Svelte or the DOM, and have unit tests.
 
@@ -89,13 +89,13 @@ The modules in `src/lib` are plain JavaScript that knows nothing of Svelte or th
 
 ## Translation
 
-The settings panel, state descriptions and messages are translated with [Paraglide JS](https://github.com/opral/paraglide-js) (2.x, MIT). Messages live under keys named by meaning in `messages/ko.json` and `messages/en.json`, and are compiled into functions at build time (`src/paraglide/`), so only the messages in use ship. Code calls them as `m.settings_title()` or `m.status_retry({ reason, seconds })`.
+The settings panel, state descriptions and messages are translated with [Paraglide JS](https://github.com/opral/paraglide-js) (3.x, MIT). Messages live under keys named by meaning in `messages/ko.json` and `messages/en.json`, and are compiled into functions at build time, so only the messages in use ship. Code calls them as `m.settings_title()` or `m.status_retry({ reason, seconds })`.
 
 - **Choosing the language**: the device's preferred languages (`navigator.languages`); English when neither Korean nor English is found. Nothing is stored and there is no setting.
 - **Not translated**: the board (tickers, prices, `KRW`, `USDT`, `PERP`, `1D`, `24H`, the status dot's words) is the same in every language, except how won prices are written (see the price format above).
 - **Plurals**: text that changes with a number, like `1 second` and `2 seconds`, uses a `plural` selector in the message file.
 - **Changing or adding messages**: change both files. `npm test` checks that both have the same keys and values, that none is empty and that the English has no Korean in it; the browser tests check, on an English device, that no Korean is left in the settings panel and that no choice is cut off.
-- **Compiling**: `npm run build` and `npm run dev` compile through the Vite plugin; `npm test` runs `npm run i18n` first. The message-format plugin is fetched from jsDelivr, so the first compile needs the internet.
+- **Compiling**: `npm run build` and `npm run dev` compile in memory through the Vite plugin (virtual modules); `npm test` first runs `npm run i18n`, which writes `src/paraglide/`. The message-format plugin is fetched from jsDelivr, so the first compile needs the internet.
 - **Terms**: 자산 = Asset, 시장 = Market, 코인 = Coin, 티커 = Ticker, 직접 입력 = Other, 가로 칸 수 = Columns, 밝기 = Brightness, 번인 방지 = Burn-in Protection, 등락 색 = Up/Down Colors, 무기한 = Perpetual.
 
 ## Versions

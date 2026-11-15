@@ -6,7 +6,7 @@
 
 ## 개발
 
-Node.js 22 이상이 필요합니다.
+Node.js 22 이상이 필요합니다. 의존성은 항상 최신 안정판을 씁니다.
 
 ~~~bash
 npm install
@@ -51,7 +51,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/app.css` | 스타일 |
 | `messages/ko.json`, `messages/en.json` | 설정 창 등의 문구(한국어·영어) |
 | `project.inlang/settings.json` | 번역 설정(언어 목록, 기본 언어, 문구 형식) |
-| `src/paraglide/` | 위 문구에서 빌드 때 만들어지는 코드(git 제외, 직접 고치지 않음) |
+| `src/paraglide/` | 위 문구에서 `npm run i18n`이 만드는 코드. 단위 테스트용(git 제외, 직접 고치지 않음) |
 
 `src/lib`의 모듈은 Svelte와 DOM 구조를 모르는 일반 자바스크립트이고 단위 테스트가 붙어 있습니다.
 
@@ -89,13 +89,13 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 
 ## 번역
 
-설정 창, 상태 설명, 안내 문구는 [Paraglide JS](https://github.com/opral/paraglide-js)(2.x, MIT)로 번역합니다. 문구는 뜻 단위의 키로 `messages/ko.json`과 `messages/en.json`에 있고, 빌드 때 함수로 바뀌어(`src/paraglide/`) 실제로 쓰는 문구만 앱에 들어갑니다. 코드에서는 `m.settings_title()`, `m.status_retry({ reason, seconds })`처럼 부릅니다.
+설정 창, 상태 설명, 안내 문구는 [Paraglide JS](https://github.com/opral/paraglide-js)(3.x, MIT)로 번역합니다. 문구는 뜻 단위의 키로 `messages/ko.json`과 `messages/en.json`에 있고, 빌드 때 함수로 바뀌어 실제로 쓰는 문구만 앱에 들어갑니다. 코드에서는 `m.settings_title()`, `m.status_retry({ reason, seconds })`처럼 부릅니다.
 
 - **언어 선택**: 기기의 선호 언어(`navigator.languages`)를 따르고, 한국어도 영어도 아니면 영어입니다. 저장하지 않으며 설정 항목도 없습니다.
 - **번역하지 않는 것**: 전광판(티커, 가격, `KRW`·`USDT`·`PERP`, `1D`·`24H`, 상태 점 문구)은 언어와 무관하게 같습니다. 단, 원화 가격의 표기만 언어를 따릅니다(위 가격 표기 참고).
 - **복수형**: 영어의 `1 second` / `2 seconds`처럼 수에 따라 바뀌는 문구는 문구 파일에서 `plural` 선택으로 씁니다.
 - **문구를 바꾸거나 더할 때**: 두 파일을 함께 고칩니다. `npm test`가 두 파일의 키·값 이름이 같은지, 빈 문구가 없는지, 영어에 한글이 없는지 확인하고, 브라우저 테스트가 영어 기기에서 설정 창에 한글이 남지 않았는지와 잘리는 칸이 없는지 확인합니다.
-- **컴파일**: `npm run build`와 `npm run dev`는 Vite 플러그인으로, `npm test`는 `npm run i18n`으로 먼저 컴파일합니다. 문구 형식 플러그인은 jsDelivr에서 받으므로 처음 컴파일할 때 인터넷이 필요합니다.
+- **컴파일**: `npm run build`와 `npm run dev`는 Vite 플러그인이 메모리 안에서(가상 모듈) 컴파일하고, `npm test`는 `npm run i18n`으로 `src/paraglide/`에 먼저 컴파일합니다. 문구 형식 플러그인은 jsDelivr에서 받으므로 처음 컴파일할 때 인터넷이 필요합니다.
 - **용어**: 자산 = Asset, 시장 = Market, 코인 = Coin, 티커 = Ticker, 직접 입력 = Other, 가로 칸 수 = Columns, 밝기 = Brightness, 번인 방지 = Burn-in Protection, 등락 색 = Up/Down Colors, 무기한 = Perpetual.
 
 ## 버전
