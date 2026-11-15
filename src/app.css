@@ -1,3 +1,12 @@
+/* Pretendard (SIL Open Font License, see src/fonts/LICENSE.txt), shipped with
+   the app so the board has the same letterforms on every device, and so the
+   Hangul in a price (억, 만) is cut from the same cloth as its digits. These
+   are the subset files: Latin, digits, and the 2,350 common Hangul syllables.
+   swap: draw with the device font at once and change over when it arrives. */
+@font-face { font-family: Pretendard; font-weight: 500; font-display: swap; src: url("./fonts/Pretendard-Medium.subset.woff2") format("woff2"); }
+@font-face { font-family: Pretendard; font-weight: 600; font-display: swap; src: url("./fonts/Pretendard-SemiBold.subset.woff2") format("woff2"); }
+@font-face { font-family: Pretendard; font-weight: 700; font-display: swap; src: url("./fonts/Pretendard-Bold.subset.woff2") format("woff2"); }
+
 * {
   -webkit-user-select: none;
   user-select: none;
@@ -24,7 +33,7 @@ body {
   width: 100vw;
   background-color: #000;
   color: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Apple SD Gothic Neo", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Apple SD Gothic Neo", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
   text-align: center;
   margin: 0;
   overflow: hidden;

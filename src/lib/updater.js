@@ -2,7 +2,10 @@
 // applies new versions: automatically on an idle board, on panel close if the
 // settings panel is open.
 const RELOAD_KEY = "coinboard-auto-reload";
-const CHECK_MS = 3600000;
+// How often an open board asks whether there is a new release. The answer
+// cannot be much fresher than this anyway: the host serves the worker file
+// from a cache it keeps for about ten minutes.
+const CHECK_MS = 300000;
 
 export function createUpdater(options) {
   const navigator = options.navigator, document = options.document, storage = options.storage;
