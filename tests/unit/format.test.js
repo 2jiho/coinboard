@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { price, change, direction } from '../../src/lib/format.js';
+import { price, priceParts, change, direction } from '../../src/lib/format.js';
 test('whole-won and two-decimal USDT prices are unchanged for ordinary amounts', () => {
   assert.equal(price('KRW', 98000000), '₩98,000,000');
   assert.equal(price('KRW', 1234.5), '₩1,235');
@@ -29,4 +29,13 @@ test('change shows its direction as an arrow, readable without colour', () => {
 test('a change that rounds to zero carries no arrow and no direction', () => {
   for (const tiny of [-0.004, 0, 0.004]) { assert.equal(change(tiny), '0.00%'); assert.equal(direction(tiny), 0); }
   assert.equal(direction(0.005), 1); assert.equal(direction(-0.02), -1);
+});
+test('priceParts separates the currency mark from the digits, and joins back to the same text', () => {
+  assert.deepEqual(priceParts('KRW', 98000000), { prefix: '₩', digits: '98,000,000', suffix: '' });
+  assert.deepEqual(priceParts('KRW', 12.6), { prefix: '₩', digits: '12.60', suffix: '' });
+  assert.deepEqual(priceParts('USDT', 70000.1), { prefix: '', digits: '70,000.10', suffix: ' USDT' });
+  for (const [currency, value] of [['KRW', 98000000], ['KRW', 0.0123], ['USDT', 65000], ['USDT', 0.00001234]]) {
+    const parts = priceParts(currency, value);
+    assert.equal(parts.prefix + parts.digits + parts.suffix, price(currency, value));
+  }
 });

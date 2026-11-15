@@ -2,7 +2,7 @@
   // The board itself: icon, price, source, change, and one quiet line of trouble.
   // It is laid out at a fixed design size and scaled to fill the screen.
   import { onMount } from 'svelte';
-  import { price as formatPrice, change as formatChange, direction } from '../lib/format.js';
+  import { priceParts, change as formatChange, direction } from '../lib/format.js';
 
   let { settings, tick, status, notice, brightness, active } = $props();
 
@@ -19,11 +19,11 @@
   let failedIcon = $state(null);
   const iconFailed = $derived(failedIcon === iconSrc);
 
-  const priceText = $derived(tick ? formatPrice(tick.selection.currency, tick.price) : '—');
+  const parts = $derived(tick ? priceParts(tick.selection.currency, tick.price) : { prefix: '', digits: '—', suffix: '' });
   const changeText = $derived(tick ? formatChange(tick.change) : '—');
   const changeDirection = $derived(tick ? direction(tick.change) : 0);
   const source = $derived(settings.currency === 'KRW' ? `업비트 · KRW-${settings.ticker}` : `바이낸스 · ${settings.ticker}/USDT`);
-  const tone = value => value > 0 ? 'lightgreen' : value < 0 ? 'lightcoral' : 'white';
+  const tone = value => value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
 
   // Flash the price green or red for half a second when it moves.
   let flash = $state(0);
@@ -97,7 +97,7 @@
           onerror={() => { failedIcon = iconSrc; }} />
       {/if}
       <div>
-        <p id="price-main" aria-live="polite" aria-atomic="true" style:color={tone(flash)}>{priceText}</p>
+        <p id="price-main" class={tone(flash)} aria-live="polite" aria-atomic="true">{#if parts.prefix}<span class="unit">{parts.prefix}</span>{/if}{parts.digits}{#if parts.suffix}<span class="unit">{parts.suffix}</span>{/if}</p>
         <p id="price-source">{source}</p>
         {#if status.titleShown || notice}
           <div id="status-overlay">
@@ -107,7 +107,7 @@
         {/if}
       </div>
       <div>
-        <p id="change" aria-live="polite" aria-atomic="true" style:color={tone(changeDirection)}>{changeText}</p>
+        <p id="change" class={tone(changeDirection)} aria-live="polite" aria-atomic="true">{changeText}</p>
         <p id="change-label">{settings.currency === 'KRW' ? '전일 대비' : '24h'}</p>
       </div>
     </div>

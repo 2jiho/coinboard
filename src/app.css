@@ -37,7 +37,7 @@ body {
 #container {
   display: flex;
   align-items: center;
-  gap: 56px;
+  gap: 64px;
   width: max-content;
   white-space: nowrap;
   transform-origin: center;
@@ -56,12 +56,20 @@ body {
   background: #333;
   border-radius: 50%;
 }
-#price-main { font-size: 128px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.05; }
-#price-source { margin-top: 10px; font-size: 30px; color: #8c8c8c; }
-#change { font-size: 60px; font-weight: 500; line-height: 1.1; }
-#change-label { margin-top: 8px; font-size: 28px; color: #8c8c8c; }
+#price-main { font-size: 132px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.02; color: #fff; transition: color 0.5s ease-out; }
+/* The currency mark is quieter than the digits it belongs to. */
+#price-main .unit { font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: #8e8e93; }
+#price-main .unit:first-child { margin-right: 0.12em; }
+#price-main.up { color: #7ee2a0; transition: none; }
+#price-main.down { color: #ff8a80; transition: none; }
+#price-source { margin-top: 14px; font-size: 26px; font-weight: 500; letter-spacing: 0.06em; color: #6e6e73; }
+/* The change sits in a tinted pill: readable as up or down at a glance. */
+#change { display: inline-block; padding: 14px 26px; border-radius: 999px; font-size: 54px; font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; color: #d1d1d6; background: rgba(120, 120, 128, 0.18); transition: color 0.4s, background 0.4s; }
+#change.up { color: #30d158; background: rgba(48, 209, 88, 0.14); }
+#change.down { color: #ff6961; background: rgba(255, 69, 58, 0.15); }
+#change-label { margin-top: 12px; font-size: 24px; font-weight: 500; letter-spacing: 0.06em; color: #6e6e73; }
 #status-overlay { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 12px; }
-#overlay-title, #notice { color: #b88d8d; font-size: 24px; line-height: 1.4; }
+#overlay-title, #notice { color: #d6928c; font-size: 24px; font-weight: 500; line-height: 1.4; }
 #container.price-unavailable #price-main { opacity: 0.55; }
 @media (orientation: portrait) {
   #container { flex-direction: column; gap: 36px; }

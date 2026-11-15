@@ -10,6 +10,13 @@ export function price(currency, value) {
   if (currency === "KRW") return (value >= 100 ? krw : smallKrw).format(value);
   return (value >= 1 ? usdt : smallUsdt).format(value) + " USDT";
 }
+// The same text as price(), split so the currency mark can be set smaller
+// than the digits.
+export function priceParts(currency, value) {
+  var text = price(currency, value);
+  if (currency === "KRW") return { prefix: text.charAt(0), digits: text.slice(1), suffix: "" };
+  return { prefix: "", digits: text.slice(0, -5), suffix: " USDT" };
+}
 // -1, 0 or 1 for the change as displayed, so +0.004% is neither up nor down.
 export function direction(value) {
   var rounded = Number(value.toFixed(2));
