@@ -8,27 +8,26 @@
   let { settings, status, wake, versionLabel, updateReady,
     onClose, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onRetryFeed, onRetryWake, onUpdate } = $props();
 
-  let panel, closeButton, tickerInput;
-  // The field for other tickers stays folded away unless the selected coin is
-  // not one of the buttons, or "기타" has been pressed.
+  let panel, closeButton;
+  let tickerInput = $state();
+  // What is being typed or dragged, before it is applied.
+  let tickerText = $state('');
+  let tickerError = $state(false);
+  let brightness = $state(untrack(() => settings.brightness));
+  // Coin is a one-line choice: the listed coins, the current coin if it is not
+  // one of them, and "직접 입력…", which opens a field for any other ticker.
+  const OTHER = '__other';
   const listed = $derived(PRESETS.includes(settings.ticker));
   let otherOpen = $state(false);
-  const showOther = $derived(otherOpen || !listed);
   // Worth a line only when something is wrong.
   const wakeTrouble = $derived(['unsupported', 'released', 'failed'].includes(wake.kind));
-  async function openOther() {
-    otherOpen = true; tickerText = listed ? '' : settings.ticker; tickerError = false;
+  async function chooseCoin(value) {
+    tickerError = false;
+    if (value !== OTHER) { otherOpen = false; if (value !== settings.ticker) onTicker(value); return; }
+    otherOpen = true; tickerText = '';
     await tick();
     tickerInput.focus();
   }
-  function choosePreset(preset) {
-    otherOpen = false; tickerError = false; tickerText = preset;
-    if (preset !== settings.ticker) onTicker(preset);
-  }
-  // The panel starts from the saved values and then holds what is being typed.
-  let tickerText = $state(untrack(() => settings.ticker));
-  let tickerError = $state(false);
-  let brightness = $state(untrack(() => settings.brightness));
 
   function applyTicker() {
     const ticker = normalizeTicker(tickerText);
@@ -41,7 +40,7 @@
   function onKeydown(event) {
     if (event.key === 'Escape') { onClose(true); return; }
     if (event.key !== 'Tab') return;
-    const focusable = Array.from(panel.querySelectorAll('input, button, a[href]')).filter(el => !el.disabled && el.getClientRects().length);
+    const focusable = Array.from(panel.querySelectorAll('input, select, button, a[href]')).filter(el => !el.disabled && el.getClientRects().length);
     const first = focusable[0], last = focusable[focusable.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -61,26 +60,33 @@
     </button>
   </div>
   <section class="settings-section" aria-label="시세">
-    <div id="currency-controls" role="group" aria-label="표시 통화 및 거래소 선택">
-      <button type="button" data-currency="KRW" aria-pressed={settings.currency === 'KRW'} aria-label="원화 · 업비트" onclick={() => onCurrency('KRW')}>원화<span>업비트</span></button>
-      <button type="button" data-currency="USDT" aria-pressed={settings.currency === 'USDT'} aria-label="USDT · 바이낸스" onclick={() => onCurrency('USDT')}>USDT<span>바이낸스</span></button>
-    </div>
-    <div id="ticker-presets" role="group" aria-label="코인 선택">
-      {#each PRESETS as preset}
-        <button type="button" data-ticker={preset} aria-pressed={settings.ticker === preset && !otherOpen} onclick={() => choosePreset(preset)}>{preset}</button>
-      {/each}
-      <button id="ticker-other" type="button" aria-pressed={showOther} aria-expanded={showOther} aria-controls="ticker-other-row" onclick={openOther}>기타</button>
-    </div>
-    <div id="ticker-other-row" class="settings-group" hidden={!showOther}>
+    <div class="settings-group">
       <div class="settings-row">
-        <label for="admin-symbol">티커</label>
-        <div class="ticker-row">
-          <input type="text" id="admin-symbol" bind:this={tickerInput} placeholder="예: LINK" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
-            enterkeyhint="done" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
-            bind:value={tickerText} oninput={() => { tickerError = false; }}
-            onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
-          <button id="admin-symbol-apply" type="button" onclick={applyTicker}>변경</button>
+        <label for="admin-coin">코인</label>
+        <select id="admin-coin" value={otherOpen ? OTHER : settings.ticker} onchange={event => chooseCoin(event.currentTarget.value)}>
+          {#if !listed}<option value={settings.ticker}>{settings.ticker}</option>{/if}
+          {#each PRESETS as preset}<option value={preset}>{preset}</option>{/each}
+          <option value={OTHER}>직접 입력…</option>
+        </select>
+      </div>
+      {#if otherOpen}
+        <div class="settings-row">
+          <label for="admin-symbol">티커</label>
+          <div class="ticker-row">
+            <input type="text" id="admin-symbol" bind:this={tickerInput} placeholder="예: LINK" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
+              enterkeyhint="done" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
+              bind:value={tickerText} oninput={() => { tickerError = false; }}
+              onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
+            <button id="admin-symbol-apply" type="button" onclick={applyTicker}>변경</button>
+          </div>
         </div>
+      {/if}
+      <div class="settings-row">
+        <label for="admin-currency">통화</label>
+        <select id="admin-currency" value={settings.currency} onchange={event => onCurrency(event.currentTarget.value)}>
+          <option value="KRW">원화 · 업비트</option>
+          <option value="USDT">USDT · 바이낸스</option>
+        </select>
       </div>
     </div>
     <p id="admin-symbol-error" role="alert" hidden={!tickerError}>영문·숫자 1~20자로 입력하세요</p>

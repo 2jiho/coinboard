@@ -179,7 +179,7 @@ async function board(browser, base) {
 
   // Currency applies at once and the old amount is cleared first.
   await page.evaluate(() => { suppressTicks = true; });
-  await page.getByRole('button', { name: 'USDT · 바이낸스', exact: true }).click();
+  await page.locator('#admin-currency').selectOption('USDT');
   assert.equal(await text(page, '#price-main'), '—');
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
@@ -206,8 +206,12 @@ async function board(browser, base) {
   await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
   await page.screenshot({ path: path.join(evidence, 'settings.png') });
 
-  // Any other coin: "기타" opens a field for its ticker.
-  await page.locator('#ticker-other').click();
+  // Any other coin: "직접 입력…" opens a field for its ticker.
+  // Coin and currency are two one-line choices.
+  assert.deepEqual(await page.locator('#admin-coin option').allTextContents(), ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', '직접 입력…']);
+  assert.deepEqual(await page.locator('#admin-currency option').allTextContents(), ['원화 · 업비트', 'USDT · 바이낸스']);
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'BTC');
+  await page.locator('#admin-coin').selectOption('__other');
   assert.equal(await page.locator('#admin-symbol').isVisible(), true);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-symbol');
   // Invalid tickers are refused in place; nothing changes.
@@ -221,27 +225,26 @@ async function board(browser, base) {
   // Enter applies; lower case and stray spaces are tidied.
   await page.locator('#admin-symbol').fill(' eth '); await page.locator('#admin-symbol').press('Enter');
   assert.equal(await page.locator('#admin-symbol-error').isVisible(), false);
-  assert.equal(await page.locator('#admin-symbol').inputValue(), 'ETH');
+  // ETH is on the list, so the choice shows it and the field folds away.
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
+  assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   assert.equal((await saved(page)).ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
-  // One tap on a common coin switches to it.
-  await page.locator('#ticker-presets [data-ticker="XRP"]').click();
+  // Choosing a listed coin switches to it at once.
+  await page.locator('#admin-coin').selectOption('XRP');
   assert.equal(await text(page, '#price-source'), 'BINANCE · XRP/USDT');
-  assert.equal(await page.locator('#ticker-presets [data-ticker="XRP"]').getAttribute('aria-pressed'), 'true');
-  // Back on a listed coin, the field for other tickers folds away again.
-  assert.equal(await page.locator('#admin-symbol').isVisible(), false);
-  await page.locator('#ticker-presets [data-ticker="ETH"]').click();
+  await page.locator('#admin-coin').selectOption('ETH');
   assert.equal((await saved(page)).ticker, 'ETH');
   await page.clock.runFor(3000); await live(page);
   // The coin's own icon ships with the app; no outside server is asked.
   await page.waitForFunction(() => { const icon = document.getElementById('icon'); return icon && icon.complete && icon.naturalWidth > 0; });
   assert.match(await page.locator('#icon').getAttribute('src'), /^\.\/coins\/eth\.svg$/);
   // Text typed but not applied is thrown away when the panel closes.
-  await page.locator('#ticker-other').click();
+  await page.locator('#admin-coin').selectOption('__other');
   await page.locator('#admin-symbol').fill('LINK'); await page.locator('#admin-close').click();
   await open(page); assert.equal(await page.locator('#admin-symbol').isVisible(), false);
-  assert.equal(await page.locator('#ticker-presets [data-ticker="ETH"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
   // Brightness applies and saves without an apply button.
   await page.locator('#admin-brightness').fill('50');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
@@ -311,11 +314,12 @@ async function board(browser, base) {
   // A ticker the exchange never answers for.
   await open(page);
   await page.evaluate(() => { suppressTicks = true; });
-  await page.locator('#ticker-other').click();
+  await page.locator('#admin-coin').selectOption('__other');
   await page.locator('#admin-symbol').fill('NOPE'); await page.locator('#admin-symbol-apply').click();
-  // A coin that is not on the list keeps its field open, showing what is selected.
-  assert.equal(await page.locator('#admin-symbol').isVisible(), true);
-  assert.equal(await page.locator('#ticker-other').getAttribute('aria-pressed'), 'true');
+  // A coin that is not on the list joins the choice as itself; the field folds away.
+  assert.equal(await page.locator('#admin-coin').inputValue(), 'NOPE');
+  assert.equal(await page.locator('#admin-coin option').first().textContent(), 'NOPE');
+  assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   await page.clock.runFor(40000);
   assert.equal(await text(page, '#overlay-title'), 'CHECK TICKER');
   // A coin without an icon simply has none: its ticker is already in the head line.
@@ -381,7 +385,7 @@ async function lockedStorage(browser, base) {
   await page.goto(base); await live(page);
   assert.equal(await text(page, '#price-main'), '9800만');
   await open(page);
-  await page.getByRole('button', { name: 'USDT · 바이낸스', exact: true }).click();
+  await page.locator('#admin-currency').selectOption('USDT');
   assert.match(await text(page, '#toast'), /저장하지 못했습니다/);
   await live(page);
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
@@ -484,7 +488,7 @@ async function layouts(browser, base) {
     await page.locator('#settings-toggle').tap();
     // The worst case for height: every optional button showing.
     await page.evaluate(() => { for (const id of ['wake-lock-retry', 'app-update', 'market-retry']) document.getElementById(id).hidden = false; });
-    await page.locator('#ticker-other').tap();
+    await page.locator('#admin-coin').selectOption('__other');
     // Measure the sheet where it comes to rest, not partway through its entrance.
     await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
     const dialog = await page.locator('#admin-panel').boundingBox();
@@ -511,7 +515,7 @@ async function liveExchanges(browser, base) {
   const page = await context.newPage(); await page.goto(base);
   await page.keyboard.press('Tab'); await page.locator('#settings-toggle').click();
   for (const currency of ['KRW', 'USDT']) {
-    await page.locator(`[data-currency="${currency}"]`).click();
+    await page.locator('#admin-currency').selectOption(currency);
     try {
       await page.waitForFunction(() => document.getElementById('status-indicator').className === 'connected', null, { timeout: 25000 });
       console.log('LIVE PASS', currency, await text(page, '#price-main'), await text(page, '#price-source'));
