@@ -51,5 +51,7 @@ export const binance = binanceMarket({
 // USDⓈ-margined perpetual contracts: the last traded price of e.g. BTCUSDT perpetual.
 export const binanceFutures = binanceMarket({
   name: "바이낸스 선물", label: "BINANCE FUTURES", choice: "USDT 무기한 · 바이낸스", listName: "바이낸스 USDT 무기한 선물", tag: "PERP",
-  stream: "wss://fstream.binance.com", listUrl: "https://fapi.binance.com/fapi/v1/ticker/price",
+  // Futures streams are routed by path since 2026-04-23: tickers are regular
+  // market data, under /market. Without the path no ticker arrives.
+  stream: "wss://fstream.binance.com/market", listUrl: "https://fapi.binance.com/fapi/v1/ticker/price",
 });

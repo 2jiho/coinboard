@@ -239,7 +239,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#tag').count(), 0);
   await page.locator('#admin-currency').selectOption('USDT-PERP');
   await page.clock.runFor(3000); await live(page);
-  assert.match(await page.evaluate(() => sockets.at(-1).url), /^wss:\/\/fstream\.binance\.com\/ws\/btcusdt@ticker$/);
+  assert.match(await page.evaluate(() => sockets.at(-1).url), /^wss:\/\/fstream\.binance\.com\/market\/ws\/btcusdt@ticker$/);
   assert.equal(await text(page, '#coin'), 'BTC'); assert.equal(await text(page, '#unit'), 'USDT'); assert.equal(await text(page, '#tag'), 'PERP');
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await text(page, '#price-source'), 'BINANCE FUTURES · BTC/USDT PERP');
