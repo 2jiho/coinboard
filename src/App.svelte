@@ -5,7 +5,7 @@
   import PriceBoard from './components/PriceBoard.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
   import { createSettings } from './lib/settings.js';
-  import { createMarketFeed } from './lib/feed.js';
+  import { createMarketFeed, describeMarket } from './lib/feed.js';
   import { createWakeLock } from './lib/wake-lock.js';
   import { createUpdater } from './lib/updater.js';
   import { describeState } from './lib/status.js';
@@ -38,9 +38,24 @@
     : cache.state === 'unknown' ? `버전 ${version} · 설치된 사본 확인 불가`
     : cache.state === 'known' && cache.version !== version ? `버전 ${version} · 설치된 사본 ${cache.version}`
     : `버전 ${version}`);
-  // Only a lost or refused lock is worth a line on the board; a device without
-  // the feature is reported in the settings panel alone.
-  const notice = $derived(wake.kind === 'released' || wake.kind === 'failed' ? 'SCREEN MAY SLEEP' : '');
+  // The status dot in the corner: one colour for how things are, and the detail
+  // on hover or tap. English, like everything else on the board.
+  // Only a lost or refused wake lock counts; a device without the feature is
+  // reported in the settings panel alone.
+  const wakeLost = $derived(wake.kind === 'released' || wake.kind === 'failed');
+  const level = $derived(status.level === 'ok' && wakeLost ? 'warn' : status.level);
+  const tip = $derived.by(() => {
+    const market = describeMarket(settings.currency, settings.ticker);
+    return [`${market.label} · ${market.pair}`, status.title, wakeLost ? 'SCREEN MAY SLEEP' : ''].filter(Boolean).join('\n');
+  });
+  // Touch has no hover: a tap on the dot shows the detail for a few seconds.
+  let tipShown = $state(false);
+  let tipTimer;
+  function showTip() {
+    tipShown = true;
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(() => { tipShown = false; }, 4000);
+  }
 
   $effect(() => {
     document.body.classList.toggle('controls-visible', controlsVisible);
@@ -123,7 +138,7 @@
     for (const [target, name, handler, capture] of listeners) target.addEventListener(name, handler, capture);
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
-      clearTimeout(toastTimer); clearTimeout(cursorTimer);
+      clearTimeout(toastTimer); clearTimeout(cursorTimer); clearTimeout(tipTimer);
       controls.dispose(); feed.dispose(); wakeLock.dispose();
     };
   });
@@ -146,4 +161,5 @@
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
 </button>
 <div id="toast" class:show={!!toast} role="status">{toast}</div>
-<PriceBoard {settings} {tick} {status} {notice} brightness={previewBrightness ?? settings.brightness} active={visible} />
+<div id="status-dot" data-level={level} class:show={tipShown} role="img" aria-label={tip} onpointerdown={showTip}><span id="status-tip">{tip}</span></div>
+<PriceBoard {settings} {tick} {status} brightness={previewBrightness ?? settings.brightness} active={visible} />

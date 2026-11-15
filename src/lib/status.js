@@ -3,7 +3,7 @@ import { price } from "./format.js";
 
 export function describeState(state, now) {
   if (!state || !state.selection) {
-    return { text: "", tone: "", unavailable: true, titleShown: false, title: "", detail: "", canRetry: false };
+    return { text: "", tone: "", level: "warn", unavailable: true, title: "WAITING", detail: "", canRetry: false };
   }
   let kind = state.kind, label;
   switch (kind) {
@@ -19,7 +19,7 @@ export function describeState(state, now) {
   const problem = ["backoff", "error", "offline"].includes(kind);
   // The title is shown on the board, which is English only. Everything else
   // here is for the settings panel.
-  let title = kind === "error" ? "ERROR" : kind === "offline" ? "OFFLINE" :
+  let title = kind === "live" ? "LIVE" : kind === "error" ? "ERROR" : kind === "offline" ? "OFFLINE" :
     kind === "backoff" && state.cause === "stale" ? "DELAYED" : "WAITING";
   if (kind !== "live" && state.last) title += " · LAST PRICE";
   // Offline and exchange errors already say what is wrong.
@@ -34,7 +34,8 @@ export function describeState(state, now) {
     text: `${state.selection.exchange} · ${label}`,
     tone: kind === "live" ? "connected" : kind === "connecting" || kind === "waiting" ? "" : "error",
     unavailable: kind !== "live",
-    titleShown: problem || (kind !== "live" && (!!state.last || !!state.tickerSuspect)),
+    // One of three colours for the status dot: fine, working on it, needs attention.
+    level: kind === "live" ? "ok" : problem && kind !== "backoff" ? "bad" : "warn",
     title, detail, canRetry: kind === "error",
   };
 }

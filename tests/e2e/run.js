@@ -117,7 +117,20 @@ async function board(browser, base) {
   assert.equal(await page.evaluate(() => sockets.length), 1);
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
   assert.equal(await page.locator('#admin-panel').count(), 0);
-  assert.equal(await page.locator('#status-overlay').count(), 0);
+  // No words under the price: one small dot in the corner says how things are.
+  assert.equal(await page.locator('#status-overlay, #overlay-title, #notice').count(), 0);
+  const level = () => page.locator('#status-dot').getAttribute('data-level');
+  const tip = () => text(page, '#status-tip');
+  assert.equal(await level(), 'ok');
+  assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE');
+  const dotBox = await page.locator('#status-dot').boundingBox();
+  assert.ok(dotBox.x < 60 && dotBox.y + dotBox.height > 768 - 60, 'dot is in the bottom-left corner');
+  // Its detail shows on hover (or a tap), not otherwise.
+  assert.equal(await page.locator('#status-tip').isVisible(), false);
+  await page.locator('#status-dot').hover();
+  assert.equal(await page.locator('#status-tip').isVisible(), true);
+  await page.mouse.move(500, 300);
+  assert.equal(await page.locator('#status-tip').isVisible(), false);
   // The exchange and market are for screen readers only; they take no room on the board.
   const sourceBox = await page.locator('#price-source').boundingBox();
   assert.ok(sourceBox.width <= 3 && sourceBox.height <= 3, 'source line is not drawn');
@@ -167,25 +180,48 @@ async function board(browser, base) {
   await page.clock.runFor(10000);
   await page.evaluate(() => testSentinel.release());
   await page.waitForFunction(() => wakeRequests === 2 && document.getElementById('wake-lock-status').textContent.includes('활성'));
-  assert.equal(await page.locator('#notice').count(), 0);
+  assert.equal(await level(), 'ok');
   await page.clock.runFor(10000);
   await page.evaluate(() => { navigator.wakeLock.request = () => Promise.reject(Object.assign(new Error('Denied'), { name: 'NotAllowedError' })); return testSentinel.release(); });
-  await page.waitForFunction(() => document.getElementById('notice')?.textContent === 'SCREEN MAY SLEEP');
-  assert.equal(await page.locator('#overlay-title').count(), 0);
+  await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'warn');
+  assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE\nSCREEN MAY SLEEP');
   await page.evaluate(() => { navigator.wakeLock.request = window.realWakeRequest; });
   await page.getByRole('button', { name: '화면 켜짐 유지 다시 시도' }).click();
   await page.waitForFunction(() => wakeRequests === 3 && document.getElementById('wake-lock-status').textContent.includes('활성'));
-  assert.equal(await page.locator('#notice').count(), 0);
+  assert.equal(await level(), 'ok');
 
   // Currency applies at once and the old amount is cleared first.
+  // The board is one fixed size: a shorter or longer price, or none yet, does not resize it.
+  const boardSize = () => page.locator('#container').evaluate(el => el.style.transform);
+  const steadySize = await boardSize();
   await page.evaluate(() => { suppressTicks = true; });
   await page.locator('#admin-currency').selectOption('USDT');
   assert.equal(await text(page, '#price-main'), '—');
+  assert.equal(await boardSize(), steadySize, 'no price yet: same size');
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await text(page, '#change'), '▲ 2.50%');
   assert.equal(await text(page, '#change-label'), '24H');
+  assert.equal(await boardSize(), steadySize, 'a different price: same size');
+  // A much longer price than usual shrinks inside its own zone; nothing else changes size.
+  const zoneOf = id => page.locator(id).evaluate(el => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height }; });
+  const [zoneBefore, changeBefore] = [await zoneOf('#price-main'), await zoneOf('#change')];
+  await page.evaluate(() => sockets.at(-1).emit({ c: '0.000012345678' }));
+  assert.equal(await text(page, '#price-main'), '0.00001235');
+  assert.equal(await boardSize(), steadySize, 'a very long price: same board size');
+  await page.waitForFunction(() => document.getElementById('price-text').style.transform !== 'scale(1)');
+  const longText = await zoneOf('#price-text');
+  assert.ok(longText.left >= zoneBefore.left - 1 && longText.right <= zoneBefore.right + 1, 'the long price fits its zone');
+  assert.ok(longText.height < zoneBefore.height * 0.9, 'and is drawn smaller to do so');
+  const same = (a, b) => Math.abs(a - b) < 0.5;
+  assert.ok(same((await zoneOf('#price-main')).height, zoneBefore.height), 'price zone keeps its height');
+  assert.ok(same((await zoneOf('#change')).height, changeBefore.height), 'change keeps its size');
+  await page.evaluate(() => sockets.at(-1).emit());
+  assert.equal(await text(page, '#price-main'), '70,000');
+  // A usual price goes back to full size.
+  await page.waitForFunction(() => document.getElementById('price-text').style.transform === 'scale(1)');
+  assert.equal(await boardSize(), steadySize, 'back to the usual size');
   assert.equal(await text(page, '#unit'), 'USDT');
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.readyState !== 3).length), 1);
 
@@ -299,14 +335,22 @@ async function board(browser, base) {
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
   await page.evaluate(() => { suppressTicks = false; sockets.at(-1).emit(); }); await live(page);
   // Silence is shown as a delay with the last price kept on screen.
+  const sizeOf = () => page.locator('#container').evaluate(el => el.style.transform);
+  const sizeWhenLive = await sizeOf();
   await page.evaluate(() => { suppressTicks = true; }); await page.clock.fastForward(16000);
-  await page.waitForFunction(() => /DELAYED · LAST PRICE/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /DELAYED · LAST PRICE/.test(document.getElementById('status-tip').textContent));
+  assert.equal(await level(), 'warn');
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await page.locator('#container').getAttribute('class'), 'price-unavailable');
   assert.equal(await page.locator('#settings-toggle').isVisible(), false);
+  // Trouble changes the dot, never the board's size.
+  assert.equal(await sizeOf(), sizeWhenLive, 'board keeps its size when there is trouble');
+  // Let the dot finish changing colour, and show its detail, for the picture.
+  await page.locator('#status-dot').hover(); await page.waitForTimeout(450);
   await page.screenshot({ path: path.join(evidence, 'board-delay.png') });
+  await page.mouse.move(500, 300);
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(4000); await live(page);
-  assert.equal(await page.locator('#overlay-title').count(), 0);
+  assert.equal(await level(), 'ok');
   // Malformed prices never reach the board.
   await page.evaluate(() => sockets.at(-1).emit({ c: 'Infinity' }));
   assert.equal(await text(page, '#price-main'), '70,000');
@@ -321,7 +365,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#admin-coin option').first().textContent(), 'NOPE');
   assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   await page.clock.runFor(40000);
-  assert.equal(await text(page, '#overlay-title'), 'CHECK TICKER');
+  assert.match(await tip(), /\nCHECK TICKER$/); assert.equal(await level(), 'warn');
   // A coin without an icon simply has none: its ticker is already in the head line.
   assert.equal(await page.locator('#icon').count(), 0);
   assert.equal(await text(page, '#coin'), 'NOPE');
@@ -331,13 +375,15 @@ async function board(browser, base) {
   assert.equal(await page.locator('#overlay-msg').isVisible(), true);
   // Being offline is the more useful thing to say than doubting the ticker.
   await context.setOffline(true);
-  await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /\nOFFLINE/.test(document.getElementById('status-tip').textContent));
+  assert.equal(await level(), 'bad');
   await context.setOffline(false);
   await page.evaluate(() => { suppressTicks = false; }); await page.clock.runFor(35000); await live(page);
-  assert.equal(await page.locator('#overlay-title').count(), 0);
+  assert.equal(await level(), 'ok');
   // An exchange error stops retrying and offers a manual reconnect.
   await page.evaluate(() => sockets.at(-1).onmessage({ data: JSON.stringify({ error: { name: 'INVALID_PARAM' } }) }));
-  await page.waitForFunction(() => /^ERROR/.test(document.getElementById('overlay-title')?.textContent || ''));
+  await page.waitForFunction(() => /\nERROR/.test(document.getElementById('status-tip').textContent));
+  assert.equal(await level(), 'bad');
   await page.getByRole('button', { name: '시세 다시 연결' }).click();
   await page.clock.runFor(3000); await live(page);
 
@@ -426,7 +472,7 @@ async function offlineShell(browser, base) {
   await context.setOffline(true);
   for (const entry of ['', 'index.html', '?source=home']) {
     await page.goto(base + entry);
-    await page.waitForFunction(() => /^OFFLINE/.test(document.getElementById('overlay-title')?.textContent || ''));
+    await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'bad' && /\nOFFLINE/.test(document.getElementById('status-tip').textContent));
     assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
     assert.equal(await text(page, '#price-main'), '—');
   }
@@ -474,8 +520,11 @@ async function layouts(browser, base) {
       // Landscape: a large icon to the left, level with the price; the text lines share a left edge.
       assert.ok(icon.right < priceLine.left, s.name + ' icon to the left');
       assert.ok(Math.abs(icon.midY - priceLine.midY) < 2, s.name + ' icon level with the price');
-      assert.ok(icon.height > priceLine.height * 0.7, s.name + ' icon is large');
+      // The icon is as tall as the digits: 152 of the 232 design pixels the price zone is high.
+      assert.ok(Math.abs(icon.height / priceLine.height - 152 / 232) < 0.02, s.name + ' icon matches the digits in height');
       assert.ok(Math.abs(head.left - priceLine.left) < 2 && Math.abs(foot.left - priceLine.left) < 2, s.name + ' text left-aligned');
+      const digits = await box('price-text');
+      assert.ok(Math.abs(digits.left - head.left) < 2, s.name + ' digits start at the same left edge');
     }
     // The price line is at mid-height of the usable screen.
     assert.ok(Math.abs(priceLine.midY - (s.top + (s.height - s.top - s.bottom) / 2)) <= s.height * 0.03 + 2, s.name + ' price at mid-height');
