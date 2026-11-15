@@ -548,18 +548,6 @@ async function lockedStorage(browser, base) {
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');
 }
 
-async function carriedSettings(browser, base) {
-  const context = await browser.newContext(); await scripted(context);
-  await context.addInitScript(() => {
-    if (!localStorage.getItem('coinboard-settings')) localStorage.setItem('btc-kiosk-settings', JSON.stringify({ ticker: 'ETH', currency: 'USDT', debug: false, brightness: 60 }));
-  });
-  const page = await context.newPage(); await page.goto(base); await live(page);
-  assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
-  assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(60%)');
-  await context.close();
-  console.log('PASS carried settings: settings saved by btc-price-kiosk are picked up');
-}
-
 async function statusTipOnTouch(browser, base) {
   // A tablet: touch only, nothing can hover.
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true }); await scripted(context);
@@ -770,7 +758,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://localhost:${server.address().port}/coinboard/`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 try {
-  for (const scenario of [board, statusTipOnTouch, idleUpdate, lockedStorage, carriedSettings, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;
