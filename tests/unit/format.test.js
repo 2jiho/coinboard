@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { price, priceParts, change, direction, tabTitle } from '../../src/lib/format.js';
+import { overwriteGetLocale } from '../../src/paraglide/runtime.js';
+// These checks read the Korean text; English is checked in i18n.test.js.
+overwriteGetLocale(() => 'ko');
 test('large won prices are written the Korean way, in 억 and 만', () => {
   assert.equal(price('KRW', 123400000), '1억 2340만 KRW');
   assert.equal(price('KRW', 123456789), '1억 2346만 KRW');

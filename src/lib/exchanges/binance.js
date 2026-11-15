@@ -3,15 +3,17 @@
 // Spot:    https://developers.binance.com/en/docs/products/spot/web-socket-streams
 // Futures: https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams
 import { number } from "./number.js";
+import { m } from "../../paraglide/messages.js";
 
 function binanceMarket(options) {
   return {
-    // name and choice are shown in settings (Korean); label, pair, tag and
-    // changeLabel on the board (English).
-    name: options.name,
+    // name, choice and listName are shown in settings, in the reader's
+    // language (message functions); label, pair, tag and changeLabel on the
+    // board (English).
+    get name() { return options.name(); },
     label: options.label,
-    choice: options.choice,
-    listName: options.listName,
+    get choice() { return options.choice(); },
+    get listName() { return options.listName(); },
     quote: "USDT",
     // Shown after the currency on the board, and in the tab title.
     tag: options.tag,
@@ -51,13 +53,13 @@ function binanceMarket(options) {
 }
 
 export const binance = binanceMarket({
-  name: "바이낸스", label: "BINANCE", choice: "USDT · 바이낸스", listName: "바이낸스 USDT", tag: "",
+  name: m.exchange_binance, label: "BINANCE", choice: m.market_binance_usdt, listName: m.list_binance_usdt, tag: "",
   stream: "wss://stream.binance.com:443", listUrl: "https://api.binance.com/api/v3/ticker/price",
 });
 
 // USDⓈ-margined perpetual contracts: the last traded price of e.g. BTCUSDT perpetual.
 export const binanceFutures = binanceMarket({
-  name: "바이낸스 선물", label: "BINANCE FUTURES", choice: "USDT 무기한 · 바이낸스", listName: "바이낸스 USDT 무기한 선물", tag: "PERP",
+  name: m.exchange_binance_futures, label: "BINANCE FUTURES", choice: m.market_binance_perp, listName: m.list_binance_perp, tag: "PERP",
   // Futures streams are routed by path since 2026-04-23: tickers are regular
   // market data, under /market. Without the path no ticker arrives.
   stream: "wss://fstream.binance.com/market", listUrl: "https://fapi.binance.com/fapi/v1/ticker/price",

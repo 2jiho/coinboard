@@ -2,6 +2,7 @@
 // once automatically, after that only on a tap, an explicit retry or a new
 // visible session. Every state change is reported through onChange.
 // kind: active | pending | waiting | unsupported | released | failed
+import { m } from "../paraglide/messages.js";
 export function createWakeLock(options) {
   const navigator = options.navigator, document = options.document, window = options.window;
   const now = options.now || Date.now;
@@ -31,14 +32,14 @@ export function createWakeLock(options) {
 
   function acquire(automatic) {
     if (!window.isSecureContext || !("wakeLock" in navigator)) {
-      show("unsupported", "화면 켜짐 유지 미지원 · HTTPS 및 브라우저 지원을 확인하세요", false);
+      show("unsupported", m.wake_unsupported(), false);
       return Promise.resolve();
     }
     if (suspended || document.visibilityState !== "visible") return Promise.resolve();
     if (pending) return pending;
     if (sentinel && !sentinel.released) return Promise.resolve();
     const requestEpoch = epoch;
-    show("pending", "화면 켜짐 유지 요청 중…", false);
+    show("pending", m.wake_pending(), false);
     pending = Promise.resolve().then(async () => {
       try {
         const lock = await navigator.wakeLock.request("screen");
@@ -52,23 +53,23 @@ export function createWakeLock(options) {
           if (sentinel !== lock) return;
           sentinel = null;
           if (suspended) {
-            show("waiting", "화면 켜짐 유지 대기 · 앱으로 돌아오면 재요청합니다", false);
+            show("waiting", m.wake_waiting(), false);
           } else if (automatic && now() - acquiredAt < QUICK_LOSS_MS) {
-            show("released", "화면 켜짐 유지 해제됨 · 시스템 설정을 확인하고 다시 시도하세요", true);
+            show("released", m.wake_released_system(), true);
           } else {
             acquire(true);
           }
         }, { once: true });
         if (lock.released) {
           sentinel = null;
-          show("released", "화면 켜짐 유지 해제됨 · 다시 시도하세요", true);
+          show("released", m.wake_released(), true);
         } else {
-          show("active", "화면 켜짐 유지 활성 · 시스템에서 해제할 수 있습니다", false);
+          show("active", m.wake_active(), false);
         }
       } catch (error) {
         console.warn("Wake Lock request failed:", error);
         if (requestEpoch === epoch && !suspended) {
-          show("failed", `화면 켜짐 유지 실패 (${error.name}) · 저전력 모드·배터리·권한을 확인하세요`, true);
+          show("failed", m.wake_failed({ name: error.name }), true);
         }
       } finally {
         pending = null;
@@ -87,7 +88,7 @@ export function createWakeLock(options) {
     suspended = true;
     const oldLock = sentinel;
     sentinel = null;
-    show("waiting", "화면 켜짐 유지 대기 · 앱으로 돌아오면 재요청합니다", false);
+    show("waiting", m.wake_waiting(), false);
     release(oldLock);
   }
 
