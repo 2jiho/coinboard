@@ -1,4 +1,6 @@
-// Price and change strings. Pure: no DOM, no settings.
+// Price and change strings. Pure: no DOM, no settings. Won prices follow the
+// reader's language (see wonPieces and englishWonPieces).
+import { getLocale } from "../paraglide/runtime.js";
 //
 // One idea throughout: always show at least four figures, and no more decimals
 // than that needs. A price then takes about the same room and shows its
@@ -8,6 +10,8 @@ const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 // (A fixed count keeps the width from jumping between 0.25 and 0.2501.)
 const four = new Intl.NumberFormat("en-US", { minimumSignificantDigits: 4, maximumSignificantDigits: 4 });
 const MAN = 10000;
+// Won for readers of English: millions and billions, as "89.96M" or "1.235B".
+const compact = new Intl.NumberFormat("en-US", { notation: "compact", minimumSignificantDigits: 4, maximumSignificantDigits: 4 });
 
 // Won, the Korean way:
 //   1억 and up        "1억 2340만"   rounded to 만
@@ -27,15 +31,25 @@ function wonPieces(value) {
   if (tenths >= 1000) return [{ number: (tenths / 10).toFixed(1), mark: "만" }];
   return [{ number: (value >= 100 ? whole : four).format(value), mark: "" }];
 }
+// Won, for readers of English, who do not read 억 and 만:
+//   1,000,000 and up  "89.96M", "123.5M", "1.235B"   four significant digits
+//   below             as in Korean: "152,300", "12.34"
+// (999,950 already rounds to "1.000M".)
+function englishWonPieces(value) {
+  const match = /^([\d.,]+)([MBT])$/.exec(compact.format(value));
+  if (match) return [{ number: match[1], mark: match[2] }];
+  return [{ number: (value >= 100 ? whole : four).format(value), mark: "" }];
+}
 // USDT: whole dollars from 1,000 up ("70,123"), four significant digits below
 // ("152.3", "98.77", "2.346", "0.6234"). 999.96 rounds to "1,000" either way.
 function usdtPieces(value) {
   return [{ number: (value >= 1000 ? whole : four).format(value), mark: "" }];
 }
-// The pieces to draw: each number with its 억/만 mark (if any), and the
-// currency code, which is shown apart from the price.
-export function priceParts(currency, value) {
-  return currency === "KRW" ? { pieces: wonPieces(value), unit: "KRW" } : { pieces: usdtPieces(value), unit: "USDT" };
+// The pieces to draw: each number with its mark (억/만, or M/B; if any), and
+// the currency code, which is shown apart from the price.
+export function priceParts(currency, value, locale = getLocale()) {
+  if (currency !== "KRW") return { pieces: usdtPieces(value), unit: "USDT" };
+  return { pieces: locale === "ko" ? wonPieces(value) : englishWonPieces(value), unit: "KRW" };
 }
 // "1억 2340만 KRW", "451.2만 KRW", "70,123 USDT", "152.3 USDT"
 export function price(currency, value) {

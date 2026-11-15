@@ -11,8 +11,9 @@ Coinboard itself is under the [MIT License](LICENSE). It ships the following thi
 | [Svelte](https://github.com/sveltejs/svelte) | Runtime compiled into the app's script | MIT | `licenses/svelte-MIT.txt` |
 | [clsx](https://github.com/lukeed/clsx) by Luke Edwards | Used by the Svelte runtime | MIT | `licenses/clsx-MIT.txt` |
 | [esm-env](https://github.com/benmccann/esm-env) by Ben McCann | Used by the Svelte runtime | MIT | `licenses/esm-env-MIT.txt` |
+| [Paraglide JS](https://github.com/opral/paraglide-js) by Opral | Its runtime, generated into the app's script with the translated messages | MIT | `licenses/paraglide-js-MIT.txt` |
 
-Build and test tools (Vite, Playwright and others in `devDependencies`) are not shipped with the app.
+Build and test tools (Vite, Playwright and others in `devDependencies`) are not shipped with the app. The messages themselves are this project's own.
 
 ## Market data and names
 

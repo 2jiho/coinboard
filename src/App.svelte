@@ -14,6 +14,8 @@
   import { createMarketList } from './lib/markets.js';
   import { createPacer } from './lib/pace.js';
   import { createBeat } from './lib/steady.js';
+  import { m } from './paraglide/messages.js';
+  import { getLocale } from './paraglide/runtime.js';
 
   const version = __APP_VERSION__;
   // Storage can throw on access (private mode): run on defaults without it.
@@ -56,10 +58,10 @@
   const worst = $derived(statuses.reduce((level, next) => RANK[next.level] > RANK[level] ? next.level : level, 'ok'));
   // The installed offline copy normally matches the page. Say so only when it
   // does not: that is a board still showing an older page.
-  const versionLabel = $derived(cache.state === 'unsupported' ? `버전 ${version} · 오프라인 실행 미지원`
-    : cache.state === 'unknown' ? `버전 ${version} · 설치된 사본 확인 불가`
-    : cache.state === 'known' && cache.version !== version ? `버전 ${version} · 설치된 사본 ${cache.version}`
-    : `버전 ${version}`);
+  const versionLabel = $derived(cache.state === 'unsupported' ? m.version_offline_unsupported({ version })
+    : cache.state === 'unknown' ? m.version_copy_unknown({ version })
+    : cache.state === 'known' && cache.version !== version ? m.version_copy({ version, copy: cache.version })
+    : m.version({ version }));
   // The status dot in the corner: one colour for how things are, and the detail
   // on hover or tap. English, like everything else on the board.
   // Only a lost or refused wake lock counts; a device without the feature is
@@ -109,7 +111,7 @@
   function save(patch) {
     const { saved } = store.update(patch);
     settings = store.get();
-    if (!saved) showToast('설정을 저장하지 못했습니다. 이번 실행에만 적용됩니다.');
+    if (!saved) showToast(m.toast_not_saved());
   }
   function applySelection() {
     // Forget prices of assets no longer shown, so one that comes back starts afresh.
@@ -124,7 +126,7 @@
   // Change the asset being edited. '' when done, or why not.
   function changeAsset(patch) {
     const next = { ...settings.assets[selected], ...patch };
-    if (settings.assets.some((asset, index) => index !== selected && sameAsset(asset, next))) return '이미 표시 중인 자산입니다';
+    if (settings.assets.some((asset, index) => index !== selected && sameAsset(asset, next))) return m.asset_duplicate();
     changeAssets(settings.assets.map((asset, index) => index === selected ? next : asset));
     return '';
   }
@@ -132,7 +134,7 @@
   // A new asset, chosen in the add form. '' when added, or why not.
   function addAsset(next) {
     if (settings.assets.length >= MAX_ASSETS) return '';
-    if (settings.assets.some(asset => sameAsset(asset, next))) return '이미 표시 중인 자산입니다';
+    if (settings.assets.some(asset => sameAsset(asset, next))) return m.asset_duplicate();
     changeAssets([...settings.assets, next]);
     selected = settings.assets.length - 1;
     return '';
@@ -164,6 +166,8 @@
     updater.settingsClosed();
   }
 
+  // The page's language is the reader's (from the device), for screen readers and type.
+  document.documentElement.lang = getLocale();
   onMount(() => {
     feed = createBoardFeed({
       online: navigator.onLine, pacer,
@@ -252,7 +256,7 @@
     onUpdate={() => updater.reload()}
     loadTickers={currency => markets.load(currency)} />
 {/if}
-<button id="settings-toggle" bind:this={toggleButton} type="button" aria-label="설정 열기" aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
+<button id="settings-toggle" bind:this={toggleButton} type="button" aria-label={m.settings_open()} aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
 </button>
 <div id="toast" class:show={!!toast} role="status">{toast}</div>

@@ -800,6 +800,56 @@ async function firstConnection(browser, base) {
   console.log('PASS first connection: loading the page does not cut the connection being made; shown again, it reconnects');
 }
 
+// A device in English: the settings speak English, nothing Korean is left, and
+// won is written in millions. A Korean device keeps 억 and 만.
+async function english(browser, base) {
+  const context = await browser.newContext({ locale: 'en-US', viewport: { width: 1024, height: 768 }, hasTouch: true });
+  await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.goto(base); await live(page);
+  assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
+  assert.equal(await text(page, '#price-main'), '98.00M');
+  assert.equal(await page.title(), '98.00M | BTCKRW | Coinboard');
+  await openEditor(page);
+  const hangul = /[가-힣]/;
+  // Everything a reader or a screen reader meets in the panel.
+  const words = () => page.locator('#admin-panel').evaluate(panel => [panel.innerText,
+    ...[...panel.querySelectorAll('[aria-label]')].map(el => el.getAttribute('aria-label')),
+    ...[...panel.querySelectorAll('[placeholder]')].map(el => el.getAttribute('placeholder')),
+    ...[...panel.querySelectorAll('option')].map(el => el.textContent)].join('\n'));
+  assert.doesNotMatch(await words(), hangul);
+  assert.equal(await text(page, '#admin-title'), 'Settings');
+  assert.deepEqual(await page.locator('#admin-currency option').allTextContents(), ['Upbit · KRW', 'Binance · USDT', 'Binance · USDT Perpetual']);
+  assert.equal(await page.locator('#settings-toggle').getAttribute('aria-label'), 'Open settings');
+  // The add form, the columns row and a refusal, in English too.
+  await page.locator('#asset-add').click();
+  await page.locator('#new-currency').selectOption('USDT-PERP');
+  await page.locator('#new-coin').selectOption('__other');
+  assert.doesNotMatch(await words(), hangul);
+  await page.locator('#new-currency').selectOption('KRW'); await page.locator('#new-coin').selectOption('BTC');
+  await page.locator('#asset-new-confirm').click();
+  assert.equal(await text(page, '#asset-new-error'), 'This asset is already on the board.');
+  await page.locator('#new-currency').selectOption('USDT-PERP'); await page.locator('#new-coin').selectOption('BTC'); await page.locator('#asset-new-confirm').click();
+  assert.equal(await page.locator('#admin-columns').count(), 1);
+  assert.doesNotMatch(await words(), hangul);
+  // English is longer: every choice is still readable in its row.
+  await page.locator('.asset-pick').nth(1).click();
+  for (const id of ['#admin-currency', '#admin-coin', '#admin-columns', '#admin-palette']) {
+    assert.ok(await page.locator(id).evaluate(el => el.scrollWidth <= el.clientWidth + 1), `${id} is not cut off`);
+  }
+  await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
+  await page.locator('#admin-panel').screenshot({ path: path.join(evidence, 'settings-en.png') });
+  assert.deepEqual(problems, []);
+  await context.close();
+  // The Korean device, for contrast.
+  const korean = await browser.newContext(); await scripted(korean);
+  const koPage = await korean.newPage(); await koPage.goto(base); await live(koPage);
+  assert.equal(await koPage.evaluate(() => document.documentElement.lang), 'ko');
+  assert.equal(await text(koPage, '#price-main'), '9800만');
+  await korean.close();
+  console.log('PASS english: settings in English with nothing Korean left, nothing cut off, won in millions; Korean keeps 억 and 만');
+}
+
 async function idleUpdate(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
@@ -848,9 +898,10 @@ async function statusTipOnTouch(browser, base) {
   const tapDot = () => page.touchscreen.tap(dot.x + dot.width / 2, dot.y + dot.height / 2);
   assert.equal(await shown(), false);
   // A tap opens the detail; it closes by itself after a few seconds.
+  // (The test clock also moves with real time, so the checks keep a margin around the four seconds.)
   await tapDot(); assert.equal(await shown(), true);
-  await page.clock.runFor(3900); assert.equal(await shown(), true);
-  await page.clock.runFor(200); assert.equal(await shown(), false, 'closes by itself');
+  await page.clock.runFor(3000); assert.equal(await shown(), true);
+  await page.clock.runFor(1200); assert.equal(await shown(), false, 'closes by itself');
   // A second tap closes it at once.
   await tapDot(); assert.equal(await shown(), true);
   await tapDot(); assert.equal(await shown(), false, 'second tap closes');
@@ -1047,8 +1098,12 @@ fs.mkdirSync(evidence, { recursive: true });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = `http://localhost:${server.address().port}/coinboard/`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+// Most scenarios read the Korean settings, so a Korean device is the default;
+// the English scenario asks for its own language.
+const newContext = browser.newContext.bind(browser);
+browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options });
 try {
-  for (const scenario of [board, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, english, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;

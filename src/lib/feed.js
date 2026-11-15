@@ -3,22 +3,23 @@
 // connection: when to connect, when to give up, when a price counts as live.
 import { EXCHANGES } from "./exchanges/index.js";
 import { createPacer } from "./pace.js";
+import { m } from "../paraglide/messages.js";
 
-// Why the feed is not live, as a code. The words are for the settings panel;
+// Why the feed is not live, as a code. The words (in the reader's language) are for the settings panel;
 // anything that decides behaviour or the board's wording uses the code.
 const REASONS = {
-  "rate-wait": "연결 요청 간격 대기",
-  "connect-failed": "연결 생성 실패",
-  timeout: "시세 수신 시간 초과",
-  stale: "시세 업데이트 지연",
-  "subscribe-failed": "구독 요청 실패",
-  "heartbeat-failed": "연결 유지 요청 실패",
-  "rate-limited": "요청 한도 초과",
-  restart: "거래소 연결 재시작",
-  network: "네트워크 연결 오류",
-  closed: "거래소 연결 끊김",
-  hidden: "앱 복귀 시 새 시세를 확인합니다",
-  offline: "네트워크 연결을 확인하세요",
+  "rate-wait": m.reason_rate_wait,
+  "connect-failed": m.reason_connect_failed,
+  timeout: m.reason_timeout,
+  stale: m.reason_stale,
+  "subscribe-failed": m.reason_subscribe_failed,
+  "heartbeat-failed": m.reason_heartbeat_failed,
+  "rate-limited": m.reason_rate_limited,
+  restart: m.reason_restart,
+  network: m.reason_network,
+  closed: m.reason_closed,
+  hidden: m.reason_hidden,
+  offline: m.reason_offline,
 };
 
 // One market, named the way each part of the app needs it.
@@ -77,7 +78,7 @@ export function createMarketFeed(options) {
   }
   // cause: a key of REASONS, "exchange-error", or null when nothing is wrong.
   function emit(kind, cause, retryAt, detail) {
-    connection = { kind, cause: cause || null, reason: detail || REASONS[cause] || "", retryAt: retryAt || null };
+    connection = { kind, cause: cause || null, reason: detail || (REASONS[cause] ? REASONS[cause]() : ""), retryAt: retryAt || null };
     selections.forEach(report);
   }
   function clearTimers() {
@@ -183,7 +184,7 @@ export function createMarketFeed(options) {
         if (message.type === "error") {
           if (message.code === "TOO_MANY_REQUEST") { fail("rate-limited", 30000); return; }
           disconnect();
-          emit("error", "exchange-error", null, `거래소 오류: ${message.code} · 지원하는 티커를 확인하세요`);
+          emit("error", "exchange-error", null, m.reason_exchange_error({ code: message.code }));
           return;
         }
         if (message.type === "restart") { fail("restart"); return; }

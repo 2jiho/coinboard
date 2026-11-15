@@ -76,14 +76,14 @@ export function createUpdater(options) {
     navigator.serviceWorker.register(options.workerUrl, { updateViaCache: "none" }).then((registration) => {
       function checkUpdate() {
         if (document.visibilityState !== "visible") return;
-        registration.update().catch((error) => { console.warn("업데이트 확인 실패:", error); });
+        registration.update().catch((error) => { console.warn("Update check failed:", error); });
       }
       checkUpdate();
       options.clock.setInterval(checkUpdate, CHECK_MS);
       document.addEventListener("visibilitychange", checkUpdate);
       // A board that was offline may have missed a release.
       if (options.window) options.window.addEventListener("online", checkUpdate);
-    }).catch((error) => { console.warn("Service Worker 등록 실패:", error); });
+    }).catch((error) => { console.warn("Service worker registration failed:", error); });
   }
   return {
     start,

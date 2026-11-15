@@ -1,0 +1,109 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "settings_title": "Settings",
+  "settings_open": "Open settings",
+  "settings_close": "Close settings",
+  "section_prices": "Prices",
+  "section_display": "Display",
+  "asset_list": "Assets on the board",
+  "asset_move_up": "Move {name} up",
+  "asset_move_down": "Move {name} down",
+  "asset_remove": "Remove {name}",
+  "asset_add": "Add Asset",
+  "asset_new": "New asset",
+  "asset_duplicate": "This asset is already on the board.",
+  "field_market": "Market",
+  "field_coin": "Coin",
+  "field_ticker": "Ticker",
+  "coin_other": "Other…",
+  "ticker_placeholder": "e.g. LINK",
+  "cancel": "Cancel",
+  "add": "Add",
+  "ticker_apply": "Apply",
+  "ticker_invalid": "Use 1 to 20 letters or digits.",
+  "ticker_not_listed": "{market} doesn't list this ticker.",
+  "columns": "Columns",
+  "columns_auto": "Auto",
+  "reconnect": "Reconnect",
+  "brightness": "Brightness",
+  "burn_in": "Burn-in Protection",
+  "palette": "Up/Down Colors",
+  "palette_green_red": "Green · Red",
+  "palette_red_blue": "Red · Blue",
+  "wake_retry": "Keep Screen On Again",
+  "update_now": "Update Now",
+  "repo_link": "GitHub repository",
+  "version": "Version {version}",
+  "version_offline_unsupported": "Version {version} · Offline use not supported",
+  "version_copy_unknown": "Version {version} · Installed copy unknown",
+  "version_copy": "Version {version} · Installed copy {copy}",
+  "toast_not_saved": "Couldn't save settings. They apply until the app is closed.",
+  "exchange_upbit": "Upbit",
+  "exchange_binance": "Binance",
+  "exchange_binance_futures": "Binance Futures",
+  "market_upbit_krw": "Upbit · KRW",
+  "market_binance_usdt": "Binance · USDT",
+  "market_binance_perp": "Binance · USDT Perpetual",
+  "list_upbit_krw": "Upbit KRW",
+  "list_binance_usdt": "Binance USDT",
+  "list_binance_perp": "Binance USDT Perpetual",
+  "status_live": "Live",
+  "status_connecting": "Connecting…",
+  "status_waiting": "Waiting for prices…",
+  "status_paused": "Paused in the background",
+  "status_offline": "Offline",
+  "status_retry": [
+    {
+      "declarations": [
+        "input seconds",
+        "input reason",
+        "local secondsPlural = seconds: plural"
+      ],
+      "selectors": [
+        "secondsPlural"
+      ],
+      "match": {
+        "secondsPlural=one": "{reason} · Reconnecting in {seconds} second",
+        "secondsPlural=*": "{reason} · Reconnecting in {seconds} seconds"
+      }
+    }
+  ],
+  "status_last_price": [
+    {
+      "declarations": [
+        "input seconds",
+        "input price",
+        "local secondsPlural = seconds: plural"
+      ],
+      "selectors": [
+        "secondsPlural"
+      ],
+      "match": {
+        "secondsPlural=one": "Last price {price}, {seconds} second ago",
+        "secondsPlural=*": "Last price {price}, {seconds} seconds ago"
+      }
+    }
+  ],
+  "status_no_price": "No price received yet.",
+  "status_ticker_suspect": "This ticker may not be listed.",
+  "reason_rate_wait": "Waiting to connect (request limit)",
+  "reason_connect_failed": "Couldn't open the connection",
+  "reason_timeout": "No prices received",
+  "reason_stale": "Prices stopped arriving",
+  "reason_subscribe_failed": "Couldn't subscribe to prices",
+  "reason_heartbeat_failed": "Couldn't keep the connection alive",
+  "reason_rate_limited": "Too many requests",
+  "reason_restart": "The exchange restarted the connection",
+  "reason_network": "Network error",
+  "reason_closed": "The exchange closed the connection",
+  "reason_hidden": "Prices resume when you come back to the app",
+  "reason_offline": "Check the network connection",
+  "reason_exchange_error": "Exchange error {code}. Check that the ticker is listed.",
+  "wake_unsupported": "This browser can't keep the screen on. Check HTTPS and browser support.",
+  "wake_pending": "Asking to keep the screen on…",
+  "wake_waiting": "Keeping the screen on resumes when you come back to the app.",
+  "wake_released_system": "The system stopped keeping the screen on. Check its settings and try again.",
+  "wake_released": "Keeping the screen on stopped. Try again.",
+  "wake_active": "Keeping the screen on. The system can still turn it off.",
+  "wake_failed": "Couldn't keep the screen on ({name}). Check Low Power Mode, battery and permissions."
+}

@@ -1,12 +1,14 @@
 // Upbit KRW market. https://docs.upbit.com/kr/reference/websocket-ticker
 import { number } from "./number.js";
+import { m } from "../../paraglide/messages.js";
 
 export const upbit = {
-  // name is shown in settings (Korean); label and changeLabel on the board (English).
-  name: "업비트",
+  // name, choice and listName are shown in settings, in the reader's language;
+  // label and changeLabel on the board (English).
+  get name() { return m.exchange_upbit(); },
   label: "UPBIT",
-  choice: "원화 · 업비트",
-  listName: "업비트 원화",
+  get choice() { return m.market_upbit_krw(); },
+  get listName() { return m.list_upbit_krw(); },
   quote: "KRW",
   tag: "",
   // The change is against the previous day's close.

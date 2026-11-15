@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { PRESETS } from './src/lib/presets.js';
@@ -44,6 +45,11 @@ export default defineConfig({
   // Relative URLs: the same build works at /coinboard/ and anywhere else.
   base: './',
   define: { __APP_VERSION__: JSON.stringify(version) },
-  plugins: [svelte(), serviceWorker()],
+  plugins: [
+    // Settings text in the reader's language: messages/{locale}.json compiled
+    // to src/paraglide. The device's preferred language picks it; English otherwise.
+    paraglideVitePlugin({ project: './project.inlang', outdir: './src/paraglide', strategy: ['preferredLanguage', 'baseLocale'] }),
+    svelte(), serviceWorker(),
+  ],
   build: { target: 'es2022' },
 });

@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createWakeLock } from '../../src/lib/wake-lock.js';
+import { overwriteGetLocale } from '../../src/paraglide/runtime.js';
+// These checks read the Korean text; English is checked in i18n.test.js.
+overwriteGetLocale(() => 'ko');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function fixture(request, supported = true, visible = true) {
   const events = {}, windowEvents = {}, kinds = [], clock = { time: 1800000000000 };

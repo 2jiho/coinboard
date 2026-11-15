@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { describeState } from '../../src/lib/status.js';
+import { overwriteGetLocale } from '../../src/paraglide/runtime.js';
+// These checks read the Korean text; English is checked in i18n.test.js.
+overwriteGetLocale(() => 'ko');
 const selection = { currency: 'KRW', quote: 'KRW', ticker: 'BTC', exchange: '업비트' };
 const last = { price: 98000000, receivedAt: 1000, selection };
 test('no state yet: nothing to say, price shown as unavailable', () => {
