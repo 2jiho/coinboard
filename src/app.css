@@ -81,7 +81,7 @@ body {
 
 /* ---- Settings: a dark sheet in the manner of a system settings screen ---- */
 :root {
-  --sheet: rgba(28, 28, 30, 0.86);
+  --sheet: rgba(28, 28, 30, 0.95);
   --group: rgba(118, 118, 128, 0.16);
   --control: rgba(118, 118, 128, 0.24);
   --hairline: rgba(255, 255, 255, 0.08);
@@ -154,6 +154,8 @@ body {
 #admin-panel a.settings-row { color: var(--label); font-size: 15px; text-decoration: none; -webkit-tap-highlight-color: transparent; border-radius: 0 0 14px 14px; }
 #admin-panel a.settings-row:active { background: var(--control); }
 #admin-panel a.settings-row svg { width: 18px; height: 18px; margin: 0; color: var(--secondary); }
+#admin-panel a.settings-row .with-icon { display: flex; align-items: center; gap: 10px; }
+#admin-panel a.settings-row svg.brand { width: 24px; height: 24px; color: var(--label); }
 a:focus-visible { outline: 2px solid #f2f2f7; outline-offset: -2px; }
 
 /* Buttons */

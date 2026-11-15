@@ -140,6 +140,9 @@ async function board(browser, base) {
   assert.equal(await repo.getAttribute('href'), 'https://github.com/2jiho/coinboard');
   assert.equal(await repo.getAttribute('target'), '_blank');
   assert.match(await repo.getAttribute('rel'), /noopener/);
+  // It carries the GitHub mark and still has a name for screen readers.
+  assert.equal(await repo.locator('svg.brand').count(), 1);
+  assert.match(await repo.textContent(), /GitHub/);
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
   assert.deepEqual(await page.locator('#admin-panel h3').allTextContents(), ['시세', '화면', '앱']);
