@@ -87,6 +87,12 @@ body {
 /* A move tints the price with its colour and lets it fade back slowly. */
 #price-main.up { color: var(--up-flash); transition: color 0.5s ease-in-out; }
 #price-main.down { color: var(--down-flash); transition: color 0.5s ease-in-out; }
+/* The size of the move sets the depth of the tint: a slight one barely shows,
+   a large one takes the full colour. */
+#price-main.up[data-strength="1"] { color: color-mix(in srgb, var(--up-flash) 40%, #fff); }
+#price-main.down[data-strength="1"] { color: color-mix(in srgb, var(--down-flash) 40%, #fff); }
+#price-main.up[data-strength="3"] { color: var(--up); }
+#price-main.down[data-strength="3"] { color: var(--down); }
 /* The exchange and market are not drawn. They stay in the page for screen readers. */
 #price-source { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 #board-foot { display: flex; align-items: baseline; gap: 22px; margin-top: 26px; font-size: 72px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }

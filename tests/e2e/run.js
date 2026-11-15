@@ -438,6 +438,29 @@ async function board(browser, base) {
   assert.deepEqual(await pushed(), ['', '', '', '', '1', '']);
   assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'push-down');
   assert.deepEqual((await moving()).filter(state => state.endsWith('*')).length <= 1, true);
+  // The tint of the price follows the size of the move: slight, ordinary, large.
+  // The clock is stepped finely so the tint is read while it is still on.
+  const tintAfter = async (price, shown) => {
+    await page.clock.runFor(3100);
+    await page.evaluate(value => sockets.at(-1).quote({ c: value }), price);
+    for (let step = 0; step < 40 && await text(page, '#price-main') !== shown; step += 1) await page.clock.runFor(100);
+    assert.equal(await text(page, '#price-main'), shown);
+    return page.locator('#price-main').evaluate(el => `${el.className} ${el.dataset.strength}`);
+  };
+  const colour = () => page.locator('#price-main').evaluate(el => { el.style.transition = 'none'; const c = getComputedStyle(el).color; el.style.transition = ''; return c; });
+  assert.equal(await tintAfter('70005.00', '70,005'), 'up 1');   // 0.007 %
+  const slight = await colour();
+  assert.equal(await tintAfter('70030.00', '70,030'), 'up 2');   // 0.036 %
+  const ordinary = await colour();
+  assert.equal(await tintAfter('70300.00', '70,300'), 'up 3');   // 0.39 %
+  const large = await colour();
+  assert.equal(new Set([slight, ordinary, large]).size, 3, `three different tints: ${slight} / ${ordinary} / ${large}`);
+  // A large move holds its colour longer than the others, then lets go.
+  await page.clock.runFor(1000);
+  assert.equal(await page.locator('#price-main').getAttribute('data-strength'), '3');
+  await page.clock.runFor(600);
+  assert.equal(await page.locator('#price-main').getAttribute('data-strength'), null);
+  assert.equal(await tintAfter('69000.00', '69,000'), 'down 3');
   await page.evaluate(() => sockets.at(-1).quote());
   // Prices that arrive faster than that are not all drawn: the screen waits
   // out its three seconds and then shows the latest one.
