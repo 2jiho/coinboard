@@ -1,4 +1,4 @@
-# Coinboard 사용 설명서
+# <img src="../public/favicon.svg" width="36" height="36" alt=""> Coinboard 사용 설명서
 
 [English](guide.md) · 한국어
 

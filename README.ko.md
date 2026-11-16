@@ -1,6 +1,8 @@
-# Coinboard
+<p align="center"><img src="public/favicon.svg" width="112" height="112" alt="Coinboard 아이콘"></p>
 
-[English](README.md) · 한국어
+<h1 align="center">Coinboard</h1>
+
+<p align="center"><a href="README.md">English</a> · 한국어</p>
 
 코인 시세 전광판입니다. 거래소 WebSocket으로 받은 실시간 시세를 큰 글자로 띄워 두는 웹앱(PWA)이고, 항상 켜 두는 아이패드를 기준으로 만들었습니다. 아이폰이나 컴퓨터에서도 씁니다.
 

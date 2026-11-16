@@ -1,4 +1,4 @@
-# Coinboard 개발 문서
+# <img src="../public/favicon.svg" width="36" height="36" alt=""> Coinboard 개발 문서
 
 [English](development.md) · 한국어
 
