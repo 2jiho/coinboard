@@ -124,13 +124,13 @@ The panel has two sections, **Prices** and **Display**.
 
 **Add Asset**: unfolds a market and a coin to choose. Choose, then tap **Add**, or **Cancel** to leave it. An asset already shown cannot be added again.
 
-**Market**: three buttons side by side.
+**Market** (in Add Asset): three buttons side by side. It starts on the market of the last asset.
 
 - **Upbit / KRW**: Upbit, Korean won market
 - **Binance / USDT**: Binance spot
 - **Binance / Perpetual**: Binance USDT perpetual futures
 
-**Coin**: six common coins are listed (BTC, ETH, XRP, SOL, DOGE, ADA). For any other, choose **Other…**, type its ticker (for example `LINK`) and press Enter or **Apply**. While typing, the coins really listed on that exchange are offered, and a ticker it does not list is pointed out.
+**Coin** (in Add Asset): six common coins are listed (BTC, ETH, XRP, SOL, DOGE, ADA). For any other, choose **Other…**, type its ticker (for example `LINK`) and press Enter or **Add**. While typing, the coins really listed on that exchange are offered, and a ticker it does not list is pointed out.
 
 **Columns**: shown with two or more assets. Tap **Auto** or 1 to 6 cells per row; 1 puts everything in one column.
 
