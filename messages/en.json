@@ -130,5 +130,11 @@
   "help_guide": "Full User Guide",
   "help_guide_url": "https://github.com/2jiho/coinboard/blob/main/docs/guide.md",
   "asset_removed": "Deleted {name}",
-  "undo": "Undo"
+  "undo": "Undo",
+  "wake_label": "Keep Screen On",
+  "wake_state_active": "On",
+  "wake_state_pending": "Requesting…",
+  "wake_state_waiting": "Waiting",
+  "wake_state_off": "Off",
+  "wake_state_unsupported": "Not supported"
 }

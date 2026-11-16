@@ -100,5 +100,11 @@
   "help_guide": "전체 사용 설명서",
   "help_guide_url": "https://github.com/2jiho/coinboard/blob/main/docs/guide.ko.md",
   "asset_removed": "{name} 삭제됨",
-  "undo": "되돌리기"
+  "undo": "되돌리기",
+  "wake_label": "화면 켜짐 유지",
+  "wake_state_active": "작동 중",
+  "wake_state_pending": "요청 중…",
+  "wake_state_waiting": "대기 중",
+  "wake_state_off": "꺼짐",
+  "wake_state_unsupported": "지원 안 됨"
 }

@@ -26,6 +26,15 @@
   // The new asset's coin is a one-line choice: the listed coins, and
   // "직접 입력…", which opens a field for any other ticker.
   const OTHER = '__other';
+  // The screen-on state in a word, with the colour of the status dot.
+  const WAKE = {
+    active: { label: m.wake_state_active, color: 'bg-[#30d158]' },
+    pending: { label: m.wake_state_pending, color: 'bg-muted-foreground' },
+    waiting: { label: m.wake_state_waiting, color: 'bg-muted-foreground' },
+    released: { label: m.wake_state_off, color: 'bg-[#ffd60a]' },
+    failed: { label: m.wake_state_off, color: 'bg-[#ffd60a]' },
+    unsupported: { label: m.wake_state_unsupported, color: 'bg-muted-foreground' },
+  };
   // Worth a line only when something is wrong.
   const wakeTrouble = $derived(['unsupported', 'released', 'failed'].includes(wake.kind));
   // The add form: market and coin for a new asset, added only on 추가. It
@@ -333,6 +342,13 @@
       <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
         <label for="admin-burn-in">{m.burn_in()}</label>
         <Switch id="admin-burn-in" size="lg" checked={settings.burnIn} onCheckedChange={value => onBurnIn(value)} />
+      </div>
+      <!-- Whether the screen is being kept on, always: green while it is. -->
+      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
+        <span id="wake-label">{m.wake_label()}</span>
+        <span id="wake-state" class="flex items-center gap-2 text-[15px] text-muted-foreground" data-kind={wake.kind} role="status" aria-labelledby="wake-label wake-state">
+          <span class="size-2 shrink-0 rounded-full {WAKE[wake.kind]?.color ?? 'bg-muted-foreground'}" aria-hidden="true"></span>{(WAKE[wake.kind]?.label ?? m.wake_state_pending)()}
+        </span>
       </div>
       <div class="flex flex-col gap-2 px-4 pt-3 pb-3.5">
         <span id="admin-palette-label">{m.palette()}</span>

@@ -229,6 +229,9 @@ async function board(browser, base) {
 
   // Wake lock: a system release is recovered; a failed recovery shows under the price.
   await page.waitForFunction(() => document.getElementById('wake-lock-status').textContent.includes('활성'));
+  // Whether the screen is kept on is always shown in settings, in a word.
+  assert.equal((await text(page, '#wake-state')).trim(), '작동 중');
+  assert.equal(await page.locator('#wake-state').getAttribute('data-kind'), 'active');
   await page.evaluate(() => { window.realWakeRequest = navigator.wakeLock.request; });
   await page.clock.runFor(10000);
   await page.evaluate(() => testSentinel.release());
@@ -238,6 +241,7 @@ async function board(browser, base) {
   await page.evaluate(() => { navigator.wakeLock.request = () => Promise.reject(Object.assign(new Error('Denied'), { name: 'NotAllowedError' })); return testSentinel.release(); });
   await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'warn');
   assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE\nSCREEN MAY SLEEP');
+  assert.equal((await text(page, '#wake-state')).trim(), '꺼짐');
   await page.evaluate(() => { navigator.wakeLock.request = window.realWakeRequest; });
   await page.getByRole('button', { name: '화면 켜짐 유지 다시 시도' }).click();
   await page.waitForFunction(() => wakeRequests === 3 && document.getElementById('wake-lock-status').textContent.includes('활성'));
@@ -855,6 +859,7 @@ async function english(browser, base) {
   assert.doesNotMatch(await words(), hangul);
   assert.equal(await text(page, '#admin-title'), 'Settings');
   assert.equal(await page.locator('#settings-toggle').getAttribute('aria-label'), 'Open settings');
+  assert.equal((await text(page, '#wake-label')).trim(), 'Keep Screen On');
   // The add form, the columns row and a refusal, in English too.
   await page.locator('#asset-add').click();
   assert.deepEqual(await page.locator('#new-currency [data-value]').evaluateAll(els => els.map(el => el.getAttribute('aria-label'))), ['Upbit · KRW', 'Binance · USDT', 'Binance · USDT Perpetual']);
