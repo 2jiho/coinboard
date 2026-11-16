@@ -116,9 +116,9 @@ The panel has two sections, **Prices** and **Display**.
 
 **Asset list**: a card per asset (a coin in a market), each with the coin's icon, its price now and its change.
 
-- Tap a card to unfold that asset's **Market** and **Coin** and change them. Tap it again to fold them away.
 - Drag the handle (⠿) on the right to reorder: the other cards make room, and the order is saved on release. The grid is filled top left first, in this order. On a keyboard, the up and down arrows on the handle move the card.
-- Swipe a card to the left to uncover a red **Delete** button; tap it to delete the asset, or tap anywhere else to cover it again. **Delete** in the unfolded editor does the same. The last asset cannot be deleted.
+- The bin icon on a card deletes that asset at once. For five seconds the message at the bottom offers **Undo**, which puts it back where it was. The last asset cannot be deleted.
+- An asset is not edited: to show another coin or market, add the new one and delete the old.
 
 **Add Asset**: unfolds a market and a coin to choose. Choose, then tap **Add**, or **Cancel** to leave it. An asset already shown cannot be added again.
 
@@ -163,7 +163,7 @@ New versions apply themselves. While the screen is on, the app checks every five
 It takes a few seconds after opening; up to 11 seconds on Upbit, which limits how often a browser may connect. Adding or changing a coin in a market already on the board takes a second or two. Tap the status dot to see what is happening. `OFFLINE`: check the internet connection. `ERROR` or `CHECK TICKER`: see below.
 
 **`CHECK TICKER`**
-Most likely the coin is not listed in that market: not in Upbit's won market, say, or not in Binance futures. Change that asset's market or coin in settings. A coin that hardly ever trades can look like this too.
+Most likely the coin is not listed in that market: not in Upbit's won market, say, or not in Binance futures. In settings, add the coin in a market that lists it and delete this one. A coin that hardly ever trades can look like this too.
 
 **Only the Binance assets show nothing**
 Binance is blocked in some regions (the United States, for one). On an internet connection there, Binance prices do not arrive. Upbit is not affected.

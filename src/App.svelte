@@ -6,6 +6,7 @@
   import SettingsPanel from './components/SettingsPanel.svelte';
   import { createSettings, sameAsset, MAX_ASSETS } from './lib/settings.js';
   import { createBoardFeed, describeMarket } from './lib/feed.js';
+  import { EXCHANGES } from './lib/exchanges/index.js';
   import { createWakeLock } from './lib/wake-lock.js';
   import { createUpdater } from './lib/updater.js';
   import { describeState } from './lib/status.js';
@@ -32,8 +33,6 @@
   // Per asset, keyed by assetKey: the price on screen and the feed's state.
   let ticks = $state.raw({});
   let feedStates = $state.raw({});
-  // The asset the settings panel is editing.
-  let selected = $state(0);
   let now = $state(Date.now());
   let visible = $state(document.visibilityState === 'visible');
   let wake = $state({ kind: 'pending', message: '', canRetry: false });
@@ -63,11 +62,11 @@
 
   const statuses = $derived(settings.assets.map(asset => describeState(feedStates[assetKey(asset)] ?? null, now)));
   const assetTicks = $derived(settings.assets.map(asset => ticks[assetKey(asset)] ?? null));
-  // The settings panel speaks of the asset it is editing.
-  const status = $derived(statuses[Math.min(selected, statuses.length - 1)]);
   // The worst of all: one asset in trouble is enough to say so.
   const RANK = { ok: 0, warn: 1, bad: 2 };
   const worst = $derived(statuses.reduce((level, next) => RANK[next.level] > RANK[level] ? next.level : level, 'ok'));
+  // The settings panel speaks of the asset in the most trouble (the first, when all is well).
+  const status = $derived(statuses.find(next => next.level === worst) ?? statuses[0]);
   // The installed offline copy normally matches the page. Say so only when it
   // does not: that is a board still showing an older page.
   const versionLabel = $derived(cache.state === 'unsupported' ? m.version_offline_unsupported({ version })
@@ -128,36 +127,33 @@
     for (const key of Object.keys(ticks)) if (!keys.has(key)) beat.forget(key);
     ticks = Object.fromEntries(Object.entries(ticks).filter(([key]) => keys.has(key)));
     feedStates = Object.fromEntries(Object.entries(feedStates).filter(([key]) => keys.has(key)));
-    selected = Math.min(selected, settings.assets.length - 1);
     feed.select(settings.assets);
   }
   function changeAssets(assets) { save({ assets }); applySelection(); }
-  // Change the asset being edited. '' when done, or why not.
-  function changeAsset(patch) {
-    const next = { ...settings.assets[selected], ...patch };
-    if (settings.assets.some((asset, index) => index !== selected && sameAsset(asset, next))) return m.asset_duplicate();
-    changeAssets(settings.assets.map((asset, index) => index === selected ? next : asset));
-    return '';
-  }
   const canAdd = $derived(settings.assets.length < MAX_ASSETS);
   // A new asset, chosen in the add form. '' when added, or why not.
   function addAsset(next) {
     if (settings.assets.length >= MAX_ASSETS) return '';
     if (settings.assets.some(asset => sameAsset(asset, next))) return m.asset_duplicate();
     changeAssets([...settings.assets, next]);
-    selected = settings.assets.length - 1;
     return '';
   }
-  // A new order, as dragged in settings; the asset being edited stays chosen.
-  function reorderAssets(order) {
-    const chosen = assetKey(settings.assets[selected]);
-    selected = Math.max(0, order.findIndex(asset => assetKey(asset) === chosen));
-    changeAssets(order);
-  }
+  // A new order, as dragged in settings.
+  function reorderAssets(order) { changeAssets(order); }
+  // Deleting is one tap, so it can be undone for a few seconds: the asset goes
+  // back where it was, unless it has meanwhile been added again or the board is full.
   function removeAsset(index) {
     if (settings.assets.length <= 1) return;
-    if (selected >= index && selected > 0) selected -= 1;
+    const removed = settings.assets[index];
     changeAssets(settings.assets.filter((_, position) => position !== index));
+    toast(m.asset_removed({ name: `${removed.ticker} ${EXCHANGES[removed.currency].choice}` }), {
+      duration: 5000,
+      action: { label: m.undo(), onClick() {
+        if (settings.assets.length >= MAX_ASSETS || settings.assets.some(asset => sameAsset(asset, removed))) return;
+        const assets = [...settings.assets]; assets.splice(Math.min(index, assets.length), 0, removed);
+        changeAssets(assets);
+      } },
+    });
   }
 
   function openPanel() { panelOpen = true; controls.reveal(); controls.touch(); }
@@ -198,7 +194,8 @@
 
     // When the settings button shows, and what a tap outside the panel does.
     controls = createQuietControls({
-      document, controls: '#settings-toggle, #admin-panel', panel: '#admin-panel',
+      // The toasts count as part of the panel: undoing a delete there leaves it open.
+      document, controls: '#settings-toggle, #admin-panel, [data-sonner-toaster]', panel: '#admin-panel, [data-sonner-toaster]',
       isPanelOpen: () => panelOpen,
       onVisible(value) { controlsVisible = value; },
       onOutsideTap() { closePanel(false); },
@@ -248,15 +245,12 @@
 
 {#if panelOpen}
   <div id="scrim"></div>
-  <SettingsPanel {settings} {selected} {canAdd} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
+  <SettingsPanel {settings} {canAdd} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
     onClose={closePanel}
-    onSelect={index => { selected = index; }}
     onAdd={addAsset}
     onColumns={columns => save({ columns })}
     onRemove={removeAsset}
     onReorder={reorderAssets}
-    onCurrency={currency => currency === settings.assets[selected].currency ? '' : changeAsset({ currency })}
-    onTicker={ticker => ticker === settings.assets[selected].ticker ? '' : changeAsset({ ticker })}
     onBrightnessPreview={value => { previewBrightness = value; }}
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
     onBurnIn={burnIn => save({ burnIn })}
