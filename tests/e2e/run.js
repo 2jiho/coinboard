@@ -896,6 +896,64 @@ async function english(browser, base) {
   console.log('PASS english: settings in English with nothing Korean left, nothing cut off, won in millions; Korean keeps 억 and 만');
 }
 
+async function help(browser, base) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true }); await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.goto(base); await live(page);
+  // A new board says once how to reach settings.
+  const hint = page.locator('#first-hint');
+  await hint.waitFor();
+  assert.equal(await hint.textContent(), '화면을 탭하면 설정 버튼이 나타납니다');
+  assert.equal(await hint.evaluate(el => getComputedStyle(el).pointerEvents), 'none');
+  // It takes no tap: the first tap brings up the settings button as ever, and the hint goes for good.
+  await tapBoard(page);
+  await hint.waitFor({ state: 'detached' });
+  assert.equal(await page.evaluate(() => document.body.classList.contains('controls-visible')), true);
+  await page.reload(); await live(page);
+  await page.waitForTimeout(1500);
+  assert.equal(await hint.count(), 0);
+  // Left untouched, it goes by itself but comes back next time.
+  const fresh = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(fresh);
+  await fresh.addInitScript(() => { const later = window.setTimeout; window.setTimeout = (fn, ms, ...rest) => later(fn, ms === 15000 ? 300 : ms, ...rest); });
+  const other = await fresh.newPage(); await other.goto(base);
+  await other.locator('#first-hint').waitFor({ state: 'detached' });
+  assert.equal(await other.evaluate(() => localStorage.getItem('coinboard-hint-seen')), null);
+  await fresh.close();
+
+  // Help, from the settings panel and back.
+  await open(page);
+  await page.locator('#help-open').click();
+  assert.equal(await text(page, '#admin-title'), '사용법');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'help-back');
+  assert.equal(await page.locator('#help section').count(), 5);
+  assert.equal(await page.locator('#asset-list').count(), 0);
+  assert.equal(await page.locator('#help-guide').getAttribute('href'), 'https://github.com/2jiho/coinboard/blob/main/docs/guide.ko.md');
+  assert.ok(await page.locator('#admin-panel').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'help is not cut off');
+  await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
+  await page.locator('#admin-panel').screenshot({ path: path.join(evidence, 'help-ko.png') });
+  await page.locator('#help-back').click();
+  assert.equal(await text(page, '#admin-title'), '설정');
+  assert.equal(await page.locator('#asset-list').count(), 1);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'help-open');
+  // Escape still closes the panel from help.
+  await page.locator('#help-open').click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#admin-panel').count(), 0);
+  assert.deepEqual(problems, []);
+  await context.close();
+
+  // In English, with nothing Korean left.
+  const en = await browser.newContext({ locale: 'en-US', viewport: { width: 1024, height: 768 } }); await scripted(en);
+  const enPage = await en.newPage(); await enPage.goto(base); await live(enPage);
+  assert.equal(await enPage.locator('#first-hint').textContent(), 'Tap the screen for settings');
+  await open(enPage); await enPage.locator('#help-open').click();
+  assert.equal(await text(enPage, '#admin-title'), 'Help');
+  assert.doesNotMatch(await enPage.locator('#admin-panel').evaluate(panel => [panel.innerText, ...[...panel.querySelectorAll('[aria-label]')].map(el => el.getAttribute('aria-label'))].join('\n')), /[가-힣]/);
+  assert.equal(await enPage.locator('#help-guide').getAttribute('href'), 'https://github.com/2jiho/coinboard/blob/main/docs/guide.md');
+  await en.close();
+  console.log('PASS help: a new board says once how to reach settings, without taking the tap; help in settings and back, in Korean and English');
+}
+
 async function idleUpdate(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
@@ -1149,7 +1207,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH 
 const newContext = browser.newContext.bind(browser);
 browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options });
 try {
-  for (const scenario of [board, english, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, english, help, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;

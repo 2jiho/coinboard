@@ -106,7 +106,7 @@ With two or more assets the whole screen is divided into cells of one size, with
 
 ## Settings
 
-Tap the screen once and the settings button (a gear) appears in the bottom-right corner; it goes away again after five seconds untouched. The tap that brings the button up does not press it, so tap the button once it is showing. On a keyboard, Tab brings it up.
+Tap the screen once and the settings button (a gear) appears in the bottom-right corner; it goes away again after five seconds untouched. The tap that brings the button up does not press it, so tap the button once it is showing. On a keyboard, Tab brings it up. The first time the app opens, a line at the bottom of the screen says so (*Tap the screen for settings*); it goes once the screen is touched and does not come back.
 
 ![Settings](images/settings.en.png)
 
@@ -138,7 +138,7 @@ The panel has two sections, **Prices** and **Display**.
 
 **Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 
-**At the bottom**: the app's version, and a GitHub icon linking to the source code.
+**At the bottom**: the app's version, a question mark for **Help**, and a GitHub icon linking to the source code. Help is a short version of this guide inside the app (opening settings, the status dot, several assets, reading the board, keeping it on), with a link to this guide; the arrow at the top goes back to settings.
 
 A reason and a retry button appear only when the connection or keeping the screen on has a problem. Close the panel with its close button, by tapping outside it, or with Escape; it also closes by itself after two minutes untouched.
 
