@@ -1,4 +1,4 @@
-# Coinboard user guide
+# <img src="../public/favicon.svg" width="36" height="36" alt=""> Coinboard user guide
 
 English · [한국어](guide.ko.md)
 

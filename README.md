@@ -1,6 +1,8 @@
-# Coinboard
+<p align="center"><img src="public/favicon.svg" width="112" height="112" alt="Coinboard icon"></p>
 
-English · [한국어](README.ko.md)
+<h1 align="center">Coinboard</h1>
+
+<p align="center">English · <a href="README.ko.md">한국어</a></p>
 
 A crypto price board: live prices from exchange WebSockets, in large type, on a screen that stays on. It is a web app (PWA) made for an always-on iPad, and works on an iPhone or a computer too.
 

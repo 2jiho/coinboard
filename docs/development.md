@@ -1,4 +1,4 @@
-# Coinboard development
+# <img src="../public/favicon.svg" width="36" height="36" alt=""> Coinboard development
 
 English · [한국어](development.ko.md)
 
