@@ -187,8 +187,8 @@
 </script>
 
 <div id="stage">
-  <div id="drift" class:grid style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
-    <div id="container" bind:this={container} class:grid class:price-unavailable={!grid && statuses[0].unavailable}
+  <div id="drift" class:is-grid={grid} style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
+    <div id="container" bind:this={container} class:is-grid={grid} class:price-unavailable={!grid && statuses[0].unavailable}
       style:filter="brightness({brightness}%)" style:transform="scale({scale})">
       {#if !grid}
         {@const asset = assets[0]}

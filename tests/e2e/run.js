@@ -353,8 +353,11 @@ async function board(browser, base) {
   await page.locator('#admin-symbol').fill('LINK'); await page.locator('#admin-close').click();
   await openEditor(page); assert.equal(await page.locator('#admin-symbol').isVisible(), false);
   assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
-  // Brightness applies and saves without an apply button.
-  await page.locator('#admin-brightness').fill('50');
+  // Brightness applies and saves without an apply button. It is a slider: from 100, ten steps of 5 down.
+  const brightnessThumb = page.locator('#admin-brightness [role="slider"]');
+  await brightnessThumb.focus();
+  for (let step = 0; step < 10; step += 1) await page.keyboard.press('ArrowLeft');
+  assert.equal(await brightnessThumb.getAttribute('aria-valuenow'), '50');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
   assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red' });
@@ -391,7 +394,7 @@ async function board(browser, base) {
   await page.reload(); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
-  await open(page); await page.locator('#admin-brightness').fill('100');
+  await open(page); await page.locator('#admin-brightness [role="slider"]').focus(); await page.keyboard.press('End');
   await page.locator('#admin-close').click();
   // Focus stays on the button after closing; a tap elsewhere lets it hide again.
   await tapBoard(page); await page.clock.fastForward(6000);
@@ -402,7 +405,7 @@ async function board(browser, base) {
   await open(page);
   await page.clock.runFor(110000);
   assert.equal(await page.locator('#admin-panel').isVisible(), true);
-  await page.locator('#admin-brightness').focus(); await page.keyboard.press('Shift');
+  await page.locator('#admin-brightness [role="slider"]').focus(); await page.keyboard.press('Shift');
   await page.clock.runFor(110000);
   assert.equal(await page.locator('#admin-panel').isVisible(), true, 'a key press keeps it open');
   await page.clock.runFor(11000);
@@ -879,7 +882,7 @@ async function lockedStorage(browser, base) {
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await openEditor(page);
   await page.locator('#admin-currency').selectOption('KRW');
-  assert.match(await text(page, '#toast'), /저장하지 못했습니다/);
+  assert.match(await page.locator('[data-sonner-toast]').first().textContent(), /저장하지 못했습니다/);
   await live(page);
   assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
   assert.deepEqual(problems, []);

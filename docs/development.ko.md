@@ -48,7 +48,10 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/lib/wake-lock.js` | 화면 켜짐 유지 |
 | `src/lib/updater.js` | 서비스 워커 등록, 버전 확인, 업데이트 적용 |
 | `src/sw.js` | 오프라인용 서비스 워커의 원본 |
-| `src/app.css` | 스타일 |
+| `src/app.css` | 스타일: 맨 위의 Tailwind·테마, 그 아래 전광판의 일반 CSS |
+| `src/lib/components/ui/` | shadcn-svelte 부품(설정 창) |
+| `src/lib/utils.js` | 부품의 클래스 이름 합치기(`cn`) |
+| `components.json`, `jsconfig.json` | shadcn-svelte 설정과 `$lib` 경로 |
 | `messages/ko.json`, `messages/en.json` | 설정 창 등의 문구(한국어·영어) |
 | `project.inlang/settings.json` | 번역 설정(언어 목록, 기본 언어, 문구 형식) |
 | `src/paraglide/` | 위 문구에서 `npm run i18n`이 만드는 코드. 단위 테스트용(git 제외, 직접 고치지 않음) |
@@ -86,6 +89,14 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 - **오프라인과 시작 속도**: 빌드된 파일 전체를 설치 때 한 묶음으로 보관하고, 열 때는 그 사본으로 바로 띄웁니다. 새 릴리스는 뒤에서 내려받아 위의 업데이트 방식으로 적용합니다. 시세는 보관하지 않습니다.
 - **글꼴**: [Pretendard](https://github.com/orioncactus/pretendard)(SIL Open Font License)를 앱에 포함해 어느 기기에서나 같은 모양으로 보입니다. 영문·숫자와 자주 쓰는 한글 2,350자가 든 부분 글꼴 세 굵기(약 800KB)이고, 다른 파일과 함께 설치되어 오프라인에서도 쓰입니다.
 - **코인 아이콘**: 483개 코인의 아이콘이 `public/coins/`에 들어 있어 외부 서버에 의존하지 않습니다([cryptocurrency-icons](https://github.com/spothq/cryptocurrency-icons), CC0). 설정 창의 여섯 코인 아이콘은 앱과 함께 설치되고, 나머지는 그 코인을 처음 표시할 때 받아서 보관합니다. 아이콘이 없는 코인은 아이콘 없이 표시합니다.
+
+## 디자인
+
+- **설정 창**: [Tailwind CSS](https://tailwindcss.com) 4와 [shadcn-svelte](https://shadcn-svelte.com)(maia 스타일) 부품으로 만듭니다. 부품은 라이브러리로 가져오지 않고 `src/lib/components/ui/`에 코드가 복사되어 있어 직접 고쳐 씁니다(스위치와 슬라이더는 iPad 크기로 키웠습니다). 선택 칸은 iPad 기본 선택 화면을 쓰는 `native-select`입니다.
+- **테마**: `src/app.css` 맨 위의 색·둥글기·글꼴 변수가 설정 창과 부품의 테마입니다. 앱은 항상 어두운 화면입니다.
+- **전광판**: Tailwind를 쓰지 않고 `src/app.css`의 일반 CSS로 그립니다. 고정 구역을 화면에 맞춰 키우는 방식이라 계산과 세밀한 조정이 필요하기 때문입니다. 전광판 요소에는 Tailwind 유틸리티와 같은 이름의 클래스(`grid`, `hidden`, `flex` 등)를 쓰지 않습니다. Tailwind가 그 이름에 스타일을 붙여 배치가 깨집니다.
+- **부품 추가**: `npx shadcn-svelte@latest add <이름>`. 새 부품이 쓰는 라이브러리가 앱에 들어가면 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)와 `public/licenses/`에 더합니다.
+- **보안 설정(CSP)과의 관계**: 인라인 스타일과 스크립트를 막는 CSP 아래에서 동작합니다. 브라우저 테스트가 CSP 위반을 실패로 잡습니다.
 
 ## 번역
 

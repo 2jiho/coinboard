@@ -1,8 +1,10 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import tailwindcss from '@tailwindcss/vite';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PRESETS } from './src/lib/presets.js';
 
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
@@ -42,6 +44,8 @@ function serviceWorker() {
 }
 
 export default defineConfig({
+  // $lib/… as in shadcn-svelte's components.
+  resolve: { alias: { $lib: fileURLToPath(new URL('./src/lib', import.meta.url)) } },
   // Relative URLs: the same build works at /coinboard/ and anywhere else.
   base: './',
   define: { __APP_VERSION__: JSON.stringify(version) },
@@ -49,7 +53,7 @@ export default defineConfig({
     // Settings text in the reader's language: messages/{locale}.json compiled
     // to src/paraglide. The device's preferred language picks it; English otherwise.
     paraglideVitePlugin({ project: './project.inlang', outdir: './src/paraglide', strategy: ['preferredLanguage', 'baseLocale'] }),
-    svelte(), serviceWorker(),
+    tailwindcss(), svelte(), serviceWorker(),
   ],
   build: { target: 'es2022' },
 });

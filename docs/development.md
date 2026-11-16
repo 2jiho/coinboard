@@ -48,7 +48,10 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `src/lib/wake-lock.js` | Keeping the screen on |
 | `src/lib/updater.js` | Service worker registration, version checks, applying updates |
 | `src/sw.js` | Source of the offline service worker |
-| `src/app.css` | Styles |
+| `src/app.css` | Styles: Tailwind and the theme at the top, then the board's plain CSS |
+| `src/lib/components/ui/` | shadcn-svelte components (settings panel) |
+| `src/lib/utils.js` | Combining the components' class names (`cn`) |
+| `components.json`, `jsconfig.json` | shadcn-svelte settings and the `$lib` path |
 | `messages/ko.json`, `messages/en.json` | Text for settings and the like (Korean, English) |
 | `project.inlang/settings.json` | Translation settings (languages, base language, message format) |
 | `src/paraglide/` | Code generated from the messages by `npm run i18n`, for the unit tests (not in git; do not edit) |
@@ -86,6 +89,14 @@ The modules in `src/lib` are plain JavaScript that knows nothing of Svelte or th
 - **Offline and start-up**: every built file is stored as one set on installation, and the page opens from that copy at once. A new release is downloaded in the background and applied as above. Prices are never stored.
 - **Font**: [Pretendard](https://github.com/orioncactus/pretendard) (SIL Open Font License) ships with the app so it looks the same on every device: subset files with Latin, digits and the 2,350 common Hangul syllables, three weights (about 800 KB), installed with the other files and available offline.
 - **Coin icons**: icons for 483 coins are in `public/coins/`, so no outside server is needed ([cryptocurrency-icons](https://github.com/spothq/cryptocurrency-icons), CC0). The six coins offered in settings are installed with the app; the rest are fetched and stored the first time they are shown. A coin with no icon is shown without one.
+
+## Design
+
+- **Settings panel**: built with [Tailwind CSS](https://tailwindcss.com) 4 and [shadcn-svelte](https://shadcn-svelte.com) components (maia style). The components are not a library: their code is copied into `src/lib/components/ui/` and edited there (the switch and the slider are enlarged to iPad size). Choices use `native-select`, so the iPad's own picker opens.
+- **Theme**: the color, radius and font variables at the top of `src/app.css` are the theme of the panel and the components. The app is always dark.
+- **The board**: plain CSS in `src/app.css`, not Tailwind: fixed zones scaled to the screen need calculation and fine tuning. Board elements must not use class names that are Tailwind utilities (`grid`, `hidden`, `flex` and so on): Tailwind would style them and break the layout.
+- **Adding components**: `npx shadcn-svelte@latest add <name>`. When a new component brings a library into the app, add it to [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) and `public/licenses/`.
+- **Content Security Policy**: everything works under the CSP that blocks inline styles and scripts; the browser tests fail on any CSP violation.
 
 ## Translation
 

@@ -1,3 +1,65 @@
+/* Tailwind and the shadcn-svelte theme. The board itself keeps its own CSS
+   below (fixed zones scaled to the screen); the settings panel and its
+   controls are built from shadcn-svelte components on this theme. The app is
+   always dark, so the theme is the dark one. */
+@import "tailwindcss";
+@import "tw-animate-css";
+/* The data-* variants (data-checked, data-horizontal, ...) the components use. */
+@import "shadcn-svelte/tailwind.css";
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 1rem;
+  /* The sheet, and the grouped rows on it (iOS dark grouped style). */
+  --background: #1c1c1e;
+  --foreground: #f5f5f7;
+  --card: #2c2c2e;
+  --card-foreground: #f5f5f7;
+  --popover: #2c2c2e;
+  --popover-foreground: #f5f5f7;
+  /* The one accent: green, as for "live". */
+  --primary: #30d158;
+  --primary-foreground: #04130a;
+  --secondary: #3a3a3c;
+  --secondary-foreground: #f5f5f7;
+  --muted: #2c2c2e;
+  --muted-foreground: #98989f;
+  --accent: #3a3a3c;
+  --accent-foreground: #f5f5f7;
+  --destructive: #ff453a;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(118, 118, 128, 0.24);
+  --ring: rgba(255, 255, 255, 0.45);
+}
+@theme inline {
+  --font-sans: Pretendard, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Apple SD Gothic Neo", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
 /* Pretendard (SIL Open Font License, see src/fonts/LICENSE.txt), shipped with
    the app so the board has the same letterforms on every device, and so the
    Hangul in a price (억, 만) is cut from the same cloth as its digits. These
@@ -118,8 +180,8 @@ body {
    Faint lines run between cells from edge to edge, never round the outside. Each cell holds the same
    pieces as the single board, smaller, at one fixed design size scaled to the
    cell (the same scale for all). */
-#drift.grid, #container.grid { width: 100%; height: 100%; }
-#container.grid { display: block; }
+#drift.is-grid, #container.is-grid { width: 100%; height: 100%; }
+#container.is-grid { display: block; }
 #grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--rows), minmax(0, 1fr)); width: 100%; height: 100%; }
 .cell { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; }
 .cell.line-right { border-right: 1px solid #2c2c2e; }
@@ -143,7 +205,11 @@ body[data-palette="red-blue"] {
    The old digit is drawn by ::before, one window-height ahead of the new one,
    so a single movement carries both: the new digit in, the old one out. */
 .price-text .slot { display: inline-block; clip-path: inset(0); }
-.price-text .digit { display: inline-block; position: relative; }
+/* Each digit keeps its own compositing layer for good. Otherwise Safari moves
+   a digit onto a layer for its animation and back off when it ends, and the
+   board being drawn at a fractional scale, the digit snaps a pixel at that
+   moment: a small jump at the end of every roll. */
+.price-text .digit { display: inline-block; position: relative; will-change: transform; }
 .price-text .digit[data-old]::before { content: attr(data-old); position: absolute; left: 0; }
 /* Price up: the new digit rises from below; the old one leaves by the top. */
 .price-text .digit.up::before { top: -100%; }
@@ -194,177 +260,19 @@ body[data-palette="red-blue"] {
 }
 body.settings-open #status-dot { visibility: hidden; }
 
-/* ---- Settings: a dark sheet in the manner of a system settings screen ---- */
-:root {
-  --sheet: rgba(28, 28, 30, 0.95);
-  --group: rgba(118, 118, 128, 0.16);
-  --control: rgba(118, 118, 128, 0.24);
-  --hairline: rgba(255, 255, 255, 0.08);
-  --label: #f2f2f7;
-  --secondary: #98989f;
-  --accent: #30d158;
-  --danger: #ff8a80;
-}
+/* ---- Settings ----
+   The panel and its controls are Tailwind and shadcn-svelte components
+   (SettingsPanel.svelte); only the backdrop and the toasts' colours are here. */
 #scrim {
   position: fixed; inset: 0; z-index: 1900;
   background: rgba(0, 0, 0, 0.45);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   animation: fade-in 0.18s ease-out;
 }
-#admin-panel {
-  position: fixed;
-  --panel-top: max(48px, calc(var(--safe-top) + 16px));
-  --panel-bottom: calc(var(--safe-bottom) + 16px);
-  /* Hung from the top, not centred: when a line below appears or goes (a
-     status, the add form), nothing above it moves under the finger. */
-  top: var(--panel-top);
-  left: calc(var(--safe-left) + (100vw - var(--safe-left) - var(--safe-right)) / 2);
-  transform: translateX(-50%);
-  box-sizing: border-box;
-  width: min(380px, calc(100vw - var(--safe-left) - var(--safe-right) - 32px));
-  max-height: calc(100vh - var(--panel-top) - var(--panel-bottom));
-  max-height: calc(100dvh - var(--panel-top) - var(--panel-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 0 18px 20px;
-  overflow: auto;
-  overscroll-behavior: contain;
-  z-index: 2000;
-  text-align: left;
-  color: var(--label);
-  background: var(--sheet);
-  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
-  border: 1px solid var(--hairline);
-  border-radius: 26px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
-  animation: sheet-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-#admin-panel > * { flex-shrink: 0; }
 @keyframes fade-in { from { opacity: 0; } }
-@keyframes sheet-in { from { opacity: 0; transform: translate(-50%, 12px) scale(0.97); } }
-@media (prefers-reduced-motion: reduce) { #scrim, #admin-panel { animation: none; } }
-
-.settings-header {
-  display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 1;
-  margin: 0 -18px; padding: 16px 14px 10px 18px;
-  background: linear-gradient(rgba(28, 28, 30, 0.98) 70%, rgba(28, 28, 30, 0));
-}
-#admin-panel h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-#admin-panel h3 { margin: 0 4px; font-size: 13px; font-weight: 500; color: var(--secondary); }
-#admin-panel p { margin: 0 4px; }
-#admin-panel svg, #settings-toggle svg { width: 22px; height: 22px; display: block; margin: auto; }
-
-.settings-section { display: flex; flex-direction: column; gap: 10px; }
-.settings-group { background: var(--group); border-radius: 14px; }
-/* The assets on the board: a row each, the one being edited marked with a
-   tint. The coins and markets rows below change that one. */
-#asset-list { overflow: hidden; }
-.asset-row { display: flex; align-items: center; padding-right: 6px; transition: background 0.15s; }
-.asset-row.selected { background: var(--control); }
-.asset-row + .asset-row, .asset-row + #asset-add { border-top: 1px solid var(--hairline); }
-#admin-panel .asset-pick { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 14px; border-radius: 0; background: transparent; text-align: left; }
-#admin-panel .asset-pick:active, #admin-panel #asset-add:active { transform: none; }
-.asset-coin { font-weight: 600; letter-spacing: 0.02em; }
-.asset-market { font-size: 13px; color: var(--secondary); }
-#admin-panel .asset-move, #admin-panel .asset-remove { flex: none; width: 36px; min-height: 36px; padding: 0; border-radius: 50%; background: transparent; color: var(--secondary); }
-#admin-panel .asset-move:disabled { opacity: 0.25; }
-#admin-panel .asset-remove { margin-left: 2px; color: #ff6961; }
-#admin-panel .asset-move svg, #admin-panel .asset-remove svg { width: 20px; height: 20px; }
-#admin-panel #asset-add { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 50px; padding: 0 14px; border-radius: 0; background: transparent; color: var(--accent); }
-#admin-panel #asset-add svg { width: 18px; height: 18px; margin: 0; }
-/* The add form: market and coin, then 취소 and 추가. */
-#asset-new .settings-row + .asset-new-actions { border-top: 1px solid var(--hairline); }
-.asset-new-actions { display: flex; gap: 8px; padding: 10px; }
-#admin-panel .asset-new-actions button { flex: 1; }
-#admin-panel #asset-new-confirm { background: var(--accent); color: #04130a; font-weight: 600; }
-#new-symbol { width: 92px; min-height: 36px; box-sizing: border-box; padding: 6px 10px; border: 0; border-radius: 9px; background: var(--control); color: var(--label); font: inherit; font-size: 15px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
-#asset-new-error { color: var(--danger); font-size: 13px; }
-.settings-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  min-height: 50px; padding: 0 14px;
-}
-.settings-row + .settings-row { border-top: 1px solid var(--hairline); }
-#admin-panel label { font-size: 15px; color: var(--label); }
-#admin-panel label .hint { display: block; margin-top: 2px; font-size: 12px; color: var(--secondary); }
-
-/* The foot of the sheet: the version, and the GitHub mark as a link to the source. */
-.settings-footer { display: flex; align-items: center; justify-content: space-between; margin: -6px 0 -8px; padding: 0 4px; }
-#admin-repo { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: -10px; border-radius: 50%; color: var(--secondary); -webkit-tap-highlight-color: transparent; transition: color 0.15s; }
-#admin-repo:hover, #admin-repo:active { color: var(--label); }
-#admin-panel #admin-repo svg { width: 24px; height: 24px; margin: 0; }
-a:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 2px; }
-
-/* Buttons */
-#admin-panel button, #settings-toggle {
-  border: 0; font: inherit; color: var(--label); cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-#admin-panel button { min-height: 44px; padding: 10px 14px; border-radius: 12px; background: var(--control); font-size: 15px; transition: background 0.15s, transform 0.1s; }
-#admin-panel button:active { transform: scale(0.97); }
-#admin-panel button:disabled { opacity: 0.5; cursor: default; }
-#admin-panel #admin-close { width: 44px; min-height: 44px; padding: 0; border-radius: 50%; background: transparent; color: var(--secondary); }
-#admin-panel #admin-close svg { width: 30px; height: 30px; padding: 7px; box-sizing: border-box; border-radius: 50%; background: var(--control); }
-#admin-panel #market-retry, #admin-panel #wake-lock-retry { background: var(--control); }
-#admin-panel #app-update { background: var(--accent); color: #04130a; font-weight: 600; }
-
-/* Coin and currency: one-line choices that open the system's own picker */
-#admin-panel select {
-  -webkit-appearance: none; appearance: none;
-  min-height: 44px; max-width: 72%; margin: 0 -4px 0 0; padding: 0 26px 0 8px;
-  border: 0; border-radius: 9px; background-color: transparent; color: var(--secondary);
-  font: inherit; font-size: 15px; text-align: right; text-align-last: right; cursor: pointer;
-  /* An up-down chevron, as on a system pop-up button. */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16' fill='none' stroke='%2398989f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2.5 6 3.5-3.5L9.5 6M2.5 10l3.5 3.5L9.5 10'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 6px center; background-size: 10px 14px;
-}
-#admin-panel select option { color: #000; }
-select:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 1px; }
-
-.ticker-row { display: flex; align-items: center; gap: 8px; }
-#admin-symbol {
-  width: 92px; min-height: 36px; box-sizing: border-box; padding: 6px 10px;
-  border: 0; border-radius: 9px; background: var(--control); color: var(--label);
-  font: inherit; font-size: 15px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
-}
-#admin-symbol::placeholder { color: var(--secondary); font-weight: 400; }
-#admin-symbol[aria-invalid="true"] { box-shadow: 0 0 0 2px var(--danger); }
-#admin-panel #admin-symbol-apply { min-height: 36px; padding: 6px 12px; border-radius: 9px; font-size: 14px; }
-#admin-symbol-error { color: var(--danger); font-size: 13px; }
-
-/* Status lines */
-#status-indicator, #overlay-msg, #wake-lock-status, #app-version { font-size: 13px; line-height: 1.5; color: var(--secondary); white-space: pre-line; overflow-wrap: anywhere; }
-#status-indicator::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #8e8e93; }
-#status-indicator.connected::before { background: var(--accent); box-shadow: 0 0 8px rgba(48, 209, 88, 0.6); }
-#status-indicator.error { color: var(--danger); }
-#status-indicator.error::before { background: var(--danger); }
-#admin-panel #app-version { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
-
-/* Brightness: a slider with a filled track (--fill is set from the value) */
-.brightness-row { display: flex; align-items: center; gap: 10px; }
-#admin-brightness {
-  -webkit-appearance: none; appearance: none;
-  width: 150px; height: 28px; margin: 0; background: transparent; cursor: pointer;
-}
-#admin-brightness::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, #f2f2f7 var(--fill, 100%), rgba(120, 120, 128, 0.4) var(--fill, 100%)); }
-#admin-brightness::-moz-range-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, #f2f2f7 var(--fill, 100%), rgba(120, 120, 128, 0.4) var(--fill, 100%)); }
-#admin-brightness::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -10px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); }
-#admin-brightness::-moz-range-thumb { width: 26px; height: 26px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); }
-#brightness-value { min-width: 40px; font-size: 14px; color: var(--secondary); text-align: right; font-variant-numeric: tabular-nums; }
-
-/* Switches: checkboxes drawn as switches */
-#admin-panel input[type="checkbox"] {
-  -webkit-appearance: none; appearance: none; flex: none;
-  position: relative; width: 51px; height: 31px; margin: 0; border-radius: 16px;
-  background: rgba(120, 120, 128, 0.4); cursor: pointer; transition: background 0.2s;
-}
-#admin-panel input[type="checkbox"]::before {
-  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
-  background: #fff; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35); transition: transform 0.2s;
-}
-#admin-panel input[type="checkbox"]:checked { background: var(--accent); }
-#admin-panel input[type="checkbox"]:checked::before { transform: translateX(20px); }
+@media (prefers-reduced-motion: reduce) { #scrim { animation: none; } }
+/* Toasts (svelte-sonner) in the theme's colours. */
+.toaster { --normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border); }
 
 /* The one quiet control on the board */
 #settings-toggle {
@@ -374,28 +282,16 @@ select:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 1px; }
   width: 48px; height: 48px; padding: 12px; border-radius: 50%;
   background: rgba(60, 60, 67, 0.55); color: #c7c7cc;
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-  border: 1px solid var(--hairline); box-sizing: border-box;
-  z-index: 1500;
+  border: 1px solid rgba(255, 255, 255, 0.08); box-sizing: border-box;
+  z-index: 1500; cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: opacity 0.15s;
 }
-#settings-toggle svg { width: 22px; height: 22px; }
-button:focus-visible, input:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 3px; }
+#settings-toggle svg { width: 22px; height: 22px; display: block; margin: auto; }
+#settings-toggle:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 3px; }
 /* Hiding fades over 0.6 s and the button can still be pressed until it is
    gone, so a tap just as it starts to go is not lost (quiet-controls.js lets
    that tap through). Opening the panel hides it at once. */
 body:not(.controls-visible) #settings-toggle { opacity: 0; visibility: hidden; transition: opacity 0.6s, visibility 0s linear 0.6s; }
 body.settings-open #settings-toggle { visibility: hidden; pointer-events: none; transition: none; }
 
-#toast {
-  position: fixed;
-  bottom: calc(24px + var(--safe-bottom));
-  left: calc(var(--safe-left) + (100vw - var(--safe-left) - var(--safe-right)) / 2);
-  max-width: calc(100vw - var(--safe-left) - var(--safe-right) - 64px);
-  transform: translateX(-50%);
-  padding: 11px 18px; border-radius: 999px;
-  background: rgba(58, 58, 60, 0.92); color: #fff; font-size: 14px;
-  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-  z-index: 3000; opacity: 0; transition: opacity 0.3s; pointer-events: none;
-}
-#toast.show { opacity: 1; }
 [hidden] { display: none !important; }

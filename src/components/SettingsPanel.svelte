@@ -6,15 +6,22 @@
   import { PRESETS } from '../lib/presets.js';
   import { EXCHANGES } from '../lib/exchanges/index.js';
   import { m } from '../paraglide/messages.js';
+  import { Button } from '$lib/components/ui/button/index.js';
+  import { Switch } from '$lib/components/ui/switch/index.js';
+  import { Slider } from '$lib/components/ui/slider/index.js';
+  import { Input } from '$lib/components/ui/input/index.js';
+  import { NativeSelect, NativeSelectOption } from '$lib/components/ui/native-select/index.js';
+  import { HugeiconsIcon } from '@hugeicons/svelte';
+  import { Cancel01Icon, ArrowUp01Icon, ArrowDown01Icon, Delete02Icon, PlusSignIcon, GithubIcon } from '@hugeicons/core-free-icons';
 
   let { settings, selected, canAdd, status, wake, versionLabel, updateReady,
     onClose, onSelect, onAdd, onRemove, onMove, onColumns, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
-  let panel, closeButton;
+  let panel;
   // The rows below edit this asset; the list above chooses it.
   const asset = $derived(settings.assets[Math.min(selected, settings.assets.length - 1)]);
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
-  let tickerInput = $state();
+  let tickerInput = $state(null);
   // What is being typed or dragged, before it is applied.
   let tickerText = $state('');
   // '' when fine, otherwise the message to show.
@@ -71,18 +78,26 @@
   }
   // Another asset to edit: start clean.
   $effect(() => { selected; untrack(() => { otherOpen = false; tickerError = ''; }); });
-  async function chooseCoin(select, value) {
+  // What the market and coin choices show. They follow the asset, and a
+  // refused choice (already on the board) goes back to it.
+  let currencyChoice = $state(''), coinChoice = $state('');
+  $effect(() => { currencyChoice = asset.currency; });
+  $effect(() => { coinChoice = otherOpen ? OTHER : asset.ticker; });
+  async function chooseCurrency(value) {
+    tickerError = onCurrency(value);
+    if (tickerError) { await tick(); currencyChoice = asset.currency; }
+  }
+  async function chooseCoin(value) {
     tickerError = '';
     if (value !== OTHER) {
       otherOpen = false;
       tickerError = onTicker(value);
-      // Refused (already on the board): the choice goes back.
-      if (tickerError) select.value = asset.ticker;
+      if (tickerError) { await tick(); coinChoice = asset.ticker; }
       return;
     }
     otherOpen = true; tickerText = '';
     await tick();
-    tickerInput.focus();
+    tickerInput?.focus();
   }
 
   function applyTicker() {
@@ -103,158 +118,166 @@
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
   onMount(() => {
-    closeButton.focus();
+    // The close button is a component: find its element in the panel.
+    panel.querySelector('#admin-close')?.focus();
     document.addEventListener('keydown', onKeydown);
     return () => document.removeEventListener('keydown', onKeydown);
   });
 </script>
 
-<div id="admin-panel" bind:this={panel} role="dialog" aria-modal="true" aria-labelledby="admin-title">
-  <div class="settings-header">
-    <h2 id="admin-title">{m.settings_title()}</h2>
-    <button id="admin-close" bind:this={closeButton} type="button" aria-label={m.settings_close()} onclick={() => onClose(true)}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
-    </button>
+<div id="admin-panel" bind:this={panel} role="dialog" aria-modal="true" aria-labelledby="admin-title"
+  class="fixed left-1/2 top-[max(48px,calc(var(--safe-top)+16px))] z-[2000] flex max-h-[calc(100dvh-max(48px,calc(var(--safe-top)+16px))-var(--safe-bottom)-16px)] w-[min(400px,calc(100vw-var(--safe-left)-var(--safe-right)-32px))] -translate-x-1/2 flex-col gap-5 overflow-y-auto overscroll-contain rounded-[28px] border border-white/10 bg-background/80 px-4 pb-5 text-left text-[15px] text-foreground shadow-2xl shadow-black/60 backdrop-blur-2xl backdrop-saturate-150 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200 motion-reduce:animate-none">
+  <!-- The header stays in view while the sheet scrolls. -->
+  <div class="sticky top-0 z-10 -mx-4 flex items-center justify-between bg-gradient-to-b from-background from-70% to-transparent px-4 pb-2 pt-4">
+    <h2 id="admin-title" class="text-[22px] font-bold tracking-tight">{m.settings_title()}</h2>
+    <Button id="admin-close" variant="secondary" size="icon" class="size-11 rounded-full bg-white/10 text-muted-foreground hover:bg-white/15" aria-label={m.settings_close()} onclick={() => onClose(true)}>
+      <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} class="size-5" />
+    </Button>
   </div>
-  <section class="settings-section" aria-label={m.section_prices()}>
+
+  <section class="flex flex-col gap-3" aria-label={m.section_prices()}>
     <!-- What the board shows: one asset large, or several in a grid. A row is
          chosen to edit it below. -->
-    <div class="settings-group" id="asset-list" role="group" aria-label={m.asset_list()}>
+    <div class="overflow-hidden rounded-2xl bg-card" id="asset-list" role="group" aria-label={m.asset_list()}>
       {#each settings.assets as item, index (item.currency + ':' + item.ticker)}
-        <div class="asset-row" class:selected={index === selected && editing}>
-          <button type="button" class="asset-pick" aria-pressed={index === selected} aria-expanded={index === selected && editing} onclick={() => pick(index)}>
-            <span class="asset-coin">{item.ticker}</span><span class="asset-market">{EXCHANGES[item.currency].choice}</span>
+        <div class="asset-row flex min-h-14 items-center gap-1 border-b border-border pr-2 transition-colors last:border-b-0 data-[selected=true]:bg-white/[0.06]" data-selected={index === selected && editing}>
+          <button type="button" class="asset-pick flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-pressed={index === selected} aria-expanded={index === selected && editing} onclick={() => pick(index)}>
+            <span class="shrink-0 text-base font-semibold tracking-wide">{item.ticker}</span>
+            <span class="truncate text-[13px] text-muted-foreground">{EXCHANGES[item.currency].choice}</span>
           </button>
           {#if settings.assets.length > 1}
             <!-- Order: up and down. Removing: a bin, so it does not read as a handle. -->
-            <button type="button" class="asset-move" aria-label={m.asset_move_up({ name: assetName(item) })} disabled={index === 0} onclick={() => onMove(index, -1)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 14 5-5 5 5"/></svg>
-            </button>
-            <button type="button" class="asset-move" aria-label={m.asset_move_down({ name: assetName(item) })} disabled={index === settings.assets.length - 1} onclick={() => onMove(index, 1)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-            </button>
-            <button type="button" class="asset-remove" aria-label={m.asset_remove({ name: assetName(item) })} onclick={() => onRemove(index)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 10.5v5.5M13.5 10.5v5.5"/></svg>
-            </button>
+            <Button variant="ghost" size="icon" class="asset-move size-10 rounded-full text-muted-foreground disabled:opacity-25" aria-label={m.asset_move_up({ name: assetName(item) })} disabled={index === 0} onclick={() => onMove(index, -1)}>
+              <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} class="size-5" />
+            </Button>
+            <Button variant="ghost" size="icon" class="asset-move size-10 rounded-full text-muted-foreground disabled:opacity-25" aria-label={m.asset_move_down({ name: assetName(item) })} disabled={index === settings.assets.length - 1} onclick={() => onMove(index, 1)}>
+              <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} class="size-5" />
+            </Button>
+            <Button variant="ghost" size="icon" class="asset-remove size-10 rounded-full text-destructive hover:bg-destructive/15 hover:text-destructive" aria-label={m.asset_remove({ name: assetName(item) })} onclick={() => onRemove(index)}>
+              <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} class="size-5" />
+            </Button>
           {/if}
         </div>
       {/each}
       {#if canAdd && !adding}
-        <button type="button" id="asset-add" onclick={startAdding}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>{m.asset_add()}
+        <button type="button" id="asset-add" class="flex min-h-14 w-full items-center gap-2 border-t border-border px-4 font-medium text-primary outline-none transition-colors first:border-t-0 hover:bg-white/[0.04] focus-visible:ring-2 focus-visible:ring-ring" onclick={startAdding}>
+          <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} class="size-5" />{m.asset_add()}
         </button>
       {/if}
     </div>
+
     {#if adding}
-      <div class="settings-group" id="asset-new" role="group" aria-label={m.asset_new()}>
-        <div class="settings-row">
+      <div class="overflow-hidden rounded-2xl bg-card animate-in fade-in-0 slide-in-from-top-1 duration-200 motion-reduce:animate-none" id="asset-new" role="group" aria-label={m.asset_new()}>
+        <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
           <label for="new-currency">{m.field_market()}</label>
-          <select id="new-currency" bind:value={newCurrency} onchange={() => { newError = ''; if (newCoin !== OTHER) newCoin = firstFree(newCurrency); }}>
-            {#each Object.entries(EXCHANGES) as [key, exchange]}<option value={key}>{exchange.choice}</option>{/each}
-          </select>
+          <NativeSelect id="new-currency" class="max-w-[70%]" bind:value={newCurrency} onchange={() => { newError = ''; if (newCoin !== OTHER) newCoin = firstFree(newCurrency); }}>
+            {#each Object.entries(EXCHANGES) as [key, exchange]}<NativeSelectOption value={key}>{exchange.choice}</NativeSelectOption>{/each}
+          </NativeSelect>
         </div>
-        <div class="settings-row">
+        <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
           <label for="new-coin">{m.field_coin()}</label>
-          <select id="new-coin" bind:value={newCoin} onchange={() => { newError = ''; }}>
-            {#each PRESETS as preset}<option value={preset}>{preset}</option>{/each}
-            <option value={OTHER}>{m.coin_other()}</option>
-          </select>
+          <NativeSelect id="new-coin" bind:value={newCoin} onchange={() => { newError = ''; }}>
+            {#each PRESETS as preset}<NativeSelectOption value={preset}>{preset}</NativeSelectOption>{/each}
+            <NativeSelectOption value={OTHER}>{m.coin_other()}</NativeSelectOption>
+          </NativeSelect>
         </div>
         {#if newCoin === OTHER}
-          <div class="settings-row">
+          <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
             <label for="new-symbol">{m.field_ticker()}</label>
-            <input type="text" id="new-symbol" placeholder={m.ticker_placeholder()} maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
+            <Input id="new-symbol" class="w-32 uppercase placeholder:normal-case" placeholder={m.ticker_placeholder()} maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
               enterkeyhint="done" list="new-ticker-list" bind:value={newText} oninput={() => { newError = ''; }}
               onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); confirmAdding(); } }} />
             <datalist id="new-ticker-list">{#each newListed || [] as ticker}<option value={ticker}></option>{/each}</datalist>
           </div>
         {/if}
-        <div class="asset-new-actions">
-          <button type="button" id="asset-new-cancel" onclick={() => { adding = false; }}>{m.cancel()}</button>
-          <button type="button" id="asset-new-confirm" onclick={confirmAdding}>{m.add()}</button>
+        <div class="grid grid-cols-2 gap-2 p-3">
+          <Button id="asset-new-cancel" variant="secondary" size="lg" class="h-11 rounded-xl" onclick={() => { adding = false; }}>{m.cancel()}</Button>
+          <Button id="asset-new-confirm" size="lg" class="h-11 rounded-xl font-semibold" onclick={confirmAdding}>{m.add()}</Button>
         </div>
       </div>
-      <p id="asset-new-error" role="alert" hidden={!newError}>{newError}</p>
+      <p id="asset-new-error" class="px-1 text-[13px] text-destructive" role="alert" hidden={!newError}>{newError}</p>
     {/if}
+
     <!-- The chosen asset's market and coin, once its row is tapped. -->
     {#if editing && !adding}
-    <div class="settings-group">
-      <div class="settings-row">
-        <label for="admin-currency">{m.field_market()}</label>
-        <select id="admin-currency" value={asset.currency} onchange={event => { const select = event.currentTarget; tickerError = onCurrency(select.value); if (tickerError) select.value = asset.currency; }}>
-          {#each Object.entries(EXCHANGES) as [key, exchange]}<option value={key}>{exchange.choice}</option>{/each}
-        </select>
-      </div>
-      <div class="settings-row">
-        <label for="admin-coin">{m.field_coin()}</label>
-        <select id="admin-coin" value={otherOpen ? OTHER : asset.ticker} onchange={event => chooseCoin(event.currentTarget, event.currentTarget.value)}>
-          {#if !preset}<option value={asset.ticker}>{asset.ticker}</option>{/if}
-          {#each PRESETS as preset}<option value={preset}>{preset}</option>{/each}
-          <option value={OTHER}>{m.coin_other()}</option>
-        </select>
-      </div>
-      {#if otherOpen}
-        <div class="settings-row">
-          <label for="admin-symbol">{m.field_ticker()}</label>
-          <div class="ticker-row">
-            <input type="text" id="admin-symbol" bind:this={tickerInput} placeholder={m.ticker_placeholder()} maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
-              enterkeyhint="done" list="ticker-list" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
-              bind:value={tickerText} oninput={() => { tickerError = ''; }}
-              onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
-            <datalist id="ticker-list">{#each listed || [] as ticker}<option value={ticker}></option>{/each}</datalist>
-            <button id="admin-symbol-apply" type="button" onclick={applyTicker}>{m.ticker_apply()}</button>
-          </div>
+      <div class="overflow-hidden rounded-2xl bg-card animate-in fade-in-0 slide-in-from-top-1 duration-200 motion-reduce:animate-none">
+        <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
+          <label for="admin-currency">{m.field_market()}</label>
+          <NativeSelect id="admin-currency" class="max-w-[70%]" bind:value={currencyChoice} onchange={event => chooseCurrency(event.currentTarget.value)}>
+            {#each Object.entries(EXCHANGES) as [key, exchange]}<NativeSelectOption value={key}>{exchange.choice}</NativeSelectOption>{/each}
+          </NativeSelect>
         </div>
-      {/if}
-    </div>
+        <div class="flex min-h-14 items-center justify-between gap-3 px-4">
+          <label for="admin-coin">{m.field_coin()}</label>
+          <NativeSelect id="admin-coin" bind:value={coinChoice} onchange={event => chooseCoin(event.currentTarget.value)}>
+            {#if !preset}<NativeSelectOption value={asset.ticker}>{asset.ticker}</NativeSelectOption>{/if}
+            {#each PRESETS as preset}<NativeSelectOption value={preset}>{preset}</NativeSelectOption>{/each}
+            <NativeSelectOption value={OTHER}>{m.coin_other()}</NativeSelectOption>
+          </NativeSelect>
+        </div>
+        {#if otherOpen}
+          <div class="flex min-h-14 items-center justify-between gap-3 border-t border-border px-4">
+            <label for="admin-symbol">{m.field_ticker()}</label>
+            <div class="flex items-center gap-2">
+              <Input id="admin-symbol" bind:ref={tickerInput} class="w-28 uppercase placeholder:normal-case" placeholder={m.ticker_placeholder()} maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                enterkeyhint="done" list="ticker-list" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
+                bind:value={tickerText} oninput={() => { tickerError = ''; }}
+                onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
+              <datalist id="ticker-list">{#each listed || [] as ticker}<option value={ticker}></option>{/each}</datalist>
+              <Button id="admin-symbol-apply" variant="secondary" class="rounded-xl" onclick={applyTicker}>{m.ticker_apply()}</Button>
+            </div>
+          </div>
+        {/if}
+      </div>
     {/if}
     {#if settings.assets.length > 1}
-      <div class="settings-group">
-        <div class="settings-row">
+      <div class="overflow-hidden rounded-2xl bg-card">
+        <div class="flex min-h-14 items-center justify-between gap-3 px-4">
           <label for="admin-columns">{m.columns()}</label>
-          <select id="admin-columns" value={String(settings.columns)} onchange={event => onColumns(Number(event.currentTarget.value))}>
-            <option value="0">{m.columns_auto()}</option>
-            {#each Array.from({ length: MAX_COLUMNS }, (_, n) => n + 1) as columns}<option value={String(columns)}>{columns}</option>{/each}
-          </select>
+          <NativeSelect id="admin-columns" value={String(settings.columns)} onchange={event => onColumns(Number(event.currentTarget.value))}>
+            <NativeSelectOption value="0">{m.columns_auto()}</NativeSelectOption>
+            {#each Array.from({ length: MAX_COLUMNS }, (_, n) => n + 1) as columns}<NativeSelectOption value={String(columns)}>{columns}</NativeSelectOption>{/each}
+          </NativeSelect>
         </div>
       </div>
     {/if}
-    <p id="admin-symbol-error" role="alert" hidden={!tickerError}>{tickerError}</p>
-    <p id="status-indicator" class={status.tone} role="status" aria-live="polite" hidden={status.tone === 'connected'}>{status.text}</p>
-    <p id="overlay-msg" hidden={!status.detail}>{status.detail}</p>
-    <button id="market-retry" type="button" hidden={!status.canRetry} onclick={onRetryFeed}>{m.reconnect()}</button>
+    <p id="admin-symbol-error" class="px-1 text-[13px] text-destructive" role="alert" hidden={!tickerError}>{tickerError}</p>
+    <p id="status-indicator" class="{status.tone} flex items-start gap-2 px-1 text-[13px] leading-normal whitespace-pre-line text-muted-foreground [&.error]:text-destructive" role="status" aria-live="polite" hidden={status.tone === 'connected'}><span class="mt-[0.45em] size-2 shrink-0 rounded-full bg-current" aria-hidden="true"></span>{status.text}</p>
+    <p id="overlay-msg" class="px-1 text-[13px] leading-normal whitespace-pre-line text-muted-foreground" hidden={!status.detail}>{status.detail}</p>
+    <Button id="market-retry" variant="secondary" size="lg" class="h-11 rounded-xl" hidden={!status.canRetry} onclick={onRetryFeed}>{m.reconnect()}</Button>
   </section>
-  <section class="settings-section" aria-label={m.section_display()}>
-    <div class="settings-group">
-      <div class="settings-row">
-        <label for="admin-brightness">{m.brightness()}</label>
-        <div class="brightness-row">
-          <input type="range" id="admin-brightness" min="10" max="100" step="5" bind:value={brightness}
-            style:--fill="{(brightness - 10) / 90 * 100}%"
-            oninput={() => onBrightnessPreview(Number(brightness))} onchange={() => onBrightness(Number(brightness))} />
-          <span id="brightness-value">{brightness}%</span>
+
+  <section class="flex flex-col gap-3" aria-label={m.section_display()}>
+    <div class="overflow-hidden rounded-2xl bg-card">
+      <div class="flex min-h-14 items-center justify-between gap-4 border-b border-border px-4">
+        <span id="admin-brightness-label">{m.brightness()}</span>
+        <div class="flex flex-1 items-center justify-end gap-3">
+          <Slider id="admin-brightness" type="single" min={10} max={100} step={5} class="max-w-40" bind:value={brightness} aria-labelledby="admin-brightness-label"
+            onValueChange={value => onBrightnessPreview(Number(value))} onValueCommit={value => onBrightness(Number(value))} />
+          <span id="brightness-value" class="w-11 text-right text-sm text-muted-foreground tabular-nums">{brightness}%</span>
         </div>
       </div>
-      <div class="settings-row">
+      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
         <label for="admin-burn-in">{m.burn_in()}</label>
-        <input type="checkbox" role="switch" id="admin-burn-in" checked={settings.burnIn} onchange={event => onBurnIn(event.currentTarget.checked)} />
+        <Switch id="admin-burn-in" size="lg" checked={settings.burnIn} onCheckedChange={value => onBurnIn(value)} />
       </div>
-      <div class="settings-row">
+      <div class="flex min-h-14 items-center justify-between gap-3 px-4">
         <label for="admin-palette">{m.palette()}</label>
-        <select id="admin-palette" value={settings.palette} onchange={event => onPalette(event.currentTarget.value)}>
-          <option value="green-red">{m.palette_green_red()}</option>
-          <option value="red-blue">{m.palette_red_blue()}</option>
-        </select>
+        <NativeSelect id="admin-palette" value={settings.palette} onchange={event => onPalette(event.currentTarget.value)}>
+          <NativeSelectOption value="green-red">{m.palette_green_red()}</NativeSelectOption>
+          <NativeSelectOption value="red-blue">{m.palette_red_blue()}</NativeSelectOption>
+        </NativeSelect>
       </div>
     </div>
-    <p id="wake-lock-status" role="status" aria-live="polite" hidden={!wakeTrouble}>{wake.message}</p>
-    <button id="wake-lock-retry" type="button" hidden={!wake.canRetry} onclick={onRetryWake}>{m.wake_retry()}</button>
-    <button id="app-update" type="button" hidden={!updateReady} onclick={onUpdate}>{m.update_now()}</button>
+    <p id="wake-lock-status" class="px-1 text-[13px] leading-normal text-muted-foreground" role="status" aria-live="polite" hidden={!wakeTrouble}>{wake.message}</p>
+    <Button id="wake-lock-retry" variant="secondary" size="lg" class="h-11 rounded-xl" hidden={!wake.canRetry} onclick={onRetryWake}>{m.wake_retry()}</Button>
+    <Button id="app-update" size="lg" class="h-11 rounded-xl font-semibold" hidden={!updateReady} onclick={onUpdate}>{m.update_now()}</Button>
   </section>
-  <footer class="settings-footer">
-    <p id="app-version">{versionLabel}</p>
-    <a id="admin-repo" href="https://github.com/2jiho/coinboard" target="_blank" rel="noopener noreferrer" aria-label={m.repo_link()}>
-      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
+
+  <footer class="flex items-center justify-between px-1">
+    <p id="app-version" class="text-[13px] text-muted-foreground tabular-nums">{versionLabel}</p>
+    <a id="admin-repo" class="-mr-2 flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" href="https://github.com/2jiho/coinboard" target="_blank" rel="noopener noreferrer" aria-label={m.repo_link()}>
+      <HugeiconsIcon icon={GithubIcon} strokeWidth={1.8} class="size-6" />
     </a>
   </footer>
 </div>
