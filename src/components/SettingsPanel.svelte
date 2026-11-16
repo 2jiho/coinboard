@@ -242,8 +242,10 @@
   {:else}
   {#if install && !installDismissed}
     <section id="install" class="flex flex-col gap-3 rounded-2xl bg-card px-4 py-3.5 break-keep" aria-labelledby="install-title">
-      <div class="flex items-start justify-between gap-2">
-        <div class="flex flex-col gap-1">
+      <div class="flex items-start justify-between gap-3">
+        <!-- The icon it will have on the home screen. -->
+        <img src="./favicon.svg" alt="" class="install-icon size-12 shrink-0" />
+        <div class="flex flex-1 flex-col gap-1">
           <h3 id="install-title" class="text-base font-semibold">{m.install_title()}</h3>
           <p class="text-[14px] leading-relaxed text-muted-foreground">{m.install_body()}</p>
         </div>
@@ -400,7 +402,13 @@
   </section>
 
   <footer class="flex items-center justify-between px-1">
-    <p id="app-version" class="text-[13px] text-muted-foreground tabular-nums">{versionLabel}</p>
+    <div class="flex items-center gap-2.5">
+      <img src="./favicon.svg" alt="" class="app-icon size-7 shrink-0" />
+      <div class="flex flex-col leading-tight">
+        <span class="text-[14px] font-semibold">Coinboard</span>
+        <p id="app-version" class="text-[12px] text-muted-foreground tabular-nums">{versionLabel}</p>
+      </div>
+    </div>
     <div class="-mr-2 flex items-center">
     <button id="help-open" type="button" class="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" aria-label={m.help_open()} onclick={() => showHelp(true)}>
       <HugeiconsIcon icon={HelpCircleIcon} strokeWidth={1.8} class="size-6" />

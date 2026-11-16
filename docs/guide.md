@@ -114,7 +114,7 @@ Changes apply and are saved at once (only adding an asset waits for **Add**).
 
 The panel has two sections, **Prices** and **Display**.
 
-**Add to Home Screen**: shown at the top only when the app is open in a browser. On iPhone and iPad it lists the steps (Share, then `Add to Home Screen`, then `Add`); in Chrome, Edge and on Android it is an **Install** button. Dismissed with ✕, it does not come back on that device; Help shows it again under *Keeping It On*. The first-visit hint also says that settings show how.
+**Add to Home Screen**: shown at the top only when the app is open in a browser. On iPhone and iPad it lists the steps (Share, then `Add to Home Screen`, then `Add`); in Chrome, Edge and on Android it is an **Install** button. It shows the icon the app will have there. Dismissed with ✕, it does not come back on that device; Help shows it again under *Keeping It On*. The first-visit hint also says that settings show how.
 
 **Asset list**: a card per asset (a coin in a market), each with the coin's icon, its price now and its change.
 
@@ -142,7 +142,7 @@ The panel has two sections, **Prices** and **Display**.
 
 **Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 
-**At the bottom**: the app's version, a question mark for **Help**, and a GitHub icon linking to the source code. Help is a short version of this guide inside the app (opening settings, the status dot, several assets, reading the board, keeping it on), with a link to this guide; the arrow at the top goes back to settings.
+**At the bottom**: the app's icon, name and version, a question mark for **Help**, and a GitHub icon linking to the source code. Help is a short version of this guide inside the app (opening settings, the status dot, several assets, reading the board, keeping it on), with a link to this guide; the arrow at the top goes back to settings.
 
 A reason and a retry button appear only when the connection or keeping the screen on has a problem. Close the panel with its close button, by tapping outside it, or with Escape; it also closes by itself after two minutes untouched.
 

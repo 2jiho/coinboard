@@ -977,6 +977,11 @@ async function install(browser, base) {
   assert.equal(await tablet.locator('#first-hint .hint-more').textContent(), '홈 화면에 추가하는 방법은 설정에 있습니다');
   await open(tablet);
   assert.equal(await text(tablet, '#install-title'), '홈 화면에 추가');
+  // The icon it will have on the home screen, and the same at the foot of settings.
+  for (const icon of ['.install-icon', '.app-icon']) {
+    await tablet.waitForFunction(selector => { const img = document.querySelector(selector); return img && img.complete && img.naturalWidth > 0; }, icon);
+    assert.match(await tablet.locator(icon).getAttribute('src'), /favicon\.svg$/);
+  }
   assert.deepEqual((await tablet.locator('#install-steps li').allTextContents()).map(step => step.trim()), ['브라우저의 공유 버튼을 누릅니다', '‘홈 화면에 추가’를 고릅니다', '3‘추가’를 누릅니다']);
   await tablet.locator('#install-dismiss').click();
   assert.equal(await tablet.locator('#install').count(), 0);
