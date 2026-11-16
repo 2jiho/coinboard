@@ -78,7 +78,15 @@ async function scripted(context, { seed = true } = {}) {
       send(text) {
         window.sent.push(text);
         if (text === 'PING') { this.onmessage?.({ data: '{"status":"UP"}' }); return; }
-        this.markets = JSON.parse(text)[1].codes; this.emit();
+        const frame = JSON.parse(text);
+        // Binance: streams added or dropped on the open connection, answered { result: null, id }.
+        if (frame.method) {
+          const named = frame.params.map(stream => stream.split('@')[0].toUpperCase());
+          this.markets = frame.method === 'SUBSCRIBE' ? [...new Set([...this.markets, ...named])] : this.markets.filter(market => !named.includes(market));
+          this.onmessage?.({ data: JSON.stringify({ result: null, id: frame.id }) }); this.emit(); return;
+        }
+        // Upbit: a new subscription replaces the old one.
+        this.markets = frame[1].codes; this.emit();
       }
       close() { this.readyState = 3; clearInterval(this.timer); this.onclose?.({ code: 1000, reason: '' }); }
     };
@@ -639,10 +647,11 @@ async function gridBoard(browser, base) {
   await page.locator('.asset-pick').nth(1).click();
   assert.equal(await page.locator('#admin-coin').inputValue(), 'ETH');
   assert.equal(await page.locator('#grid').getAttribute('data-count'), '2');
-  // Upbit carries both coins on one connection, after its ten-second pace; BTC keeps its price meanwhile.
-  assert.deepEqual(await cellPrices(), ['9800만', '—']);
-  await page.clock.runFor(11100); await priced(2);
+  // Upbit carries both coins on the same connection: the new coin is subscribed
+  // on it, with no new connection and so none of Upbit's ten seconds between them.
+  await priced(2);
   assert.deepEqual(await openUrls(), ['wss://api.upbit.com/websocket/v1']);
+  assert.equal(await page.evaluate(() => sockets.filter(socket => socket.url.includes('upbit')).length), 1);
   assert.deepEqual(JSON.parse(await page.evaluate(() => sent.filter(frame => frame !== 'PING').at(-1)))[1].codes, ['KRW-BTC', 'KRW-ETH']);
   assert.deepEqual(await cellPrices(), ['9800만', '500.0만']);
   assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'ETHKRW']);
@@ -667,7 +676,10 @@ async function gridBoard(browser, base) {
 
   // Mixed markets: one connection per market kind, each carrying its coins.
   await page.clock.runFor(11100); await priced(3);
-  assert.deepEqual((await openUrls()).sort(), ['wss://api.upbit.com/websocket/v1', 'wss://fstream.binance.com/market/stream?streams=solusdt@ticker/btcusdt@ticker']);
+  // The futures connection opened for the coin first chosen there and was
+  // changed in place since, so what it carries is read from it, not from its URL.
+  assert.deepEqual((await openUrls()).map(url => url.split('/market/')[0]).sort(), ['wss://api.upbit.com/websocket/v1', 'wss://fstream.binance.com']);
+  assert.deepEqual(await page.evaluate(() => sockets.find(socket => socket.readyState !== 3 && socket.url.includes('fstream')).markets.slice().sort()), ['BTCUSDT', 'SOLUSDT']);
   assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'SOLUSDTPERP', 'BTCUSDTPERP']);
   assert.deepEqual(await cellPrices(), ['9800만', '180.3', '70,000']);
   assert.equal(await page.title(), '9800만 | BTCKRW | Coinboard', 'the tab follows the first asset');
@@ -713,7 +725,11 @@ async function gridBoard(browser, base) {
   await open(page); await addAsset();
   assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP', 'ETH:USDT-PERP']);
   await page.keyboard.press('Escape');
-  await page.clock.runFor(11100); await page.clock.runFor(17000);
+  // Added to the open futures connection, it is first asked for again on a new
+  // one (15 seconds of silence), then flagged after 15 more while the others speak.
+  await page.clock.runFor(20000);
+  assert.match(await text(page, '#status-tip'), /ETHUSDTPERP · WAITING$/);
+  await page.clock.runFor(17000);
   assert.deepEqual(await page.locator('.cell').evaluateAll(els => els.map(el => el.classList.contains('price-unavailable'))), [false, false, false, true]);
   assert.equal(await page.locator('#status-dot').getAttribute('data-level'), 'warn');
   assert.equal(await text(page, '#status-tip'), 'BTCKRW · LIVE\nSOLUSDTPERP · LIVE\nBTCUSDTPERP · LIVE\nETHUSDTPERP · CHECK TICKER');

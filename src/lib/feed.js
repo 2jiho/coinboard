@@ -61,6 +61,10 @@ export function createMarketFeed(options) {
   let connection = { kind: "paused", cause: null, reason: "", retryAt: null };
   // Coins that have sent a price on the current connection.
   let tickedNow = new Set();
+  // What the open connection is subscribed to, and the coins added to it since
+  // it opened (market -> when they were asked for). requests numbers the
+  // messages that change the subscription.
+  let subscribed = null, added = new Map(), requests = 0;
   // Requests to an exchange are spaced out, here and for the coin list alike.
   let pacer = options.pacer;
   if (!pacer) {
@@ -90,7 +94,7 @@ export function createMarketFeed(options) {
   function disconnect() {
     generation++;
     clearTimers();
-    tickedNow = new Set();
+    tickedNow = new Set(); subscribed = null; added = new Map();
     const old = socket;
     socket = null;
     if (old) {
@@ -124,7 +128,7 @@ export function createMarketFeed(options) {
   function connect() {
     if (!eligible()) return;
     if (rateWait() > 0) { schedule(0); return; }
-    const exchange = EXCHANGES[currency], wanted = byMarket, markets = [...byMarket.keys()];
+    const exchange = EXCHANGES[currency], markets = [...byMarket.keys()];
     const token = generation;
     const startedAt = clock.now();
     let firstTickAt = null;
@@ -145,17 +149,30 @@ export function createMarketFeed(options) {
     healthTimer = clock.setInterval(() => {
       if (!isCurrent()) return;
       const now = clock.now();
+      // A coin added to the open connection that has said nothing: the
+      // exchange answers at once (Upbit with its current ticker, Binance every
+      // second), so ask again the plain way, on a new connection with everything.
+      // If no coin at all is speaking, that counts as a silent attempt, as a
+      // new connection's first-price timeout would.
+      for (const [, since] of added) {
+        if (now - since < staleMs) continue;
+        if (!selections.some((selection) => tickedNow.has(selection.market))) silentAttempts++;
+        disconnect(); schedule(0); return;
+      }
       if (firstTickAt === null && now - startedAt >= staleMs) {
         silentAttempts++;
         fail("timeout");
       } else if (firstTickAt !== null && now - lastMessageAt >= staleMs) {
+        // Gone quiet with none of the coins now chosen ever heard on it (they
+        // were all added since): as good as a first-price timeout.
+        if (!selections.some((selection) => tickedNow.has(selection.market))) silentAttempts++;
         fail("stale");
       } else if (firstTickAt !== null && now - firstTickAt >= staleMs) {
         // The connection works but a coin has said nothing since: perhaps no
         // such market. It keeps its place; the status says to check it.
         for (const selection of selections) {
           const market = selection.market;
-          if (!tickedNow.has(market) && !everTicked.has(market) && !unanswered.has(market)) { unanswered.add(market); report(selection); }
+          if (!added.has(market) && !tickedNow.has(market) && !everTicked.has(market) && !unanswered.has(market)) { unanswered.add(market); report(selection); }
         }
       }
     }, 1000);
@@ -166,6 +183,9 @@ export function createMarketFeed(options) {
         exchange.subscribe(markets, `${startedAt}-${token}`).forEach((frame) => { ws.send(frame); });
         if (exchange.heartbeat) ws.send(exchange.heartbeat);
       } catch (error) { fail("subscribe-failed"); return; }
+      subscribed = markets;
+      // Coins chosen while it was connecting.
+      resubscribe();
       if (exchange.heartbeat) {
         heartbeatTimer = clock.setInterval(() => {
           if (isCurrent() && ws.readyState === WS.OPEN) {
@@ -189,7 +209,8 @@ export function createMarketFeed(options) {
         }
         if (message.type === "restart") { fail("restart"); return; }
         if (message.type === "alive") { lastMessageAt = clock.now(); return; }
-        const selection = wanted.get(message.market);
+        // Coins no longer chosen may still send a message or two: drop them.
+        const selection = byMarket.get(message.market);
         if (!selection) return;
         const price = message.price, change = message.change, eventTime = message.eventTime;
         if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(change) ||
@@ -200,7 +221,7 @@ export function createMarketFeed(options) {
         if (firstTickAt === null) firstTickAt = lastMessageAt;
         const last = { price, change, eventTime, receivedAt: lastMessageAt, selection };
         lasts.set(message.market, last);
-        tickedNow.add(message.market); everTicked.add(message.market); unanswered.delete(message.market);
+        tickedNow.add(message.market); everTicked.add(message.market); unanswered.delete(message.market); added.delete(message.market);
         silentAttempts = 0; failures = 0;
         onTick(last);
         if (connection.kind !== "live") emit("live"); else report(selection);
@@ -211,6 +232,20 @@ export function createMarketFeed(options) {
     };
     ws.onerror = () => { if (isCurrent()) fail("network"); };
     ws.onclose = () => { if (isCurrent()) fail("closed"); };
+  }
+  // Bring the open connection's subscription in line with the coins chosen,
+  // without connecting again. Nothing to do while it is still connecting: it
+  // does this once it opens.
+  function resubscribe() {
+    if (!socket || subscribed === null || socket.readyState !== WS.OPEN) return;
+    const next = [...byMarket.keys()];
+    if (next.length === subscribed.length && next.every((market) => subscribed.includes(market))) return;
+    const now = clock.now();
+    try {
+      EXCHANGES[currency].resubscribe(subscribed, next, ++requests).forEach((frame) => { socket.send(frame); });
+    } catch (error) { fail("subscribe-failed"); return; }
+    for (const market of next) if (!subscribed.includes(market)) added.set(market, now);
+    subscribed = next;
   }
   // tickers: one ticker or a list; the order is kept.
   function select(nextCurrency, tickers) {
@@ -225,14 +260,21 @@ export function createMarketFeed(options) {
       selections = list.map((ticker) => byMarket.get(describeMarket(currency, ticker).market));
       return;
     }
-    disconnect();
+    // Other coins in the same market, with a connection open or opening: keep
+    // it and change what it carries. Upbit allows one new connection per ten
+    // seconds, so this is what makes adding or changing a coin quick.
+    const sameConnection = nextCurrency === currency && socket !== null && typeof EXCHANGES[currency].resubscribe === "function";
+    if (!sameConnection) disconnect();
     const next = list.map((ticker) => describeMarket(nextCurrency, ticker));
     const kept = new Set(nextCurrency === currency ? next.map((selection) => selection.market) : []);
     // Coins that stay keep their last price; anything else starts afresh.
     for (const market of [...lasts.keys()]) if (!kept.has(market)) lasts.delete(market);
-    for (const set of [everTicked, unanswered]) for (const market of [...set]) if (!kept.has(market)) set.delete(market);
+    for (const set of [everTicked, unanswered, tickedNow]) for (const market of [...set]) if (!kept.has(market)) set.delete(market);
+    for (const market of [...added.keys()]) if (!kept.has(market)) added.delete(market);
     currency = nextCurrency; selections = next; byMarket = new Map(next.map((selection) => [selection.market, selection]));
-    failures = 0; silentAttempts = 0;
+    if (sameConnection) { resubscribe(); selections.forEach(report); return; }
+    silentAttempts = 0;
+    failures = 0;
     schedule(0);
   }
   function setActive(value) {

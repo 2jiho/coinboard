@@ -118,7 +118,7 @@ The panel has two sections, **Prices** and **Display**.
 
 - Tap a card to unfold that asset's **Market** and **Coin** and change them. Tap it again to fold them away.
 - Drag the handle (⠿) on the right to reorder: the other cards make room, and the order is saved on release. The grid is filled top left first, in this order. On a keyboard, the up and down arrows on the handle move the card.
-- Swipe a card to the left to uncover a red **Remove** button; tap it to remove the asset, or tap anywhere else to cover it again. **Remove This Asset** in the unfolded editor does the same. The last asset cannot be removed.
+- Swipe a card to the left to uncover a red **Delete** button; tap it to delete the asset, or tap anywhere else to cover it again. **Delete** in the unfolded editor does the same. The last asset cannot be deleted.
 
 **Add Asset**: unfolds a market and a coin to choose. Choose, then tap **Add**, or **Cancel** to leave it. An asset already shown cannot be added again.
 
@@ -160,7 +160,7 @@ New versions apply themselves. While the screen is on, the app checks every five
 ## Troubleshooting
 
 **No price, only `—`**
-It takes a few seconds after opening or changing an asset; up to 11 seconds on Upbit, which limits how often a browser may connect. Tap the status dot to see what is happening. `OFFLINE`: check the internet connection. `ERROR` or `CHECK TICKER`: see below.
+It takes a few seconds after opening; up to 11 seconds on Upbit, which limits how often a browser may connect. Adding or changing a coin in a market already on the board takes a second or two. Tap the status dot to see what is happening. `OFFLINE`: check the internet connection. `ERROR` or `CHECK TICKER`: see below.
 
 **`CHECK TICKER`**
 Most likely the coin is not listed in that market: not in Upbit's won market, say, or not in Binance futures. Change that asset's market or coin in settings. A coin that hardly ever trades can look like this too.
