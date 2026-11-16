@@ -270,17 +270,61 @@ test('a coin silent on a working connection is marked suspect; the others stay l
   assert.equal(latest('NOPE').tickerSuspect, true); assert.equal(latest('NOPE').kind, 'waiting');
   assert.equal(latest('BTC').tickerSuspect, false); assert.equal(latest('BTC').kind, 'live');
 });
-test('adding a coin reconnects once and keeps the prices of the coins that stay', async () => {
+test('adding and removing coins keeps the Binance connection and changes its streams', async () => {
   const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open(); await f.message(f.tick('USDT'));
-  f.feed.select('USDT', ['BTC', 'ETH']); f.advance(2000);
-  assert.equal(f.sockets.length, 2); assert.match(f.sockets[1].url, /streams=btcusdt@ticker\/ethusdt@ticker$/);
-  const btc = f.states.filter(s => s.selection.ticker === 'BTC').at(-1);
-  assert.equal(btc.last.price, 70000.1);
-  // The same coins again, in the same order: nothing to do.
-  f.feed.select('USDT', ['BTC', 'ETH']); assert.equal(f.sockets.length, 2);
-  // Another market: nothing carries over.
-  f.feed.select('KRW', ['BTC']);
+  f.feed.select('USDT', ['BTC', 'ETH']);
+  assert.equal(f.sockets.length, 1); assert.equal(f.sockets[0].readyState, 1);
+  assert.deepEqual(JSON.parse(f.sockets[0].sent.at(-1)), { method: 'SUBSCRIBE', params: ['ethusdt@ticker'], id: 3 });
+  // The coin that stays keeps its price and stays live; the new one waits for its first.
+  const latest = ticker => f.states.filter(s => s.selection.ticker === ticker).at(-1);
+  assert.equal(latest('BTC').last.price, 70000.1); assert.equal(latest('BTC').kind, 'live');
+  assert.equal(latest('ETH').kind, 'waiting');
+  // The subscription's answer is not a price.
+  await f.message({ result: null, id: 3 }); assert.equal(f.ticks.length, 1);
+  await f.message(f.tick('USDT', { s: 'ETHUSDT', c: '3500.5' }));
+  assert.equal(latest('ETH').kind, 'live'); assert.equal(latest('ETH').last.price, 3500.5);
+  // Removing BTC unsubscribes it; a last message on its way is dropped.
+  f.feed.select('USDT', ['ETH']);
+  assert.deepEqual(JSON.parse(f.sockets[0].sent.at(-1)), { method: 'UNSUBSCRIBE', params: ['btcusdt@ticker'], id: 4 });
+  const count = f.ticks.length; await f.message(f.tick('USDT')); assert.equal(f.ticks.length, count);
+  // Changing a coin is both at once.
+  f.feed.select('USDT', ['SOL']);
+  assert.deepEqual(f.sockets[0].sent.slice(-2).map(frame => JSON.parse(frame)), [
+    { method: 'UNSUBSCRIBE', params: ['ethusdt@ticker'], id: 6 }, { method: 'SUBSCRIBE', params: ['solusdt@ticker'], id: 7 }]);
+  // The same coins again: nothing to send. Another market: a connection of its own, nothing carried over.
+  const sent = f.sockets[0].sent.length; f.feed.select('USDT', ['SOL']); assert.equal(f.sockets[0].sent.length, sent);
+  f.feed.select('KRW', ['BTC']); assert.equal(f.sockets[0].readyState, 3); assert.equal(f.sockets.length, 2);
   assert.equal(f.states.filter(s => s.selection.currency === 'KRW').at(-1).last, null);
+});
+test('adding a coin on Upbit sends the whole list again on the same connection, with no ten-second wait', async () => {
+  const f = fixture(); f.feed.select('KRW', 'BTC'); f.sockets[0].open(); await f.message(f.tick());
+  f.feed.select('KRW', ['BTC', 'ETH']);
+  assert.equal(f.sockets.length, 1);
+  assert.deepEqual(JSON.parse(f.sockets[0].sent.at(-1))[1], { type: 'ticker', codes: ['KRW-BTC', 'KRW-ETH'] });
+  await f.message(f.tick('KRW', { code: 'KRW-ETH', trade_price: 5000000 }));
+  assert.equal(f.ticks.at(-1).selection.ticker, 'ETH'); assert.equal(f.state().kind, 'live');
+});
+test('coins chosen while connecting are subscribed once it opens', async () => {
+  const f = fixture(); f.feed.select('USDT', 'BTC'); f.feed.select('USDT', ['BTC', 'ETH']);
+  assert.equal(f.sockets.length, 1); assert.match(f.sockets[0].url, /\/ws\/btcusdt@ticker$/);
+  f.sockets[0].open();
+  assert.deepEqual(f.sockets[0].sent.map(frame => JSON.parse(frame)), [{ method: 'SUBSCRIBE', params: ['ethusdt@ticker'], id: 3 }]);
+  const u = fixture(); u.feed.select('KRW', 'BTC'); u.feed.select('KRW', ['BTC', 'XRP']); u.sockets[0].open();
+  assert.equal(u.sockets.length, 1);
+  assert.deepEqual(JSON.parse(u.sockets[0].sent.filter(frame => frame.startsWith('[')).at(-1))[1], { type: 'ticker', codes: ['KRW-BTC', 'KRW-XRP'] });
+});
+test('a coin added to an open connection that stays silent is asked for again on a new connection', async () => {
+  const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open(); await f.message(f.tick('USDT'));
+  f.feed.select('USDT', ['BTC', 'DOGE']);
+  for (let second = 0; second < 14; second++) { f.advance(1000); await f.message(f.tick('USDT')); }
+  // Not suspected yet: it has not had its chance.
+  assert.equal(f.states.filter(s => s.selection.ticker === 'DOGE').at(-1).tickerSuspect, false);
+  assert.equal(f.sockets.length, 1);
+  f.advance(1000); f.advance(2000);
+  assert.equal(f.sockets.length, 2); assert.equal(f.sockets[0].readyState, 3);
+  assert.match(f.sockets[1].url, /streams=btcusdt@ticker\/dogeusdt@ticker$/);
+  // BTC kept its price through it.
+  assert.equal(f.states.filter(s => s.selection.ticker === 'BTC').at(-1).last.price, 70000.1);
 });
 test('the board feed opens one connection per market kind and closes the ones no longer used', async () => {
   const sockets = [];
@@ -322,4 +366,18 @@ test('retrying the board leaves a connection that is still connecting alone, and
   sockets[0].onerror();
   board.retry(); assert.equal(sockets.length, 1, 'waiting out the pace, as before');
   board.dispose();
+});
+test('a coin that replaces the only one and never answers is still flagged as a ticker to check', async () => {
+  const f = fixture(); f.feed.select('USDT', 'ETH'); f.sockets[0].open(); await f.message(f.tick('USDT', { s: 'ETHUSDT' }));
+  f.feed.select('USDT', 'NOPE');
+  assert.equal(f.sockets.length, 1);
+  f.advance(40000);
+  assert.equal(f.state().selection.ticker, 'NOPE'); assert.equal(f.state().tickerSuspect, true);
+});
+test('replacing the only coin on a connection that has already gone quiet still flags it in time', async () => {
+  const f = fixture(); f.feed.select('USDT', 'ETH'); f.sockets[0].open(); await f.message(f.tick('USDT', { s: 'ETHUSDT' }));
+  f.advance(10000);
+  f.feed.select('USDT', 'NOPE');
+  f.advance(32000);
+  assert.equal(f.state().tickerSuspect, true);
 });

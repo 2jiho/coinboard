@@ -35,6 +35,10 @@ export const upbit = {
   subscribe(markets, id) {
     return [JSON.stringify([{ ticket: `coinboard-${id}` }, { type: "ticker", codes: markets }, { format: "DEFAULT" }])];
   },
+  // Other coins on the open connection: a new subscription replaces the old
+  // one outright, and Upbit answers with each coin's current ticker at once.
+  // No new connection, so none of the ten seconds between connections.
+  resubscribe(from, to, id) { return this.subscribe(to, id); },
   // One decoded message -> { type: "tick" | "alive" | "error" | "restart" } or null to ignore.
   // A tick names its market; the feed drops markets it did not ask for.
   read(data) {

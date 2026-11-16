@@ -39,6 +39,19 @@ function binanceMarket(options) {
       return streams.length === 1 ? `${options.stream}/ws/${streams[0]}` : `${options.stream}/stream?streams=${streams.join("/")}`;
     },
     subscribe() { return []; },
+    // Other coins on the open connection: unsubscribe the ones dropped and
+    // subscribe the new ones, whatever the URL first asked for. A raw stream
+    // that gains coins keeps its unwrapped messages; read() takes either.
+    // Answers are { result: null, id }, or an error read below.
+    resubscribe(from, to, id) {
+      const stream = (market) => `${market.toLowerCase()}@ticker`;
+      const removed = from.filter((market) => !to.includes(market)).map(stream);
+      const added = to.filter((market) => !from.includes(market)).map(stream);
+      return [
+        ...(removed.length ? [JSON.stringify({ method: "UNSUBSCRIBE", params: removed, id: id * 2 })] : []),
+        ...(added.length ? [JSON.stringify({ method: "SUBSCRIBE", params: added, id: id * 2 + 1 })] : []),
+      ];
+    },
     // A tick names its market; the feed drops markets it did not ask for.
     read(data) {
       if (data && typeof data.stream === "string" && data.data && typeof data.data === "object") data = data.data;
