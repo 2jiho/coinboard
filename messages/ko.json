@@ -6,8 +6,6 @@
   "section_prices": "시세",
   "section_display": "화면",
   "asset_list": "표시할 자산",
-  "asset_move_up": "{name} 위로",
-  "asset_move_down": "{name} 아래로",
   "asset_remove": "{name} 빼기",
   "asset_add": "자산 추가",
   "asset_new": "새 자산",
@@ -75,5 +73,14 @@
   "wake_released_system": "화면 켜짐 유지 해제됨 · 시스템 설정을 확인하고 다시 시도하세요",
   "wake_released": "화면 켜짐 유지 해제됨 · 다시 시도하세요",
   "wake_active": "화면 켜짐 유지 활성 · 시스템에서 해제할 수 있습니다",
-  "wake_failed": "화면 켜짐 유지 실패 ({name}) · 저전력 모드·배터리·권한을 확인하세요"
+  "wake_failed": "화면 켜짐 유지 실패 ({name}) · 저전력 모드·배터리·권한을 확인하세요",
+  "asset_reorder": "{name} 순서 바꾸기",
+  "asset_swipe_remove": "빼기",
+  "asset_remove_this": "이 자산 빼기",
+  "market_upbit": "업비트",
+  "market_binance": "바이낸스",
+  "market_krw": "원화",
+  "market_usdt": "USDT",
+  "market_perp": "무기한",
+  "no_price_yet": "시세 대기"
 }

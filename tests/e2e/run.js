@@ -116,6 +116,14 @@ async function open(page) {
   await page.locator('#settings-toggle').click();
   assert.equal(await page.locator('#admin-panel').isVisible(), true);
 }
+// Button groups (market, columns, colours): press one, or read which is on.
+const choose = (page, group, value) => page.locator(`${group} [data-value="${value}"]`).click();
+const chosen = (page, group) => page.locator(`${group} [data-state="on"]`).getAttribute('data-value');
+// Remove an asset from its editor: unfold its row (if it is not), then the remove button.
+async function removeAsset(page, row) {
+  if ((await row.getAttribute('aria-expanded')) !== 'true') await row.click();
+  await page.locator('#asset-remove').click();
+}
 // The chosen asset's market and coin rows show once its row is tapped.
 async function openEditor(page) {
   await open(page);
@@ -193,8 +201,8 @@ async function board(browser, base) {
   assert.ok(mark.width >= 44 && mark.height >= 44, 'the icon is still a full-size touch target');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
-  // A healthy board has nothing to report: no headings, no status lines, no extra input.
-  assert.equal(await page.locator('#admin-panel h3').count(), 0);
+  // Two small section titles, and a healthy board has nothing to report: no status lines, no extra input.
+  assert.deepEqual(await page.locator('#admin-panel h3').allTextContents(), ['시세', '화면']);
   for (const quiet of ['#status-indicator', '#overlay-msg', '#wake-lock-status', '#admin-symbol', '#market-retry', '#wake-lock-retry', '#app-update']) {
     assert.equal(await page.locator(quiet).isVisible(), false, quiet + ' is hidden while all is well');
   }
@@ -233,7 +241,7 @@ async function board(browser, base) {
   assert.equal(await page.locator('#admin-currency').count(), 0);
   await page.locator('.asset-pick').first().click();
   await page.evaluate(() => { suppressTicks = true; });
-  await page.locator('#admin-currency').selectOption('USDT');
+  await choose(page, '#admin-currency', 'USDT');
   assert.equal(await text(page, '#price-main'), '—');
   assert.equal(await boardSize(), steadySize, 'no price yet: same size');
   assert.equal(await page.title(), 'BTCUSDT | Coinboard');
@@ -269,7 +277,7 @@ async function board(browser, base) {
 
   // Binance perpetual futures: a market of its own, priced in USDT and marked PERP.
   assert.equal(await page.locator('#tag').count(), 0);
-  await page.locator('#admin-currency').selectOption('USDT-PERP');
+  await choose(page, '#admin-currency', 'USDT-PERP');
   await page.clock.runFor(3000); await live(page);
   assert.match(await page.evaluate(() => sockets.at(-1).url), /^wss:\/\/fstream\.binance\.com\/market\/ws\/btcusdt@ticker$/);
   assert.equal(await text(page, '#coin'), 'BTC'); assert.equal(await text(page, '#unit'), 'USDT'); assert.equal(await text(page, '#tag'), 'PERP');
@@ -279,8 +287,8 @@ async function board(browser, base) {
   assert.equal((await saved(page)).assets[0].currency, 'USDT-PERP');
   assert.equal(await boardSize(), steadySize, 'the PERP mark does not change the board size');
   // The whole choice is readable in the settings row.
-  assert.ok(await page.locator('#admin-currency').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'the market name is not cut off');
-  await page.locator('#admin-currency').selectOption('USDT');
+  assert.ok(await page.locator('#admin-currency [data-value]').evaluateAll(els => els.every(el => el.scrollWidth <= el.clientWidth + 1)), 'the market names are not cut off');
+  await choose(page, '#admin-currency', 'USDT');
   await page.clock.runFor(3000); await live(page);
   assert.equal(await page.locator('#tag').count(), 0);
   // Escape closes and returns focus; the button hides again when idle.
@@ -317,7 +325,9 @@ async function board(browser, base) {
   // Any other coin: "직접 입력…" opens a field for its ticker.
   // Coin and currency are two one-line choices.
   assert.deepEqual(await page.locator('#admin-coin option').allTextContents(), ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', '직접 입력…']);
-  assert.deepEqual(await page.locator('#admin-currency option').allTextContents(), ['원화 · 업비트', 'USDT · 바이낸스', 'USDT 무기한 · 바이낸스']);
+  // The market is three buttons, each naming the exchange and the currency.
+  assert.deepEqual(await page.locator('#admin-currency [data-value]').evaluateAll(els => els.map(el => el.textContent.trim())), ['업비트원화', '바이낸스USDT', '바이낸스무기한']);
+  assert.deepEqual(await page.locator('#admin-currency [data-value]').evaluateAll(els => els.map(el => el.getAttribute('aria-label'))), ['원화 · 업비트', 'USDT · 바이낸스', 'USDT 무기한 · 바이낸스']);
   assert.equal(await page.locator('#admin-coin').inputValue(), 'BTC');
   await page.locator('#admin-coin').selectOption('__other');
   assert.equal(await page.locator('#admin-symbol').isVisible(), true);
@@ -364,10 +374,10 @@ async function board(browser, base) {
   // Up and down colours: green and red, or the Korean red and blue.
   const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
-  await page.locator('#admin-palette').selectOption('red-blue');
+  await choose(page, '#admin-palette', 'red-blue');
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(255, 69, 58)');
   assert.equal((await saved(page)).palette, 'red-blue');
-  await page.locator('#admin-palette').selectOption('green-red');
+  await choose(page, '#admin-palette', 'green-red');
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
   // Burn-in protection keeps the board near the middle; switched off, exactly in the middle.
   const drift = () => page.locator('#drift').evaluate(el => (el.style.transform.match(/-?[\d.]+(?=px)/g) || []).map(Number));
@@ -608,7 +618,7 @@ async function gridBoard(browser, base) {
   assert.equal(await page.locator('#grid').count(), 0);
   // The add form: nothing is added until 추가; 취소 leaves things as they were.
   await page.locator('#asset-add').click();
-  assert.equal(await page.locator('#new-currency').inputValue(), 'KRW');
+  assert.equal(await chosen(page, '#new-currency'), 'KRW');
   assert.equal(await page.locator('#new-coin').inputValue(), 'ETH');
   assert.deepEqual(await assets(), ['BTC:KRW']);
   await page.locator('#asset-new-cancel').click();
@@ -638,7 +648,7 @@ async function gridBoard(browser, base) {
   assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'ETHKRW']);
 
   // The rows below edit the chosen asset: here ETH becomes SOL on Binance futures.
-  await page.locator('#admin-currency').selectOption('USDT-PERP');
+  await choose(page, '#admin-currency', 'USDT-PERP');
   await page.locator('#admin-coin').selectOption('SOL');
   assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP']);
   // Adding again takes the market being edited. The same asset twice is refused, and the choice goes back.
@@ -652,7 +662,7 @@ async function gridBoard(browser, base) {
   // Choosing another row edits that one.
   await page.locator('.asset-pick').nth(1).click();
   assert.equal(await page.locator('#admin-coin').inputValue(), 'SOL');
-  assert.equal(await page.locator('#admin-currency').inputValue(), 'USDT-PERP');
+  assert.equal(await chosen(page, '#admin-currency'), 'USDT-PERP');
   assert.equal(await page.locator('#admin-symbol-error').isVisible(), false);
 
   // Mixed markets: one connection per market kind, each carrying its coins.
@@ -664,16 +674,25 @@ async function gridBoard(browser, base) {
 
   // Order: up and down. Prices stay and nothing reconnects; the chosen asset moves with its row.
   const socketCount = await page.evaluate(() => sockets.length);
-  const up = page.locator('.asset-move[aria-label$="위로"]'), down = page.locator('.asset-move[aria-label$="아래로"]');
-  assert.equal(await up.first().isDisabled(), true); assert.equal(await down.last().isDisabled(), true);
-  await down.nth(1).click();
+  // Dragged by its handle, a card follows the pointer and the others make room; released, the order is saved.
+  const handles = page.locator('.asset-handle');
+  assert.equal(await handles.count(), 3);
+  const grip = await handles.nth(1).boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down();
+  for (let step = 1; step <= 10; step += 1) await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + step * 7);
+  await page.mouse.up();
+  await until(page, () => JSON.parse(localStorage.getItem('coinboard-settings')).assets.map(asset => asset.ticker + asset.currency).join() === 'BTCKRW,BTCUSDT-PERP,SOLUSDT-PERP');
   assert.deepEqual(await assets(), ['BTC:KRW', 'BTC:USDT-PERP', 'SOL:USDT-PERP']);
   assert.deepEqual(await page.locator('.asset-pick').evaluateAll(els => els.map(el => el.getAttribute('aria-pressed'))), ['false', 'false', 'true']);
   assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'BTCUSDTPERP', 'SOLUSDTPERP']);
   assert.deepEqual(await cellPrices(), ['9800만', '70,000', '180.3']);
   assert.equal(await page.evaluate(() => sockets.length), socketCount, 'reordering does not reconnect');
-  await up.nth(2).click();
+  // By keyboard: an arrow key on the handle moves the card by one.
+  await handles.nth(2).focus(); await page.keyboard.press('ArrowUp');
+  await until(page, () => JSON.parse(localStorage.getItem('coinboard-settings')).assets.map(asset => asset.ticker).join() === 'BTC,SOL,BTC');
   assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP']);
+  // Each card shows its asset's live price and change, as on the board.
+  assert.deepEqual(await page.locator('.asset-price').allTextContents(), ['9800만', '180.3', '70,000']);
   // Landscape, three: one row; every cell drawn at one size; the grid inside the screen.
   await page.keyboard.press('Escape');
   const cells = () => page.locator('.cell').evaluateAll(els => els.map(el => { const box = el.getBoundingClientRect(); return { x: box.x, y: box.y, right: box.right, bottom: box.bottom, width: box.width }; }));
@@ -718,8 +737,8 @@ async function gridBoard(browser, base) {
   await page.screenshot({ path: path.join(evidence, 'grid-portrait.png') });
   // Cells per row by hand: five in rows of three is three over two, the short row under the first two columns; one is a single column.
   await open(page);
-  await page.locator('.asset-remove').last().click();
-  await page.locator('#admin-columns').selectOption('3');
+  await removeAsset(page, page.locator('.asset-pick').last());
+  await choose(page, '#admin-columns', '3');
   assert.equal((await saved(page)).columns, 3);
   await page.keyboard.press('Escape');
   // Cells in each row, top to bottom (the board may float a little above the top edge).
@@ -730,9 +749,9 @@ async function gridBoard(browser, base) {
   assert.deepEqual([fives[3].x, fives[4].x].map(Math.round), [fives[0].x, fives[1].x].map(Math.round), 'the short row keeps to the columns above');
   assert.deepEqual(await page.locator('.cell').evaluateAll(els => els.map(el => [el.classList.contains('line-right'), el.classList.contains('line-below')])),
     [[true, true], [true, true], [false, true], [true, false], [true, false]], 'lines run straight; the empty place is bounded by its neighbours');
-  await open(page); await page.locator('#admin-columns').selectOption('1'); await page.keyboard.press('Escape');
+  await open(page); await choose(page, '#admin-columns', '1'); await page.keyboard.press('Escape');
   assert.deepEqual(await shape([5, 1]), [5, 1]);
-  await open(page); await page.locator('#admin-columns').selectOption('0'); await addAsset(); await page.keyboard.press('Escape');
+  await open(page); await choose(page, '#admin-columns', '0'); await addAsset(); await page.keyboard.press('Escape');
   assert.deepEqual(await shape([3, 2]), [3, 2], 'back to the board\'s own choice');
   // No equal split that suits the screen (seven): one line, a column in portrait and a row in landscape.
   await open(page); await addAsset();
@@ -745,10 +764,33 @@ async function gridBoard(browser, base) {
   assert.deepEqual(await shape([1, 7]), [1, 7]);
   assert.ok(await page.evaluate(inScreen, await pieces()));
 
+  // Swiping a card to the left uncovers its remove button; a tap on it removes the asset.
+  await open(page);
+  const countBefore = (await assets()).length;
+  const card = await page.locator('.asset-row').last().boundingBox();
+  const y = card.y + card.height / 2, startX = card.x + card.width - 90;
+  await page.mouse.move(startX, y); await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) await page.mouse.move(startX - step * 15, y);
+  await page.mouse.up();
+  const uncovered = page.locator('.asset-swipe-remove').last();
+  const spot = await uncovered.boundingBox();
+  assert.equal(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.classList.contains('asset-swipe-remove'), [spot.x + spot.width / 2, spot.y + spot.height / 2]), true, 'the remove button is uncovered');
+  // A tap elsewhere in the list closes it again without removing anything; swipe again and remove.
+  await page.locator('.asset-pick').first().click();
+  await page.waitForTimeout(400); // the card slides back (real time)
+  assert.equal(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.classList.contains('asset-swipe-remove'), [spot.x + spot.width / 2, spot.y + spot.height / 2]), false, 'covered again');
+  assert.equal((await assets()).length, countBefore);
+  await page.mouse.move(startX, y); await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) await page.mouse.move(startX - step * 15, y);
+  await page.mouse.up(); await page.waitForTimeout(400);
+  await uncovered.click();
+  assert.equal((await assets()).length, countBefore - 1);
+  await page.keyboard.press('Escape');
+
   // Removing down to one goes back to the single board, which picks up where it was.
   await page.setViewportSize({ width: 1024, height: 768 });
   await open(page);
-  while (await page.locator('.asset-remove').count()) await page.locator('.asset-remove').last().click();
+  while (await page.locator('.asset-pick').count() > 1) await removeAsset(page, page.locator('.asset-pick').last());
   assert.deepEqual(await assets(), ['BTC:KRW']);
   assert.equal(await page.locator('#grid').count(), 0);
   await page.keyboard.press('Escape');
@@ -772,7 +814,7 @@ async function gridBoard(browser, base) {
 
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS grid: add, edit, reorder, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one, Binance by default');
+  console.log('PASS grid: add, edit, reorder by drag handle, swipe to remove, refuse duplicates, mixed markets on one connection each, uniform cells, silent coin, equal rows by orientation, one line for seven, back to one, Binance by default');
 }
 
 // The page's own load events (pageshow, visibilitychange) must not cut a
@@ -822,23 +864,24 @@ async function english(browser, base) {
     ...[...panel.querySelectorAll('option')].map(el => el.textContent)].join('\n'));
   assert.doesNotMatch(await words(), hangul);
   assert.equal(await text(page, '#admin-title'), 'Settings');
-  assert.deepEqual(await page.locator('#admin-currency option').allTextContents(), ['Upbit · KRW', 'Binance · USDT', 'Binance · USDT Perpetual']);
+  assert.deepEqual(await page.locator('#admin-currency [data-value]').evaluateAll(els => els.map(el => el.getAttribute('aria-label'))), ['Upbit · KRW', 'Binance · USDT', 'Binance · USDT Perpetual']);
   assert.equal(await page.locator('#settings-toggle').getAttribute('aria-label'), 'Open settings');
   // The add form, the columns row and a refusal, in English too.
   await page.locator('#asset-add').click();
-  await page.locator('#new-currency').selectOption('USDT-PERP');
+  await choose(page, '#new-currency', 'USDT-PERP');
   await page.locator('#new-coin').selectOption('__other');
   assert.doesNotMatch(await words(), hangul);
-  await page.locator('#new-currency').selectOption('KRW'); await page.locator('#new-coin').selectOption('BTC');
+  await choose(page, '#new-currency', 'KRW'); await page.locator('#new-coin').selectOption('BTC');
   await page.locator('#asset-new-confirm').click();
   assert.equal(await text(page, '#asset-new-error'), 'This asset is already on the board.');
-  await page.locator('#new-currency').selectOption('USDT-PERP'); await page.locator('#new-coin').selectOption('BTC'); await page.locator('#asset-new-confirm').click();
+  await choose(page, '#new-currency', 'USDT-PERP'); await page.locator('#new-coin').selectOption('BTC'); await page.locator('#asset-new-confirm').click();
   assert.equal(await page.locator('#admin-columns').count(), 1);
   assert.doesNotMatch(await words(), hangul);
   // English is longer: every choice is still readable in its row.
   await page.locator('.asset-pick').nth(1).click();
-  for (const id of ['#admin-currency', '#admin-coin', '#admin-columns', '#admin-palette']) {
-    assert.ok(await page.locator(id).evaluate(el => el.scrollWidth <= el.clientWidth + 1), `${id} is not cut off`);
+  assert.ok(await page.locator('#admin-coin').evaluate(el => el.scrollWidth <= el.clientWidth + 1), '#admin-coin is not cut off');
+  for (const id of ['#admin-currency', '#admin-columns', '#admin-palette']) {
+    assert.ok(await page.locator(`${id} [data-value]`).evaluateAll(els => els.every(el => el.scrollWidth <= el.clientWidth + 1)), `${id} is not cut off`);
   }
   await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
   await page.locator('#admin-panel').screenshot({ path: path.join(evidence, 'settings-en.png') });
@@ -881,7 +924,7 @@ async function lockedStorage(browser, base) {
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
   await openEditor(page);
-  await page.locator('#admin-currency').selectOption('KRW');
+  await choose(page, '#admin-currency', 'KRW');
   assert.match(await page.locator('[data-sonner-toast]').first().textContent(), /저장하지 못했습니다/);
   await live(page);
   assert.equal(await text(page, '#price-source'), 'UPBIT · KRW-BTC');
@@ -960,7 +1003,7 @@ async function coinList(browser, base) {
   await page.waitForFunction(() => document.querySelectorAll('#ticker-list option').length === 3);
   assert.equal(asked, 1);
   // The other exchange's list could not be had (blocked here): any ticker is let through, as before.
-  await page.locator('#admin-currency').selectOption('USDT');
+  await choose(page, '#admin-currency', 'USDT');
   await page.locator('#admin-coin').selectOption('__other');
   await page.locator('#admin-symbol').fill('nope'); await page.locator('#admin-symbol').press('Enter');
   assert.equal(await text(page, '#price-source'), 'BINANCE · NOPE/USDT');
@@ -1083,7 +1126,7 @@ async function liveExchanges(browser, base) {
   const page = await context.newPage(); await page.goto(base);
   await page.keyboard.press('Tab'); await page.locator('#settings-toggle').click();
   for (const currency of ['KRW', 'USDT']) {
-    await page.locator('#admin-currency').selectOption(currency);
+    await choose(page, '#admin-currency', currency);
     try {
       await page.waitForFunction(() => document.getElementById('status-indicator').className === 'connected', null, { timeout: 25000 });
       console.log('LIVE PASS', currency, await text(page, '#price-main'), await text(page, '#price-source'));
