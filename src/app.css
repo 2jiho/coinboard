@@ -309,3 +309,4 @@ body.settings-open #settings-toggle { visibility: hidden; pointer-events: none; 
 @keyframes hint-in { from { opacity: 0; transform: translate(-50%, 8px); } }
 @media (prefers-reduced-motion: reduce) { #first-hint { animation: none; } }
 body.settings-open #first-hint { visibility: hidden; }
+#first-hint .hint-more { display: block; margin-top: 2px; color: #98989f; font-size: 13px; }

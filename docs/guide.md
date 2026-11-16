@@ -22,7 +22,7 @@ Coinboard is a crypto price board: it puts live prices on a screen in large type
 
 ## Getting started
 
-Open the address in a browser and prices appear straight away. For a board that stays up, **add it to the home screen** and open it like an app: it then opens full screen, with no address bar, and opens even without an internet connection (prices come back once it reconnects).
+Open the address in a browser and prices appear straight away. For a board that stays up, **add it to the home screen** and open it like an app: it then opens full screen, with no address bar, and opens even without an internet connection (prices come back once it reconnects). Opened in a browser, the top of the settings panel shows how: the steps below on iPhone and iPad, an **Install** button in Chrome and Edge.
 
 **iPad and iPhone (Safari)**
 
@@ -113,6 +113,8 @@ Tap the screen once and the settings button (a gear) appears in the bottom-right
 Changes apply and are saved at once (only adding an asset waits for **Add**).
 
 The panel has two sections, **Prices** and **Display**.
+
+**Add to Home Screen**: shown at the top only when the app is open in a browser. On iPhone and iPad it lists the steps (Share, then `Add to Home Screen`, then `Add`); in Chrome, Edge and on Android it is an **Install** button. Dismissed with ✕, it does not come back on that device; Help shows it again under *Keeping It On*. The first-visit hint also says that settings show how.
 
 **Asset list**: a card per asset (a coin in a market), each with the coin's icon, its price now and its change.
 

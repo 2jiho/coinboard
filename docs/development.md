@@ -46,6 +46,7 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `src/lib/format.js` | Price and change strings |
 | `src/lib/settings.js` | Loading, checking and saving settings |
 | `src/lib/wake-lock.js` | Keeping the screen on |
+| `src/lib/install.js` | Whether and how to offer adding to the home screen (steps on iOS, the browser's install prompt elsewhere) |
 | `src/lib/updater.js` | Service worker registration, version checks, applying updates |
 | `src/sw.js` | Source of the offline service worker |
 | `src/app.css` | Styles: Tailwind and the theme at the top, then the board's plain CSS |
