@@ -54,6 +54,8 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `components.json`, `jsconfig.json` | shadcn-svelte settings and the `$lib` path |
 | `messages/ko.json`, `messages/en.json` | Text for settings and the like (Korean, English) |
 | `project.inlang/settings.json` | Translation settings (languages, base language, message format) |
+| `public/icons/home-icon.svg` | The app icon; `npm run icons` draws the PNG icons from it |
+| `public/favicon.svg` | The browser tab icon (the app icon with rounded corners) |
 | `src/paraglide/` | Code generated from the messages by `npm run i18n`, for the unit tests (not in git; do not edit) |
 
 The modules in `src/lib` are plain JavaScript that knows nothing of Svelte or the DOM, and have unit tests.
@@ -96,6 +98,7 @@ The modules in `src/lib` are plain JavaScript that knows nothing of Svelte or th
 - **Theme**: the color, radius and font variables at the top of `src/app.css` are the theme of the panel and the components. The app is always dark.
 - **The board**: plain CSS in `src/app.css`, not Tailwind: fixed zones scaled to the screen need calculation and fine tuning. Board elements must not use class names that are Tailwind utilities (`grid`, `hidden`, `flex` and so on): Tailwind would style them and break the layout.
 - **Adding components**: `npx shadcn-svelte@latest add <name>`. When a new component brings a library into the app, add it to [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) and `public/licenses/`.
+- **App icon**: a C and the Bitcoin ₿, upright side by side, the pair leaning 14° together as the Bitcoin logo does, white on Bitcoin orange. The ₿ comes from the Bitcoin logo; the C is from [Maven Pro](https://github.com/m4rc1e/mavenproFont) Bold, the typeface whose B is closest to the ₿, sized so that its B would be the ₿'s body. Both are outlines in `public/icons/home-icon.svg`, so no font is needed to draw it. After changing that file, run `npm run icons` to redraw the PNGs (iPhone and iPad home screen, Android and install icons) and update `public/favicon.svg` to match. The mark stays inside the central circle that maskable icons keep.
 - **Content Security Policy**: everything works under the CSP that blocks inline styles and scripts; the browser tests fail on any CSP violation.
 
 ## Translation

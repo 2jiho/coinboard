@@ -54,6 +54,8 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `components.json`, `jsconfig.json` | shadcn-svelte 설정과 `$lib` 경로 |
 | `messages/ko.json`, `messages/en.json` | 설정 창 등의 문구(한국어·영어) |
 | `project.inlang/settings.json` | 번역 설정(언어 목록, 기본 언어, 문구 형식) |
+| `public/icons/home-icon.svg` | 앱 아이콘. `npm run icons`가 이 파일로 PNG 아이콘을 만듭니다 |
+| `public/favicon.svg` | 브라우저 탭 아이콘(앱 아이콘의 모서리를 둥글게 한 것) |
 | `src/paraglide/` | 위 문구에서 `npm run i18n`이 만드는 코드. 단위 테스트용(git 제외, 직접 고치지 않음) |
 
 `src/lib`의 모듈은 Svelte와 DOM 구조를 모르는 일반 자바스크립트이고 단위 테스트가 붙어 있습니다.
@@ -96,6 +98,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 - **테마**: `src/app.css` 맨 위의 색·둥글기·글꼴 변수가 설정 창과 부품의 테마입니다. 앱은 항상 어두운 화면입니다.
 - **전광판**: Tailwind를 쓰지 않고 `src/app.css`의 일반 CSS로 그립니다. 고정 구역을 화면에 맞춰 키우는 방식이라 계산과 세밀한 조정이 필요하기 때문입니다. 전광판 요소에는 Tailwind 유틸리티와 같은 이름의 클래스(`grid`, `hidden`, `flex` 등)를 쓰지 않습니다. Tailwind가 그 이름에 스타일을 붙여 배치가 깨집니다.
 - **부품 추가**: `npx shadcn-svelte@latest add <이름>`. 새 부품이 쓰는 라이브러리가 앱에 들어가면 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)와 `public/licenses/`에 더합니다.
+- **앱 아이콘**: C와 비트코인 ₿를 똑바로 나란히 세우고, 비트코인 로고처럼 둘을 함께 14° 기울였습니다. 비트코인 주황 바탕에 흰 글자입니다. ₿는 비트코인 로고에서 가져왔고, C는 B 모양이 ₿와 가장 가까운 글꼴인 [Maven Pro](https://github.com/m4rc1e/mavenproFont) Bold에서 가져와, 그 글꼴의 B가 ₿ 몸통과 같은 크기가 되도록 맞췄습니다. 둘 다 `public/icons/home-icon.svg` 안에 도형(outline)으로 들어 있어 그릴 때 글꼴이 필요 없습니다. 이 파일을 고치면 `npm run icons`로 PNG(iPhone·iPad 홈 화면, Android·설치 아이콘)를 다시 만들고 `public/favicon.svg`도 맞춰 고칩니다. 마스크 가능(maskable) 아이콘이 남기는 가운데 원 안에 그림이 들어가 있습니다.
 - **보안 설정(CSP)과의 관계**: 인라인 스타일과 스크립트를 막는 CSP 아래에서 동작합니다. 브라우저 테스트가 CSP 위반을 실패로 잡습니다.
 
 ## 번역
