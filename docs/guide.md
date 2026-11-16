@@ -136,6 +136,8 @@ The panel has two sections, **Prices** and **Display**.
 
 **Burn-in Protection**: moves the board a very little (within 3% of the screen) once a minute, so the same text does not sit on the same pixels for hours. Worth having on an OLED screen; otherwise it can be off.
 
+**Keep Screen On**: whether the app is keeping the screen on right now. **On** (green dot) while it is; **Off** (yellow) when it was released, with the reason and a button to try again below; **Waiting** while the app is in the background; **Not supported** where the browser cannot do it.
+
 **Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 
 **At the bottom**: the app's version, a question mark for **Help**, and a GitHub icon linking to the source code. Help is a short version of this guide inside the app (opening settings, the status dot, several assets, reading the board, keeping it on), with a link to this guide; the arrow at the top goes back to settings.
