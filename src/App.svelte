@@ -42,6 +42,17 @@
   let controlsVisible = $state(false);
   let panelOpen = $state(false);
   let toggleButton;
+  // A new board says once how to reach settings, until the screen is first
+  // touched (or a key pressed). Left alone, it goes after a while and comes back
+  // next time, since nobody may have been looking.
+  const HINT_KEY = 'coinboard-hint-seen';
+  let hint = $state(false);
+  let hintTimer;
+  function hintSeen() {
+    if (!hint) return;
+    hint = false; clearTimeout(hintTimer);
+    try { storage('localStorage')?.setItem(HINT_KEY, '1'); } catch { /* shown again next time */ }
+  }
   let feed, wakeLock, updater, controls, cursorTimer;
   const assetKey = asset => `${asset.currency}:${asset.ticker}`;
   // Prices can arrive several times a second and at a different moment for
@@ -205,7 +216,11 @@
       // wait out a backoff that began while nobody was looking.
       if (value && Object.values(feedStates).some(state => state.kind !== 'live')) feed.retry();
     }
+    try { hint = storage('localStorage')?.getItem(HINT_KEY) !== '1'; } catch { hint = true; }
+    if (hint) hintTimer = setTimeout(() => { hint = false; }, 15000);
     const listeners = [
+      [document, 'pointerdown', hintSeen, true],
+      [document, 'keydown', hintSeen, true],
       [document, 'visibilitychange', () => setVisible(document.visibilityState === 'visible')],
       [document, 'pointerdown', event => { if (tipShown && !event.target.closest('#status-dot')) hideTip(); }],
       [window, 'pagehide', () => { visible = false; feed.setActive(false); }],
@@ -225,7 +240,7 @@
     for (const [target, name, handler, capture] of listeners) target.addEventListener(name, handler, capture);
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
-      clearTimeout(cursorTimer); clearTimeout(tipTimer);
+      clearTimeout(cursorTimer); clearTimeout(tipTimer); clearTimeout(hintTimer);
       controls.dispose(); feed.dispose(); wakeLock.dispose(); beat.reset();
     };
   });
@@ -255,5 +270,6 @@
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
 </button>
 <Toaster position="bottom-center" />
+{#if hint}<p id="first-hint" role="status">{m.help_hint()}</p>{/if}
 <div id="status-dot" data-level={level} class:show={tipShown} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
 <PriceBoard {settings} ticks={assetTicks} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />

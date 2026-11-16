@@ -15,7 +15,7 @@
   import { NativeSelect, NativeSelectOption } from '$lib/components/ui/native-select/index.js';
   import { ToggleGroup, ToggleGroupItem } from '$lib/components/ui/toggle-group/index.js';
   import { HugeiconsIcon } from '@hugeicons/svelte';
-  import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon } from '@hugeicons/core-free-icons';
+  import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
   let { settings, selected, canAdd, ticks, status, wake, versionLabel, updateReady,
     onClose, onSelect, onAdd, onRemove, onReorder, onColumns, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
@@ -243,6 +243,29 @@
     { key: 'green-red', label: m.palette_green_red, up: 'text-[#30d158]', down: 'text-[#ff453a]' },
     { key: 'red-blue', label: m.palette_red_blue, up: 'text-[#ff453a]', down: 'text-[#4b8dff]' },
   ];
+  // ---- Help ----
+  // A short guide in place of the settings, and back. Focus goes to the way back
+  // and returns to the help button, so a keyboard does not lose its place.
+  let helpOpen = $state(false);
+  async function showHelp(open) {
+    helpOpen = open;
+    await tick();
+    panel.scrollTop = 0;
+    panel.querySelector(open ? '#help-back' : '#help-open')?.focus();
+  }
+  const STATUS_COLORS = [
+    { color: 'bg-[#30d158]', label: m.help_status_ok },
+    { color: 'bg-[#ffd60a]', label: m.help_status_warn },
+    { color: 'bg-[#ff453a]', label: m.help_status_bad },
+  ];
+  const HELP = [
+    { title: m.help_settings_title, body: m.help_settings_body },
+    { title: m.help_status_title, body: m.help_status_body, colors: true },
+    { title: m.help_assets_title, body: m.help_assets_body },
+    { title: m.help_reading_title, body: m.help_reading_body },
+    { title: m.help_keep_title, body: m.help_keep_body },
+  ];
+
   function onKeydown(event) {
     if (event.key === 'Escape') { onClose(true); return; }
     if (event.key !== 'Tab') return;
@@ -263,12 +286,40 @@
   class="fixed left-1/2 top-[max(48px,calc(var(--safe-top)+16px))] z-[2000] flex max-h-[calc(100dvh-max(48px,calc(var(--safe-top)+16px))-var(--safe-bottom)-16px)] w-[min(400px,calc(100vw-var(--safe-left)-var(--safe-right)-32px))] -translate-x-1/2 flex-col gap-5 overflow-y-auto overscroll-contain rounded-[28px] border border-white/10 bg-background/80 px-4 pb-5 text-left text-[15px] text-foreground shadow-2xl shadow-black/60 backdrop-blur-2xl backdrop-saturate-150 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200 motion-reduce:animate-none">
   <!-- The header stays in view while the sheet scrolls. -->
   <div class="sticky top-0 z-10 -mx-4 flex items-center justify-between bg-gradient-to-b from-background from-70% to-transparent px-4 pb-2 pt-4">
-    <h2 id="admin-title" class="text-[22px] font-bold tracking-tight">{m.settings_title()}</h2>
+    <div class="flex items-center gap-1">
+      {#if helpOpen}
+        <Button id="help-back" variant="ghost" size="icon" class="-ml-2 size-11 rounded-full text-muted-foreground hover:bg-white/10" aria-label={m.help_back()} onclick={() => showHelp(false)}>
+          <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} class="size-6" />
+        </Button>
+      {/if}
+      <h2 id="admin-title" class="text-[22px] font-bold tracking-tight">{helpOpen ? m.help_title() : m.settings_title()}</h2>
+    </div>
     <Button id="admin-close" variant="secondary" size="icon" class="size-11 rounded-full bg-white/10 text-muted-foreground hover:bg-white/15" aria-label={m.settings_close()} onclick={() => onClose(true)}>
       <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} class="size-5" />
     </Button>
   </div>
 
+  {#if helpOpen}
+  <div id="help" class="flex flex-col gap-2.5 break-keep">
+    {#each HELP as item}
+      <section class="flex flex-col gap-2 rounded-2xl bg-card px-4 py-3.5">
+        <h3 class="text-base font-semibold">{item.title()}</h3>
+        <p class="text-[15px] leading-relaxed text-muted-foreground">{item.body()}</p>
+        {#if item.colors}
+          <ul class="flex flex-col gap-1.5 pt-0.5">
+            {#each STATUS_COLORS as status}
+              <li class="flex items-center gap-2.5 text-[14px]"><span class="size-2.5 shrink-0 rounded-full {status.color}" aria-hidden="true"></span>{status.label()}</li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+    {/each}
+    <a id="help-guide" class="flex min-h-12 items-center justify-between rounded-2xl bg-card px-4 text-[15px] font-semibold transition-colors hover:bg-[color-mix(in_oklab,var(--card),white_6%)] focus-visible:outline-2 focus-visible:outline-ring" href={m.help_guide_url()} target="_blank" rel="noopener noreferrer">
+      {m.help_guide()}
+      <HugeiconsIcon icon={ArrowUpRight01Icon} strokeWidth={2} class="size-5 text-muted-foreground" />
+    </a>
+  </div>
+  {:else}
   <section class="flex flex-col gap-2.5" aria-labelledby="section-prices">
     <h3 id="section-prices" class="px-1 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">{m.section_prices()}</h3>
     <!-- What the board shows: one asset large, or several in a grid. A card
@@ -452,8 +503,14 @@
 
   <footer class="flex items-center justify-between px-1">
     <p id="app-version" class="text-[13px] text-muted-foreground tabular-nums">{versionLabel}</p>
-    <a id="admin-repo" class="-mr-2 flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" href="https://github.com/2jiho/coinboard" target="_blank" rel="noopener noreferrer" aria-label={m.repo_link()}>
+    <div class="-mr-2 flex items-center">
+    <button id="help-open" type="button" class="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" aria-label={m.help_open()} onclick={() => showHelp(true)}>
+      <HugeiconsIcon icon={HelpCircleIcon} strokeWidth={1.8} class="size-6" />
+    </button>
+    <a id="admin-repo" class="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" href="https://github.com/2jiho/coinboard" target="_blank" rel="noopener noreferrer" aria-label={m.repo_link()}>
       <HugeiconsIcon icon={GithubIcon} strokeWidth={1.8} class="size-6" />
     </a>
+    </div>
   </footer>
+  {/if}
 </div>
