@@ -15,6 +15,7 @@
   import { createMarketList } from './lib/markets.js';
   import { createPacer } from './lib/pace.js';
   import { createBeat } from './lib/steady.js';
+  import { installOffer, isStandalone } from './lib/install.js';
   import { m } from './paraglide/messages.js';
   import { getLocale } from './paraglide/runtime.js';
   import { Toaster } from '$lib/components/ui/sonner/index.js';
@@ -47,6 +48,28 @@
   const HINT_KEY = 'coinboard-hint-seen';
   let hint = $state(false);
   let hintTimer;
+  // Adding to the home screen: offered in settings (and in a line of the hint)
+  // while the app runs in a browser tab. A browser with its own install prompt
+  // hands it over before showing it; the button in settings opens it.
+  const INSTALL_KEY = 'coinboard-install-dismissed';
+  let installPrompt = $state.raw(null);
+  let standalone = $state(isStandalone({ matchMedia: window.matchMedia?.bind(window), navigator }));
+  const install = $derived(installOffer({ standalone, userAgent: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints, canPrompt: !!installPrompt }));
+  let installDismissed = $state(false);
+  try { installDismissed = storage('localStorage')?.getItem(INSTALL_KEY) === '1'; } catch { /* offered again next time */ }
+  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; });
+  window.addEventListener('appinstalled', () => { installPrompt = null; standalone = true; });
+  function dismissInstall() {
+    installDismissed = true;
+    try { storage('localStorage')?.setItem(INSTALL_KEY, '1'); } catch { /* offered again next time */ }
+  }
+  async function runInstall() {
+    const prompt = installPrompt;
+    if (!prompt) return;
+    // A prompt can be shown once; a declined one may come back later.
+    installPrompt = null;
+    try { await prompt.prompt(); await prompt.userChoice; } catch { /* nothing to do */ }
+  }
   function hintSeen() {
     if (!hint) return;
     hint = false; clearTimeout(hintTimer);
@@ -245,7 +268,7 @@
 
 {#if panelOpen}
   <div id="scrim"></div>
-  <SettingsPanel {settings} {canAdd} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
+  <SettingsPanel {settings} {canAdd} {install} {installDismissed} onInstall={runInstall} onDismissInstall={dismissInstall} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
     onClose={closePanel}
     onAdd={addAsset}
     onColumns={columns => save({ columns })}
@@ -264,6 +287,6 @@
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
 </button>
 <Toaster position="bottom-center" />
-{#if hint}<p id="first-hint" role="status">{m.help_hint()}</p>{/if}
+{#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
 <div id="status-dot" data-level={level} class:show={tipShown} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
 <PriceBoard {settings} ticks={assetTicks} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />

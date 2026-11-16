@@ -106,5 +106,13 @@
   "wake_state_pending": "요청 중…",
   "wake_state_waiting": "대기 중",
   "wake_state_off": "꺼짐",
-  "wake_state_unsupported": "지원 안 됨"
+  "wake_state_unsupported": "지원 안 됨",
+  "install_title": "홈 화면에 추가",
+  "install_body": "홈 화면에서 열면 주소창 없이 전체 화면으로 열리고, 화면 켜짐 유지도 가장 잘 됩니다.",
+  "install_button": "설치",
+  "install_dismiss": "홈 화면 추가 안내 닫기",
+  "install_ios_1": "브라우저의 공유 버튼을 누릅니다",
+  "install_ios_2": "‘홈 화면에 추가’를 고릅니다",
+  "install_ios_3": "‘추가’를 누릅니다",
+  "help_hint_install": "홈 화면에 추가하는 방법은 설정에 있습니다"
 }

@@ -950,6 +950,61 @@ async function help(browser, base) {
   console.log('PASS help: a new board says once how to reach settings, without taking the tap; help in settings and back, in Korean and English');
 }
 
+async function install(browser, base) {
+  const IPAD = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
+  const asIpad = context => context.addInitScript(() => Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 }));
+  // A desktop browser that has not offered to install: nothing is said.
+  const plain = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(plain);
+  const page = await plain.newPage(); const problems = watch(page);
+  await page.goto(base); await live(page);
+  await page.locator('#first-hint').waitFor();
+  assert.equal(await page.locator('#first-hint .hint-more').count(), 0);
+  await open(page);
+  assert.equal(await page.locator('#install').count(), 0);
+  // Once the browser offers its install prompt, settings show an install button, which opens it.
+  await page.evaluate(() => { const event = new Event('beforeinstallprompt', { cancelable: true }); event.prompt = async () => { window.prompted = true; }; event.userChoice = Promise.resolve({ outcome: 'accepted' }); window.dispatchEvent(event); window.installDefaulted = event.defaultPrevented; });
+  assert.equal(await page.evaluate(() => window.installDefaulted), true, 'the browser does not show its own banner');
+  await page.locator('#install-button').click();
+  assert.equal(await page.evaluate(() => window.prompted), true);
+  // A prompt can be shown once: the button goes with it.
+  await page.locator('#install').waitFor({ state: 'detached' });
+  assert.deepEqual(problems, []);
+  await plain.close();
+
+  // iPad: the steps, in settings and in Help; the hint says where they are. Dismissed, the card stays away.
+  const ipad = await browser.newContext({ viewport: { width: 1024, height: 768 }, userAgent: IPAD, hasTouch: true }); await scripted(ipad); await asIpad(ipad);
+  const tablet = await ipad.newPage(); await tablet.goto(base); await live(tablet);
+  assert.equal(await tablet.locator('#first-hint .hint-more').textContent(), '홈 화면에 추가하는 방법은 설정에 있습니다');
+  await open(tablet);
+  assert.equal(await text(tablet, '#install-title'), '홈 화면에 추가');
+  assert.deepEqual((await tablet.locator('#install-steps li').allTextContents()).map(step => step.trim()), ['브라우저의 공유 버튼을 누릅니다', '‘홈 화면에 추가’를 고릅니다', '3‘추가’를 누릅니다']);
+  await tablet.locator('#install-dismiss').click();
+  assert.equal(await tablet.locator('#install').count(), 0);
+  await tablet.locator('#help-open').click();
+  assert.equal(await tablet.locator('#help-install-steps li').count(), 3, 'Help still shows how');
+  await tablet.reload(); await live(tablet); await open(tablet);
+  assert.equal(await tablet.locator('#install').count(), 0, 'dismissed for good on this device');
+  await ipad.close();
+
+  // Opened from the home screen: nothing is offered.
+  const home = await browser.newContext({ viewport: { width: 1024, height: 768 }, userAgent: IPAD, hasTouch: true }); await scripted(home); await asIpad(home);
+  await home.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  const app = await home.newPage(); await app.goto(base); await live(app);
+  await app.locator('#first-hint').waitFor();
+  assert.equal(await app.locator('#first-hint .hint-more').count(), 0);
+  await open(app);
+  assert.equal(await app.locator('#install').count(), 0);
+  await home.close();
+
+  // In English.
+  const en = await browser.newContext({ locale: 'en-US', viewport: { width: 1024, height: 768 }, userAgent: IPAD, hasTouch: true }); await scripted(en); await asIpad(en);
+  const enPage = await en.newPage(); await enPage.goto(base); await live(enPage); await open(enPage);
+  assert.equal(await text(enPage, '#install-title'), 'Add to Home Screen');
+  assert.doesNotMatch(await enPage.locator('#install').innerText(), /[가-힣]/);
+  await en.close();
+  console.log('PASS install: an install button where the browser offers one, the steps on iPhone and iPad, nothing when opened from the home screen; dismissed for good, still in Help');
+}
+
 async function idleUpdate(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
@@ -1204,7 +1259,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH 
 const newContext = browser.newContext.bind(browser);
 browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options });
 try {
-  for (const scenario of [board, english, help, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, english, help, install, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;

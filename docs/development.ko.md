@@ -46,6 +46,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/lib/format.js` | 가격·등락률 문자열 |
 | `src/lib/settings.js` | 설정 불러오기·검증·저장 |
 | `src/lib/wake-lock.js` | 화면 켜짐 유지 |
+| `src/lib/install.js` | 홈 화면 추가를 안내할지와 그 방법(iOS는 순서 안내, 그 밖에는 브라우저의 설치 창) |
 | `src/lib/updater.js` | 서비스 워커 등록, 버전 확인, 업데이트 적용 |
 | `src/sw.js` | 오프라인용 서비스 워커의 원본 |
 | `src/app.css` | 스타일: 맨 위의 Tailwind·테마, 그 아래 전광판의 일반 CSS |

@@ -15,10 +15,11 @@
   import { NativeSelect, NativeSelectOption } from '$lib/components/ui/native-select/index.js';
   import { ToggleGroup, ToggleGroupItem } from '$lib/components/ui/toggle-group/index.js';
   import { HugeiconsIcon } from '@hugeicons/svelte';
+  import { Share03Icon, AddSquareIcon, Download04Icon } from '@hugeicons/core-free-icons';
   import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
-  let { settings, canAdd, ticks, status, wake, versionLabel, updateReady,
-    onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+  let { settings, canAdd, ticks, status, wake, versionLabel, updateReady, install = null, installDismissed = false,
+    onInstall = () => {}, onDismissInstall = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel;
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
@@ -166,7 +167,7 @@
     { title: m.help_status_title, body: m.help_status_body, colors: true },
     { title: m.help_assets_title, body: m.help_assets_body },
     { title: m.help_reading_title, body: m.help_reading_body },
-    { title: m.help_keep_title, body: m.help_keep_body },
+    { title: m.help_keep_title, body: m.help_keep_body, install: true },
   ];
 
   function onKeydown(event) {
@@ -202,12 +203,28 @@
     </Button>
   </div>
 
+  <!-- How to add it to the home screen: the browser's own install, or the steps on iPhone and iPad. -->
+  {#snippet installWays(id)}
+    {#if install === 'prompt'}
+      <Button id={id + '-button'} size="lg" class="h-11 rounded-xl font-semibold" onclick={onInstall}>
+        <HugeiconsIcon icon={Download04Icon} strokeWidth={2} class="size-5" />{m.install_button()}
+      </Button>
+    {:else if install === 'ios'}
+      <ol id={id + '-steps'} class="flex flex-col gap-2 text-[15px]">
+        <li class="flex items-center gap-3"><span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#0a84ff]"><HugeiconsIcon icon={Share03Icon} strokeWidth={2} class="size-5" /></span>{m.install_ios_1()}</li>
+        <li class="flex items-center gap-3"><span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/10"><HugeiconsIcon icon={AddSquareIcon} strokeWidth={2} class="size-5" /></span>{m.install_ios_2()}</li>
+        <li class="flex items-center gap-3"><span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[13px] font-semibold">3</span>{m.install_ios_3()}</li>
+      </ol>
+    {/if}
+  {/snippet}
+
   {#if helpOpen}
   <div id="help" class="flex flex-col gap-2.5 break-keep">
     {#each HELP as item}
       <section class="flex flex-col gap-2 rounded-2xl bg-card px-4 py-3.5">
         <h3 class="text-base font-semibold">{item.title()}</h3>
         <p class="text-[15px] leading-relaxed text-muted-foreground">{item.body()}</p>
+        {#if item.install && install}{@render installWays('help-install')}{/if}
         {#if item.colors}
           <ul class="flex flex-col gap-1.5 pt-0.5">
             {#each STATUS_COLORS as status}
@@ -223,6 +240,20 @@
     </a>
   </div>
   {:else}
+  {#if install && !installDismissed}
+    <section id="install" class="flex flex-col gap-3 rounded-2xl bg-card px-4 py-3.5 break-keep" aria-labelledby="install-title">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex flex-col gap-1">
+          <h3 id="install-title" class="text-base font-semibold">{m.install_title()}</h3>
+          <p class="text-[14px] leading-relaxed text-muted-foreground">{m.install_body()}</p>
+        </div>
+        <button id="install-dismiss" type="button" class="-mr-2 -mt-1 flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" aria-label={m.install_dismiss()} onclick={onDismissInstall}>
+          <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} class="size-5" />
+        </button>
+      </div>
+      {@render installWays('install')}
+    </section>
+  {/if}
   <section class="flex flex-col gap-2.5" aria-labelledby="section-prices">
     <h3 id="section-prices" class="px-1 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">{m.section_prices()}</h3>
     <!-- What the board shows: one asset large, or several in a grid. A card
