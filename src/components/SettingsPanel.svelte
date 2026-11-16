@@ -184,9 +184,16 @@
   let openKey = $state(null), swiped = false;
   function swipe(node, params) {
     let p = params, start = null, offset = 0, horizontal = null;
+    // The remove button behind is shown only while the card is moved off it,
+    // so it cannot show through the list's rounded corner.
+    let hideTimer;
     const place = (x, animate) => {
       node.style.transition = animate ? 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
       node.style.transform = x ? `translateX(${x}px)` : '';
+      clearTimeout(hideTimer);
+      if (x) node.parentElement.dataset.revealed = 'true';
+      else if (animate) hideTimer = setTimeout(() => { node.parentElement.dataset.revealed = 'false'; }, 240);
+      else node.parentElement.dataset.revealed = 'false';
     };
     place(p.open ? -SWIPE : 0, false);
     const down = event => {
@@ -273,10 +280,10 @@
           {@const item = row.asset}
           {@const index = settings.assets.findIndex(other => keyOf(other) === row.id)}
           {@const moved = changeOf(item)}
-          <div class="asset-row relative overflow-hidden border-b border-border last:border-b-0 data-[dragging=true]:z-10 data-[dragging=true]:overflow-visible data-[dragging=true]:rounded-xl data-[dragging=true]:shadow-2xl data-[dragging=true]:shadow-black/50" data-dragging={draggingId === row.id} animate:flip={{ duration: draggingId === row.id ? 0 : 180 }}>
+          <div class="asset-row group/row relative overflow-hidden border-b border-border last:border-b-0 data-[dragging=true]:z-10 data-[dragging=true]:overflow-visible data-[dragging=true]:rounded-xl data-[dragging=true]:shadow-2xl data-[dragging=true]:shadow-black/50" data-dragging={draggingId === row.id} animate:flip={{ duration: draggingId === row.id ? 0 : 180 }}>
             {#if settings.assets.length > 1}
               <!-- Behind the card, uncovered by a swipe. Keyboard and screen readers remove from the editor below. -->
-              <button type="button" class="asset-swipe-remove absolute inset-y-0 right-0 w-[88px] bg-destructive text-[15px] font-semibold text-white" tabindex="-1" aria-hidden="true" onclick={() => removeAt(index)}>{m.asset_swipe_remove()}</button>
+              <button type="button" class="asset-swipe-remove invisible absolute inset-y-0 right-0 w-[88px] bg-destructive text-[15px] font-semibold text-white group-data-[revealed=true]/row:visible" tabindex="-1" aria-hidden="true" onclick={() => removeAt(index)}>{m.asset_swipe_remove()}</button>
             {/if}
             <div class="relative flex items-center bg-card pr-1 [touch-action:pan-y] data-[selected=true]:bg-[color-mix(in_oklab,var(--card),white_6%)]" data-selected={index === selected && editing}
               use:swipe={{ open: openKey === row.id, enabled: settings.assets.length > 1, onchange: open => { openKey = open ? row.id : null; } }}>

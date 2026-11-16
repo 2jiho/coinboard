@@ -25,7 +25,7 @@
 	<SwitchPrimitive.Thumb
 		data-slot="switch-thumb"
 		class={cn(
-			"bg-background dark:data-unchecked:bg-foreground dark:data-checked:bg-primary-foreground rounded-full group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=lg]/switch:size-[27px] group-data-[size=lg]/switch:bg-white group-data-[size=lg]/switch:shadow-md group-data-[size=lg]/switch:data-checked:translate-x-[21px] group-data-[size=lg]/switch:data-unchecked:translate-x-px group-data-[size=default]/switch:data-checked:translate-x-[calc(100%_-_2px)] group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%_-_2px)] group-data-[size=default]/switch:data-unchecked:translate-x-0 group-data-[size=sm]/switch:data-unchecked:translate-x-0 pointer-events-none block ring-0 transition-transform",
+			"bg-background dark:data-unchecked:bg-foreground dark:data-checked:bg-white rounded-full group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=lg]/switch:size-[27px] group-data-[size=lg]/switch:bg-white group-data-[size=lg]/switch:shadow-md group-data-[size=lg]/switch:data-checked:translate-x-[21px] group-data-[size=lg]/switch:data-unchecked:translate-x-px group-data-[size=default]/switch:data-checked:translate-x-[calc(100%_-_2px)] group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%_-_2px)] group-data-[size=default]/switch:data-unchecked:translate-x-0 group-data-[size=sm]/switch:data-unchecked:translate-x-0 pointer-events-none block ring-0 transition-transform",
 			"rtl:data-[state=checked]:translate-x-[calc(-100%)]"
 		)}
 	/>
