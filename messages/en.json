@@ -17,7 +17,6 @@
   "ticker_placeholder": "e.g. LINK",
   "cancel": "Cancel",
   "add": "Add",
-  "ticker_apply": "Apply",
   "ticker_invalid": "Use 1 to 20 letters or digits.",
   "ticker_not_listed": "{market} doesn't list this ticker.",
   "columns": "Columns",
@@ -105,8 +104,6 @@
   "wake_active": "Keeping the screen on. The system can still turn it off.",
   "wake_failed": "Couldn't keep the screen on ({name}). Check Low Power Mode, battery and permissions.",
   "asset_reorder": "Reorder {name}",
-  "asset_swipe_remove": "Delete",
-  "asset_remove_this": "Delete",
   "market_upbit": "Upbit",
   "market_binance": "Binance",
   "market_krw": "KRW",
@@ -125,11 +122,13 @@
   "help_status_warn": "Connecting, delayed, or needs a look",
   "help_status_bad": "Offline, or an error from the exchange",
   "help_assets_title": "Several Assets",
-  "help_assets_body": "Tap an asset's card to change its market and coin. Drag the handle on the right to reorder, and swipe a card to the left to uncover Delete. With two or more assets, the screen is divided into cells of one size.",
+  "help_assets_body": "Each asset added gets a card in the list. Drag the handle on the right to reorder, and tap the bin to delete (the message at the bottom can undo it). To show another coin, add it and delete the old one. With two or more assets, the screen is divided into cells of one size.",
   "help_reading_title": "Reading the Board",
   "help_reading_body": "1D is against the previous day's close (Upbit), 24H the change over 24 hours (Binance), and PERP Binance USDT perpetual futures. When a price changes, only the digits that changed roll over, and the bigger the move, the deeper the color.",
   "help_keep_title": "Keeping It On",
   "help_keep_body": "Add it to the home screen and open it like an app: it runs full screen, and keeping the screen on works best that way (Safari's Share button, then Add to Home Screen). Keep it charging, and turn Low Power Mode off.",
   "help_guide": "Full User Guide",
-  "help_guide_url": "https://github.com/2jiho/coinboard/blob/main/docs/guide.md"
+  "help_guide_url": "https://github.com/2jiho/coinboard/blob/main/docs/guide.md",
+  "asset_removed": "Deleted {name}",
+  "undo": "Undo"
 }

@@ -3,7 +3,7 @@
   // field that needs a decision, because typing is not choosing.
   import { onMount, tick, untrack } from 'svelte';
   import { flip } from 'svelte/animate';
-  import { normalizeTicker, sameAsset, MAX_COLUMNS } from '../lib/settings.js';
+  import { normalizeTicker, sameAsset } from '../lib/settings.js';
   import { PRESETS } from '../lib/presets.js';
   import { EXCHANGES } from '../lib/exchanges/index.js';
   import { m } from '../paraglide/messages.js';
@@ -17,54 +17,30 @@
   import { HugeiconsIcon } from '@hugeicons/svelte';
   import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
-  let { settings, selected, canAdd, ticks, status, wake, versionLabel, updateReady,
-    onClose, onSelect, onAdd, onRemove, onReorder, onColumns, onCurrency, onTicker, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+  let { settings, canAdd, ticks, status, wake, versionLabel, updateReady,
+    onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel;
-  // The rows below edit this asset; the list above chooses it.
-  const asset = $derived(settings.assets[Math.min(selected, settings.assets.length - 1)]);
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
-  let tickerInput = $state(null);
-  // What is being typed or dragged, before it is applied.
-  let tickerText = $state('');
-  // '' when fine, otherwise the message to show.
-  let tickerError = $state('');
-  // The coins the exchange lists, once known: for completion and for checking
-  // a typed ticker. null while unknown, in which case anything is let through.
-  let listed = $state(null);
-  $effect(() => {
-    if (!otherOpen) return;
-    const currency = asset.currency;
-    listed = null;
-    loadTickers(currency).then((tickers) => { if (otherOpen && asset.currency === currency) listed = tickers; });
-  });
   let brightness = $state(untrack(() => settings.brightness));
-  // Coin is a one-line choice: the listed coins, the current coin if it is not
-  // one of them, and "직접 입력…", which opens a field for any other ticker.
+  // The new asset's coin is a one-line choice: the listed coins, and
+  // "직접 입력…", which opens a field for any other ticker.
   const OTHER = '__other';
-  const preset = $derived(PRESETS.includes(asset.ticker));
-  let otherOpen = $state(false);
   // Worth a line only when something is wrong.
   const wakeTrouble = $derived(['unsupported', 'released', 'failed'].includes(wake.kind));
   // The add form: market and coin for a new asset, added only on 추가. It
-  // starts in the market being edited, on the first listed coin not yet shown there.
+  // starts in the market of the last asset, on the first listed coin not yet
+  // shown there. An asset is not edited: another coin is added, and the old one deleted.
   let adding = $state(false);
-  // The chosen asset's market and coin are shown only after its row is tapped;
-  // tapping it again folds them away.
-  let editing = $state(false);
-  function pick(index) {
-    // A row that was just swiped is not also tapped.
-    if (swiped) return;
-    if (openKey) { openKey = null; return; }
-    if (index === selected && editing) { editing = false; return; }
-    adding = false; onSelect(index); editing = true;
-  }
+  // shownCurrency: the market chosen, kept when its button is tapped again
+  // (a toggle group would otherwise choose none).
+  let shownCurrency = 'KRW';
   let newCurrency = $state('KRW'), newCoin = $state(''), newText = $state(''), newError = $state('');
   let newListed = $state(null);
   const firstFree = currency => PRESETS.find(coin => !settings.assets.some(item => sameAsset(item, { currency, ticker: coin }))) ?? OTHER;
   function startAdding() {
-    newCurrency = asset.currency; newCoin = firstFree(newCurrency); newText = ''; newError = '';
-    editing = false; adding = true; openKey = null;
+    newCurrency = shownCurrency = settings.assets.at(-1).currency; newCoin = firstFree(newCurrency); newText = ''; newError = '';
+    adding = true;
   }
   $effect(() => {
     if (!adding || newCoin !== OTHER) return;
@@ -81,41 +57,6 @@
     }
     newError = onAdd({ currency: newCurrency, ticker });
     if (!newError) adding = false;
-  }
-  // Another asset to edit: start clean.
-  $effect(() => { selected; untrack(() => { otherOpen = false; tickerError = ''; }); });
-  // What the market and coin choices show. They follow the asset, and a
-  // refused choice (already on the board) goes back to it.
-  let currencyChoice = $state(''), coinChoice = $state('');
-  $effect(() => { currencyChoice = asset.currency; });
-  $effect(() => { coinChoice = otherOpen ? OTHER : asset.ticker; });
-  async function chooseCurrency(value) {
-    // Tapping the chosen market again chooses nothing: keep it.
-    if (!value || value === asset.currency) { await tick(); currencyChoice = asset.currency; return; }
-    tickerError = onCurrency(value);
-    if (tickerError) { await tick(); currencyChoice = asset.currency; }
-  }
-  async function chooseCoin(value) {
-    tickerError = '';
-    if (value !== OTHER) {
-      otherOpen = false;
-      tickerError = onTicker(value);
-      if (tickerError) { await tick(); coinChoice = asset.ticker; }
-      return;
-    }
-    otherOpen = true; tickerText = '';
-    await tick();
-    tickerInput?.focus();
-  }
-
-  function applyTicker() {
-    const ticker = normalizeTicker(tickerText);
-    if (!ticker) { tickerError = m.ticker_invalid(); return; }
-    if (listed && !listed.includes(ticker)) { tickerError = m.ticker_not_listed({ market: EXCHANGES[asset.currency].listName }); return; }
-    tickerError = onTicker(ticker);
-    if (tickerError) return;
-    tickerText = ticker;
-    otherOpen = false;
   }
 
   // ---- The asset list: a card per asset, with its icon and live price ----
@@ -157,7 +98,7 @@
       row = handle.closest('.asset-row'); list = row.parentElement;
       grabOffset = event.clientY - row.getBoundingClientRect().top;
       pointer = event.pointerId; handle.setPointerCapture?.(pointer);
-      openKey = null; draggingId = id;
+      draggingId = id;
     };
     const move = event => { if (row && event.pointerId === pointer) { event.preventDefault(); follow(event.clientY); } };
     const up = event => {
@@ -179,54 +120,7 @@
     for (const [name, handler] of events) handle.addEventListener(name, handler);
     return { update(next) { id = next; }, destroy() { for (const [name, handler] of events) handle.removeEventListener(name, handler); } };
   }
-  // Swiping a row to the left uncovers a remove button; one row at a time.
-  const SWIPE = 88;
-  let openKey = $state(null), swiped = false;
-  function swipe(node, params) {
-    let p = params, start = null, offset = 0, horizontal = null;
-    // The remove button behind is shown only while the card is moved off it,
-    // so it cannot show through the list's rounded corner.
-    let hideTimer;
-    const place = (x, animate) => {
-      node.style.transition = animate ? 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none';
-      node.style.transform = x ? `translateX(${x}px)` : '';
-      clearTimeout(hideTimer);
-      if (x) node.parentElement.dataset.revealed = 'true';
-      else if (animate) hideTimer = setTimeout(() => { node.parentElement.dataset.revealed = 'false'; }, 240);
-      else node.parentElement.dataset.revealed = 'false';
-    };
-    place(p.open ? -SWIPE : 0, false);
-    const down = event => {
-      if (!p.enabled || event.button > 0 || event.target.closest('[data-drag-handle]')) return;
-      start = { x: event.clientX, y: event.clientY, base: p.open ? -SWIPE : 0 }; horizontal = null; offset = start.base;
-    };
-    const move = event => {
-      if (!start) return;
-      const x = event.clientX - start.x, y = event.clientY - start.y;
-      if (horizontal === null && Math.hypot(x, y) > 8) {
-        horizontal = Math.abs(x) > Math.abs(y);
-        if (horizontal) node.setPointerCapture?.(event.pointerId);
-      }
-      if (!horizontal) return;
-      offset = Math.min(0, Math.max(-SWIPE * 1.5, start.base + x));
-      place(offset, false);
-    };
-    const up = () => {
-      if (!start) return;
-      const wasHorizontal = horizontal; start = null;
-      if (!wasHorizontal) return;
-      swiped = true; setTimeout(() => { swiped = false; }, 0);
-      const open = offset < -SWIPE / 2;
-      p.onchange(open); place(open ? -SWIPE : 0, true);
-    };
-    const events = [['pointerdown', down], ['pointermove', move], ['pointerup', up], ['pointercancel', up]];
-    for (const [name, handler] of events) node.addEventListener(name, handler);
-    return {
-      update(next) { const changed = next.open !== p.open; p = next; if (changed) place(p.open ? -SWIPE : 0, true); },
-      destroy() { for (const [name, handler] of events) node.removeEventListener(name, handler); },
-    };
-  }
-  function removeAt(index) { openKey = null; editing = false; onRemove(index); }
+
 
   // ---- Choices shown as buttons ----
   const MARKETS = [
@@ -332,28 +226,27 @@
           {@const index = settings.assets.findIndex(other => keyOf(other) === row.id)}
           {@const moved = changeOf(item)}
           <div class="asset-row group/row relative overflow-hidden border-b border-border last:border-b-0 data-[dragging=true]:z-10 data-[dragging=true]:overflow-visible data-[dragging=true]:rounded-xl data-[dragging=true]:shadow-2xl data-[dragging=true]:shadow-black/50" data-dragging={draggingId === row.id} animate:flip={{ duration: draggingId === row.id ? 0 : 180 }}>
-            {#if settings.assets.length > 1}
-              <!-- Behind the card, uncovered by a swipe. Keyboard and screen readers remove from the editor below. -->
-              <button type="button" class="asset-swipe-remove invisible absolute inset-y-0 right-0 w-[88px] bg-destructive text-[15px] font-semibold text-white group-data-[revealed=true]/row:visible" tabindex="-1" aria-hidden="true" onclick={() => removeAt(index)}>{m.asset_swipe_remove()}</button>
-            {/if}
-            <div class="relative flex items-center bg-card pr-1 [touch-action:pan-y] data-[selected=true]:bg-[color-mix(in_oklab,var(--card),white_6%)]" data-selected={index === selected && editing}
-              use:swipe={{ open: openKey === row.id, enabled: settings.assets.length > 1, onchange: open => { openKey = open ? row.id : null; } }}>
-              <button type="button" class="asset-pick flex min-h-16 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 pr-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset" aria-pressed={index === selected} aria-expanded={index === selected && editing} onclick={() => pick(index)}>
+            <div class="relative flex items-center bg-card pr-1">
+              <div class="asset-info flex min-h-16 min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 pr-2">
                 {#if !failedIcons.has(iconOf(item))}
                   <img src={iconOf(item)} alt="" class="size-9 shrink-0 rounded-full" onerror={() => { failedIcons = new Set([...failedIcons, iconOf(item)]); }} />
                 {:else}
                   <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-[13px] font-semibold" aria-hidden="true">{item.ticker.slice(0, 1)}</span>
                 {/if}
                 <span class="flex min-w-0 flex-col">
-                  <span class="text-base font-semibold tracking-wide">{item.ticker}</span>
+                  <span class="asset-ticker text-base font-semibold tracking-wide">{item.ticker}</span>
                   <span class="truncate text-[13px] text-muted-foreground">{EXCHANGES[item.currency].choice}</span>
                 </span>
                 <span class="ml-auto flex shrink-0 flex-col items-end tabular-nums">
                   <span class="asset-price text-[15px] font-semibold">{priceOf(item) || '—'}</span>
                   {#if moved}<span class="text-[13px] font-medium {moved.tone > 0 ? 'text-[var(--up)]' : moved.tone < 0 ? 'text-[var(--down)]' : 'text-muted-foreground'}">{moved.text}</span>{:else}<span class="text-[13px] text-muted-foreground">{m.no_price_yet()}</span>{/if}
                 </span>
-              </button>
+              </div>
               {#if settings.assets.length > 1}
+                <!-- Deleting is one tap; the toast that follows can undo it. The last asset stays. -->
+                <button type="button" class="asset-delete flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring" aria-label={m.asset_remove({ name: assetName(item) })} onclick={() => onRemove(index)}>
+                  <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} class="size-5" />
+                </button>
                 <span class="asset-handle flex size-11 shrink-0 cursor-grab items-center justify-center rounded-full text-muted-foreground outline-none [touch-action:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing" role="button" tabindex="0" data-drag-handle use:grab={row.id} aria-label={m.asset_reorder({ name: assetName(item) })}>
                   <HugeiconsIcon icon={DragDropVerticalIcon} strokeWidth={2} class="size-5" />
                 </span>
@@ -374,7 +267,7 @@
         <div class="flex flex-col gap-2">
           <span id="new-currency-label" class="px-1 text-[13px] text-muted-foreground">{m.field_market()}</span>
           <ToggleGroup type="single" spacing={1} id="new-currency" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-3" bind:value={newCurrency} aria-labelledby="new-currency-label"
-            onValueChange={value => { newError = ''; if (!value) { tick().then(() => { newCurrency = newCurrency || 'KRW'; }); return; } if (newCoin !== OTHER) newCoin = firstFree(value); }}>
+            onValueChange={value => { newError = ''; if (!value) { const keep = shownCurrency; tick().then(() => { newCurrency = keep; }); return; } shownCurrency = value; if (newCoin !== OTHER) newCoin = firstFree(value); }}>
             {#each MARKETS as market}
               <ToggleGroupItem value={market.key} data-value={market.key} aria-label={EXCHANGES[market.key].choice} class="h-auto min-h-12 flex-col gap-0 rounded-[10px] px-1 py-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm">
                 <span class="text-[14px] font-semibold">{market.name()}</span><span class="text-[12px]">{market.unit()}</span>
@@ -384,7 +277,7 @@
         </div>
         <div class="flex min-h-11 items-center justify-between gap-3 px-1">
           <label for="new-coin">{m.field_coin()}</label>
-          <NativeSelect id="new-coin" bind:value={newCoin} onchange={() => { newError = ''; }}>
+          <NativeSelect id="new-coin" bind:value={newCoin} onchange={async () => { newError = ''; if (newCoin === OTHER) { await tick(); panel.querySelector('#new-symbol')?.focus(); } }}>
             {#each PRESETS as preset}<NativeSelectOption value={preset}>{preset}</NativeSelectOption>{/each}
             <NativeSelectOption value={OTHER}>{m.coin_other()}</NativeSelectOption>
           </NativeSelect>
@@ -406,47 +299,6 @@
       <p id="asset-new-error" class="px-1 text-[13px] text-destructive" role="alert" hidden={!newError}>{newError}</p>
     {/if}
 
-    <!-- The chosen asset's market and coin, once its row is tapped. -->
-    {#if editing && !adding}
-      <div class="flex flex-col gap-3 rounded-2xl bg-card p-3 animate-in fade-in-0 slide-in-from-top-1 duration-200 motion-reduce:animate-none">
-        <div class="flex flex-col gap-2">
-          <span id="admin-currency-label" class="px-1 text-[13px] text-muted-foreground">{m.field_market()}</span>
-          <ToggleGroup type="single" spacing={1} id="admin-currency" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-3" bind:value={currencyChoice} aria-labelledby="admin-currency-label" onValueChange={chooseCurrency}>
-            {#each MARKETS as market}
-              <ToggleGroupItem value={market.key} data-value={market.key} aria-label={EXCHANGES[market.key].choice} class="h-auto min-h-12 flex-col gap-0 rounded-[10px] px-1 py-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm">
-                <span class="text-[14px] font-semibold">{market.name()}</span><span class="text-[12px]">{market.unit()}</span>
-              </ToggleGroupItem>
-            {/each}
-          </ToggleGroup>
-        </div>
-        <div class="flex min-h-11 items-center justify-between gap-3 px-1">
-          <label for="admin-coin">{m.field_coin()}</label>
-          <NativeSelect id="admin-coin" bind:value={coinChoice} onchange={event => chooseCoin(event.currentTarget.value)}>
-            {#if !preset}<NativeSelectOption value={asset.ticker}>{asset.ticker}</NativeSelectOption>{/if}
-            {#each PRESETS as preset}<NativeSelectOption value={preset}>{preset}</NativeSelectOption>{/each}
-            <NativeSelectOption value={OTHER}>{m.coin_other()}</NativeSelectOption>
-          </NativeSelect>
-        </div>
-        {#if otherOpen}
-          <div class="flex min-h-11 items-center justify-between gap-3 px-1">
-            <label for="admin-symbol">{m.field_ticker()}</label>
-            <div class="flex items-center gap-2">
-              <Input id="admin-symbol" bind:ref={tickerInput} class="w-28 uppercase placeholder:normal-case" placeholder={m.ticker_placeholder()} maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false"
-                enterkeyhint="done" list="ticker-list" aria-describedby="admin-symbol-error" aria-invalid={tickerError ? 'true' : undefined}
-                bind:value={tickerText} oninput={() => { tickerError = ''; }}
-                onkeydown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTicker(); } }} />
-              <datalist id="ticker-list">{#each listed || [] as ticker}<option value={ticker}></option>{/each}</datalist>
-              <Button id="admin-symbol-apply" variant="secondary" class="rounded-xl" onclick={applyTicker}>{m.ticker_apply()}</Button>
-            </div>
-          </div>
-        {/if}
-        {#if settings.assets.length > 1}
-          <Button id="asset-remove" variant="destructive" size="lg" class="asset-remove h-11 rounded-xl" onclick={() => removeAt(selected)}>
-            <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} class="size-5" />{m.asset_remove_this()}
-          </Button>
-        {/if}
-      </div>
-    {/if}
     {#if settings.assets.length > 1}
       <div class="flex flex-col gap-2 rounded-2xl bg-card p-3">
         <span id="admin-columns-label" class="px-1 text-[13px] text-muted-foreground">{m.columns()}</span>
@@ -458,7 +310,6 @@
         </ToggleGroup>
       </div>
     {/if}
-    <p id="admin-symbol-error" class="px-1 text-[13px] text-destructive" role="alert" hidden={!tickerError}>{tickerError}</p>
     <p id="status-indicator" class="{status.tone} flex items-start gap-2 px-1 text-[13px] leading-normal whitespace-pre-line text-muted-foreground [&.error]:text-destructive" role="status" aria-live="polite" hidden={status.tone === 'connected'}><span class="mt-[0.45em] size-2 shrink-0 rounded-full bg-current" aria-hidden="true"></span>{status.text}</p>
     <p id="overlay-msg" class="px-1 text-[13px] leading-normal whitespace-pre-line text-muted-foreground" hidden={!status.detail}>{status.detail}</p>
     <Button id="market-retry" variant="secondary" size="lg" class="h-11 rounded-xl" hidden={!status.canRetry} onclick={onRetryFeed}>{m.reconnect()}</Button>
