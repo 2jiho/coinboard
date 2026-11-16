@@ -6,8 +6,6 @@
   "section_prices": "Prices",
   "section_display": "Display",
   "asset_list": "Assets on the board",
-  "asset_move_up": "Move {name} up",
-  "asset_move_down": "Move {name} down",
   "asset_remove": "Remove {name}",
   "asset_add": "Add Asset",
   "asset_new": "New asset",
@@ -105,5 +103,14 @@
   "wake_released_system": "The system stopped keeping the screen on. Check its settings and try again.",
   "wake_released": "Keeping the screen on stopped. Try again.",
   "wake_active": "Keeping the screen on. The system can still turn it off.",
-  "wake_failed": "Couldn't keep the screen on ({name}). Check Low Power Mode, battery and permissions."
+  "wake_failed": "Couldn't keep the screen on ({name}). Check Low Power Mode, battery and permissions.",
+  "asset_reorder": "Reorder {name}",
+  "asset_swipe_remove": "Remove",
+  "asset_remove_this": "Remove This Asset",
+  "market_upbit": "Upbit",
+  "market_binance": "Binance",
+  "market_krw": "KRW",
+  "market_usdt": "USDT",
+  "market_perp": "Perpetual",
+  "no_price_yet": "No price yet"
 }

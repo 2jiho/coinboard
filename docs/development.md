@@ -92,7 +92,7 @@ The modules in `src/lib` are plain JavaScript that knows nothing of Svelte or th
 
 ## Design
 
-- **Settings panel**: built with [Tailwind CSS](https://tailwindcss.com) 4 and [shadcn-svelte](https://shadcn-svelte.com) components (maia style). The components are not a library: their code is copied into `src/lib/components/ui/` and edited there (the switch and the slider are enlarged to iPad size). Choices use `native-select`, so the iPad's own picker opens.
+- **Settings panel**: built with [Tailwind CSS](https://tailwindcss.com) 4 and [shadcn-svelte](https://shadcn-svelte.com) components (maia style). The components are not a library: their code is copied into `src/lib/components/ui/` and edited there (the switch and the slider are enlarged to iPad size). Market, columns and colors are button groups (`toggle-group`); the coin uses `native-select`, so the iPad's own picker opens. Reordering by the drag handle and swiping a card to remove are done in `SettingsPanel.svelte` with pointer events, no library (mouse, touch, and arrow keys).
 - **Theme**: the color, radius and font variables at the top of `src/app.css` are the theme of the panel and the components. The app is always dark.
 - **The board**: plain CSS in `src/app.css`, not Tailwind: fixed zones scaled to the screen need calculation and fine tuning. Board elements must not use class names that are Tailwind utilities (`grid`, `hidden`, `flex` and so on): Tailwind would style them and break the layout.
 - **Adding components**: `npx shadcn-svelte@latest add <name>`. When a new component brings a library into the app, add it to [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) and `public/licenses/`.
@@ -136,7 +136,7 @@ npm run test:e2e
 - `npm test`: unit tests for the modules in `src/lib`.
 - `npm run test:e2e`: builds, then checks the real page in Chromium. Exchanges and the wake lock are scripted; screenshots are left in `evidence/` (not in git).
   - The board and settings panel, keyboard use, delayed, failing and offline prices
-  - The grid: adding, cancelling and refusing duplicates, one connection per market, cell and type size, a coin that never answers, layouts by orientation, cells per row, back to one asset, reading settings saved before the grid
+  - The grid: adding, cancelling and refusing duplicates, reordering by drag handle and by keyboard, swiping to remove, live prices in the list, one connection per market, cell and type size, a coin that never answers, layouts by orientation, cells per row, back to one asset, reading settings saved before the grid
   - The first connection is kept when the page loads; a page shown again reconnects
   - An English device: no Korean left in settings, no choice cut off, won in millions, the page's language
   - Updates applied by themselves (with the settings panel open, and with nobody touching the board)

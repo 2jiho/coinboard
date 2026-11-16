@@ -112,29 +112,31 @@ Tap the screen once and the settings button (a gear) appears in the bottom-right
 
 Changes apply and are saved at once (only adding an asset waits for **Add**).
 
-**Asset list**: one row per asset (a coin in a market).
+The panel has two sections, **Prices** and **Display**.
 
-- Tap a row to unfold that asset's **Market** and **Coin** and change them. Tap it again to fold them away.
-- `▲` and `▼` change the order; the grid is filled top left first, in this order.
-- The bin removes an asset. The last one cannot be removed.
+**Asset list**: a card per asset (a coin in a market), each with the coin's icon, its price now and its change.
+
+- Tap a card to unfold that asset's **Market** and **Coin** and change them. Tap it again to fold them away.
+- Drag the handle (⠿) on the right to reorder: the other cards make room, and the order is saved on release. The grid is filled top left first, in this order. On a keyboard, the up and down arrows on the handle move the card.
+- Swipe a card to the left to uncover a red **Remove** button; tap it to remove the asset, or tap anywhere else to cover it again. **Remove This Asset** in the unfolded editor does the same. The last asset cannot be removed.
 
 **Add Asset**: unfolds a market and a coin to choose. Choose, then tap **Add**, or **Cancel** to leave it. An asset already shown cannot be added again.
 
-**Market**
+**Market**: three buttons side by side.
 
-- **Upbit · KRW**: Upbit, Korean won market
-- **Binance · USDT**: Binance spot
-- **Binance · USDT Perpetual**: Binance USDT perpetual futures
+- **Upbit / KRW**: Upbit, Korean won market
+- **Binance / USDT**: Binance spot
+- **Binance / Perpetual**: Binance USDT perpetual futures
 
 **Coin**: six common coins are listed (BTC, ETH, XRP, SOL, DOGE, ADA). For any other, choose **Other…**, type its ticker (for example `LINK`) and press Enter or **Apply**. While typing, the coins really listed on that exchange are offered, and a ticker it does not list is pointed out.
 
-**Columns**: shown with two or more assets. **Auto** or 1 to 6 cells per row; 1 puts everything in one column.
+**Columns**: shown with two or more assets. Tap **Auto** or 1 to 6 cells per row; 1 puts everything in one column.
 
-**Brightness**: a filter that darkens the board (10 to 100%). It does not change the device's own brightness.
+**Brightness**: a slider between a small and a large sun. A filter that darkens the board (10 to 100%); It does not change the device's own brightness.
 
 **Burn-in Protection**: moves the board a very little (within 3% of the screen) once a minute, so the same text does not sit on the same pixels for hours. Worth having on an OLED screen; otherwise it can be off.
 
-**Up/Down Colors**: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
+**Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 
 **At the bottom**: the app's version, and a GitHub icon linking to the source code.
 

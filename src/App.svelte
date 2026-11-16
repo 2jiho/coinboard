@@ -137,14 +137,11 @@
     selected = settings.assets.length - 1;
     return '';
   }
-  // Move an asset up (-1) or down (+1); the one being edited stays chosen.
-  function moveAsset(index, step) {
-    const target = index + step;
-    if (target < 0 || target >= settings.assets.length) return;
-    const assets = [...settings.assets];
-    [assets[index], assets[target]] = [assets[target], assets[index]];
-    if (selected === index) selected = target; else if (selected === target) selected = index;
-    changeAssets(assets);
+  // A new order, as dragged in settings; the asset being edited stays chosen.
+  function reorderAssets(order) {
+    const chosen = assetKey(settings.assets[selected]);
+    selected = Math.max(0, order.findIndex(asset => assetKey(asset) === chosen));
+    changeAssets(order);
   }
   function removeAsset(index) {
     if (settings.assets.length <= 1) return;
@@ -236,13 +233,13 @@
 
 {#if panelOpen}
   <div id="scrim"></div>
-  <SettingsPanel {settings} {selected} {canAdd} {status} {wake} {versionLabel} {updateReady}
+  <SettingsPanel {settings} {selected} {canAdd} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
     onClose={closePanel}
     onSelect={index => { selected = index; }}
     onAdd={addAsset}
     onColumns={columns => save({ columns })}
     onRemove={removeAsset}
-    onMove={moveAsset}
+    onReorder={reorderAssets}
     onCurrency={currency => currency === settings.assets[selected].currency ? '' : changeAsset({ currency })}
     onTicker={ticker => ticker === settings.assets[selected].ticker ? '' : changeAsset({ ticker })}
     onBrightnessPreview={value => { previewBrightness = value; }}
