@@ -7,6 +7,8 @@ Coinboard itself is under the [MIT License](LICENSE). It ships the following thi
 | Component | Use | License | Full text |
 |---|---|---|---|
 | [Pretendard](https://github.com/orioncactus/pretendard) by Kil Hyung-jin | Font of the board and settings (the official 1.3.9 subset files, unmodified) | SIL Open Font License 1.1 | `licenses/Pretendard-OFL.txt` |
+| [Maven Pro](https://github.com/m4rc1e/mavenproFont) by The Maven Pro Project Authors | The letter C of the app icon, drawn from its Bold weight as outlines (the font itself is not shipped) | SIL Open Font License 1.1 | `licenses/MavenPro-OFL.txt` |
+| [Bitcoin logo](https://en.bitcoin.it/wiki/Promotional_graphics) | The ₿ of the app icon, taken from the logo | Public domain | — |
 | [cryptocurrency-icons](https://github.com/spothq/cryptocurrency-icons) | Coin icons in `coins/` | CC0 1.0 Universal | `coins/LICENSE.md` |
 | [Svelte](https://github.com/sveltejs/svelte) | Runtime compiled into the app's script | MIT | `licenses/svelte-MIT.txt` |
 | [clsx](https://github.com/lukeed/clsx) by Luke Edwards | Used by the Svelte runtime | MIT | `licenses/clsx-MIT.txt` |
