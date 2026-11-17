@@ -126,7 +126,7 @@
   "help_reading_title": "Reading the Board",
   "help_reading_body": "1D is against the previous day's close (Upbit), 24H the change over 24 hours (Binance), and PERP Binance USDT perpetual futures. When a price changes, only the digits that changed roll over, and the bigger the move, the deeper the color.",
   "help_keep_title": "Keeping It On",
-  "help_keep_body": "Add it to the home screen and open it like an app: it runs full screen, and keeping the screen on works best that way (Safari's Share button, then Add to Home Screen). Keep it charging, and turn Low Power Mode off.",
+  "help_keep_body": "Add it to the home screen and open it like an app: it runs full screen, and keeping the screen on works best that way (Safari's Share button, then Add to Home Screen). Keep it charging, and turn Low Power Mode off. On an OLED screen, keep Burn-in Protection on in settings.",
   "help_guide": "Full User Guide",
   "help_guide_url": "https://github.com/2jiho/coinboard/blob/main/docs/guide.md",
   "asset_removed": "Deleted {name}",
@@ -144,5 +144,6 @@
   "install_ios_1": "Tap the browser's Share button",
   "install_ios_2": "Choose ‘Add to Home Screen’",
   "install_ios_3": "Tap ‘Add’",
-  "help_hint_install": "Settings shows how to add it to your home screen"
+  "help_hint_install": "Settings shows how to add it to your home screen",
+  "burn_in_hint": "Keep it on for an OLED screen. An LCD screen does not need it."
 }
