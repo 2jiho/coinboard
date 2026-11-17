@@ -373,8 +373,11 @@
         </div>
       </div>
       <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
-        <label for="admin-burn-in">{m.burn_in()}</label>
-        <Switch id="admin-burn-in" size="lg" checked={settings.burnIn} onCheckedChange={value => onBurnIn(value)} />
+        <div class="flex flex-col gap-0.5 py-2.5">
+          <label for="admin-burn-in">{m.burn_in()}</label>
+          <span id="burn-in-hint" class="text-[13px] leading-snug text-muted-foreground">{m.burn_in_hint()}</span>
+        </div>
+        <Switch id="admin-burn-in" size="lg" checked={settings.burnIn} onCheckedChange={value => onBurnIn(value)} aria-describedby="burn-in-hint" />
       </div>
       <!-- Whether the screen is being kept on, always: green while it is. -->
       <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">

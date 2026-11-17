@@ -1021,6 +1021,60 @@ async function install(browser, base) {
   console.log('PASS install: an install button where the browser offers one, the steps on iPhone and iPad, nothing when opened from the home screen; dismissed for good, still in Help');
 }
 
+async function oled(browser, base) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true }); await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.clock.install(); await page.goto(base); await live(page);
+  // A style as it settles (the board fades things over seconds, in real time).
+  const settled = (selector, property) => page.locator(selector).first().evaluate((el, prop) => { el.style.transition = 'none'; const value = getComputedStyle(el)[prop]; el.style.transition = ''; return value; }, property);
+  const dotQuiet = () => page.locator('#status-dot').evaluate(el => el.classList.contains('quiet'));
+  // On by default: the price is a warm off-white, the icon dimmer, and the status dot hidden while all is well.
+  assert.equal(await page.evaluate(() => document.body.classList.contains('oled')), true);
+  assert.equal(await settled('#price-main', 'color'), 'rgb(236, 232, 224)');
+  assert.equal(await settled('#icon', 'opacity'), '0.6');
+  assert.equal(await dotQuiet(), true);
+  // Something wrong: the dot shows.
+  await context.setOffline(true);
+  await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'bad');
+  assert.equal(await dotQuiet(), false);
+  await context.setOffline(false); await page.clock.runFor(35000); await live(page);
+  assert.equal(await dotQuiet(), true);
+  // Left alone for ten minutes, the labels that never change fade far back; a touch brings them back.
+  await page.clock.runFor(10 * 60 * 1000 + 1000);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('resting')), true);
+  assert.equal(await settled('#board-head', 'opacity'), '0.3');
+  assert.equal(await settled('#change-label', 'opacity'), '0.3');
+  assert.equal(await settled('#icon', 'opacity'), '0.35');
+  assert.equal(await settled('#price-main', 'opacity'), '1', 'the price itself stays');
+  await tapBoard(page);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('resting')), false);
+  assert.equal(await settled('#board-head', 'opacity'), '1');
+  // Every three hours, in landscape, the board changes sides: icon on the right, lines right-aligned.
+  const sides = async () => { const icon = await page.locator('#icon').boundingBox(), price = await page.locator('#price-text').boundingBox(); return icon.x > price.x ? 'right' : 'left'; };
+  assert.equal(await sides(), 'left');
+  await page.clock.runFor(3 * 60 * 60 * 1000); await page.clock.runFor(1000);
+  assert.equal(await page.locator('#container').evaluate(el => el.classList.contains('mirrored')), true);
+  await page.waitForTimeout(1200); // the fade back in (real time)
+  assert.equal(await sides(), 'right');
+  assert.ok(await page.locator('#container').evaluate(el => { const box = el.getBoundingClientRect(); return box.x >= 0 && box.y >= 0 && box.right <= innerWidth && box.bottom <= innerHeight; }), 'mirrored, it still fits the screen');
+  await page.screenshot({ path: path.join(evidence, 'board-mirrored.png') });
+  // In settings the switch says what it is for.
+  await open(page);
+  assert.equal(await text(page, '#burn-in-hint'), 'OLED 화면에서 켜 두세요. LCD 화면에서는 꺼도 됩니다.');
+  // Switched off: all of it goes, and the board is as it always was.
+  await page.locator('#admin-burn-in').click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => document.body.classList.contains('oled')), false);
+  assert.equal(await page.locator('#container').evaluate(el => el.classList.contains('mirrored')), false);
+  assert.equal(await settled('#price-main', 'color'), 'rgb(255, 255, 255)');
+  assert.equal(await settled('#icon', 'opacity'), '1');
+  await page.clock.fastForward(6000);
+  assert.equal(await dotQuiet(), false);
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS oled: warm white price, dimmer icons, status dot hidden while all is well, labels resting when untouched, sides changed every three hours; none of it when switched off');
+}
+
 async function idleUpdate(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
@@ -1275,7 +1329,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH 
 const newContext = browser.newContext.bind(browser);
 browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options });
 try {
-  for (const scenario of [board, english, help, install, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, english, help, install, oled, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;

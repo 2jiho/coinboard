@@ -136,7 +136,16 @@ The panel has two sections, **Prices** and **Display**.
 
 **Brightness**: a slider between a small and a large sun. A filter that darkens the board (10 to 100%); It does not change the device's own brightness.
 
-**Burn-in Protection**: moves the board a very little (within 3% of the screen) once a minute, so the same text does not sit on the same pixels for hours. Worth having on an OLED screen; otherwise it can be off.
+**Burn-in Protection**: for an OLED screen, which wears where it stays lit; an LCD screen does not burn in and does not need it. On by default. While it is on:
+
+- the board floats a little (within 3% of the screen) towards a new spot every minute;
+- the price is a warm off-white instead of pure white, and coin icons are dimmer;
+- the status dot is hidden while all is well (it shows when something is wrong, and with the settings button);
+- after ten minutes untouched, the labels that never change (`BTC USDT`, `24H`) fade far back and the icon dims further; a touch brings them back;
+- a price that is not current (delayed, offline) is dimmed further;
+- every three hours a single board in landscape changes sides, the icon moving to the right and back, so that even the middle of the icon rests.
+
+Switched off, the board looks as it always did.
 
 **Keep Screen On**: whether the app is keeping the screen on right now. **On** (green dot) while it is; **Off** (yellow) when it was released, with the reason and a button to try again below; **Waiting** while the app is in the background; **Not supported** where the browser cannot do it.
 
