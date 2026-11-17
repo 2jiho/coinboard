@@ -141,7 +141,7 @@ The panel has two sections, **Prices** and **Display**.
 - the board floats a little (within 3% of the screen) towards a new spot every minute;
 - the price is a warm off-white instead of pure white, and coin icons are dimmer;
 - the status dot is hidden while all is well (it shows when something is wrong, and with the settings button);
-- after ten minutes untouched, the labels that never change (`BTC USDT`, `24H`) fade far back and the icon dims further; a touch brings them back;
+- after ten minutes untouched, the labels that never change (`BTC USDT`, `24H`) fade far back, the icon dims further and the change a little; a touch brings them back;
 - a price that is not current (delayed, offline) is dimmed further;
 - every three hours a single board in landscape changes sides, the icon moving to the right and back, so that even the middle of the icon rests.
 

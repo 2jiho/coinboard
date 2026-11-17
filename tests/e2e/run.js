@@ -1045,6 +1045,7 @@ async function oled(browser, base) {
   assert.equal(await settled('#board-head', 'opacity'), '0.3');
   assert.equal(await settled('#change-label', 'opacity'), '0.3');
   assert.equal(await settled('#icon', 'opacity'), '0.35');
+  assert.equal(await settled('#change', 'opacity'), '0.6', 'the change fades less');
   assert.equal(await settled('#price-main', 'opacity'), '1', 'the price itself stays');
   await tapBoard(page);
   assert.equal(await page.evaluate(() => document.body.classList.contains('resting')), false);
