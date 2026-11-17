@@ -1028,10 +1028,9 @@ async function oled(browser, base) {
   // A style as it settles (the board fades things over seconds, in real time).
   const settled = (selector, property) => page.locator(selector).first().evaluate((el, prop) => { el.style.transition = 'none'; const value = getComputedStyle(el)[prop]; el.style.transition = ''; return value; }, property);
   const dotQuiet = () => page.locator('#status-dot').evaluate(el => el.classList.contains('quiet'));
-  // On by default: the price is a warm off-white, the icon dimmer, and the status dot hidden while all is well.
+  // On by default: the price is a warm off-white and the status dot hidden while all is well.
   assert.equal(await page.evaluate(() => document.body.classList.contains('oled')), true);
   assert.equal(await settled('#price-main', 'color'), 'rgb(236, 232, 224)');
-  assert.equal(await settled('#icon', 'opacity'), '0.6');
   assert.equal(await dotQuiet(), true);
   // Something wrong: the dot shows.
   await context.setOffline(true);
@@ -1039,17 +1038,11 @@ async function oled(browser, base) {
   assert.equal(await dotQuiet(), false);
   await context.setOffline(false); await page.clock.runFor(35000); await live(page);
   assert.equal(await dotQuiet(), true);
-  // Left alone for ten minutes, the labels that never change fade far back; a touch brings them back.
-  await page.clock.runFor(10 * 60 * 1000 + 1000);
-  assert.equal(await page.evaluate(() => document.body.classList.contains('resting')), true);
-  assert.equal(await settled('#board-head', 'opacity'), '0.3');
-  assert.equal(await settled('#change-label', 'opacity'), '0.3');
-  assert.equal(await settled('#icon', 'opacity'), '0.35');
-  assert.equal(await settled('#change', 'opacity'), '0.6', 'the change fades less');
-  assert.equal(await settled('#price-main', 'opacity'), '1', 'the price itself stays');
-  await tapBoard(page);
-  assert.equal(await page.evaluate(() => document.body.classList.contains('resting')), false);
+  // Left alone for a long while, the board stays fully lit: it is there to be read.
+  await page.clock.runFor(30 * 60 * 1000);
   assert.equal(await settled('#board-head', 'opacity'), '1');
+  assert.equal(await settled('#icon', 'opacity'), '1');
+  assert.equal(await settled('#change', 'opacity'), '1');
   // Every three hours, in landscape, the board changes sides: icon on the right, lines right-aligned.
   const sides = async () => { const icon = await page.locator('#icon').boundingBox(), price = await page.locator('#price-text').boundingBox(); return icon.x > price.x ? 'right' : 'left'; };
   assert.equal(await sides(), 'left');
@@ -1068,12 +1061,11 @@ async function oled(browser, base) {
   assert.equal(await page.evaluate(() => document.body.classList.contains('oled')), false);
   assert.equal(await page.locator('#container').evaluate(el => el.classList.contains('mirrored')), false);
   assert.equal(await settled('#price-main', 'color'), 'rgb(255, 255, 255)');
-  assert.equal(await settled('#icon', 'opacity'), '1');
   await page.clock.fastForward(6000);
   assert.equal(await dotQuiet(), false);
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS oled: warm white price, dimmer icons, status dot hidden while all is well, labels resting when untouched, sides changed every three hours; none of it when switched off');
+  console.log('PASS oled: warm white price, status dot hidden while all is well, fully lit however long untouched, sides changed every three hours; none of it when switched off');
 }
 
 async function idleUpdate(browser, base) {

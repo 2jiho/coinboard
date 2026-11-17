@@ -315,17 +315,9 @@ body.settings-open #first-hint { visibility: hidden; }
    with how bright it is and for how long, the blue ones fastest; an LCD does
    not burn in, and its owner can switch all this off.
    - The price is a warm off-white rather than pure white: less blue, a little less light.
-   - Coin icons, large filled discs, are drawn dimmer.
-   - Left untouched for a while (body.resting), the labels that never change
-     fade far back, and the icons further; a touch brings them back.
-   - A price that is not current (delayed, offline) is dimmed further. */
+   - A price that is not current (delayed, offline) is dimmed further.
+   The board stays fully lit otherwise: it is there to be read at a glance. */
 body.oled { --price-white: #ece8e0; }
-#icon, .cell-icon, #board-head, .change-label, .cell-head > :not(.cell-icon), .change { transition: opacity 30s ease-in-out, color 0.4s; }
-body.oled #icon, body.oled .cell-icon { opacity: 0.6; }
-body.oled.resting #board-head, body.oled.resting .change-label, body.oled.resting .cell-head > :not(.cell-icon) { opacity: 0.3; }
-body.oled.resting #icon, body.oled.resting .cell-icon { opacity: 0.35; }
-/* The change moves only now and then, and its arrow and colour hold for hours: back too, but less, as it is news. */
-body.oled.resting .change { opacity: 0.6; }
 body.oled #container.price-unavailable #price-main, body.oled .cell.price-unavailable .price { opacity: 0.35; }
 /* While all is well the status dot is hidden: a light that never moves and
    never changes is the surest burn-in. It shows when something is wrong, and
