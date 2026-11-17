@@ -529,6 +529,17 @@ async function board(browser, base) {
   await page.clock.runFor(600);
   assert.equal(await page.locator('#price-main').getAttribute('data-strength'), null);
   assert.equal(await tintAfter('69000.00', '69,000'), 'down 3');
+  // A new price drawn the same (69,000.40 is still "69,000") changes nothing: no tint either.
+  await page.clock.runFor(3100);
+  assert.equal(await page.locator('#price-main').getAttribute('data-strength'), null);
+  await page.evaluate(() => sockets.at(-1).quote({ c: '69000.40' }));
+  for (let step = 0; step < 40; step += 1) {
+    await page.clock.runFor(100);
+    assert.equal(await page.locator('#price-main').evaluate(el => el.classList.contains('up') || el.classList.contains('down')), false, 'no tint for a price drawn the same');
+  }
+  assert.equal(await text(page, '#price-main'), '69,000');
+  // The next move is measured from the price drawn last, 69,000.00.
+  assert.equal(await tintAfter('69001.00', '69,001'), 'up 1');
   await page.evaluate(() => sockets.at(-1).quote());
   // Prices that arrive faster than that are not all drawn: the screen waits
   // out its three seconds and then shows the latest one.

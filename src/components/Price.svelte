@@ -23,20 +23,25 @@
   // How big the move was (1 slight, 2 ordinary, 3 large): a bigger move is
   // tinted more strongly, and a large one holds its colour longer.
   let strength = $state(0);
-  let lastPrice = null, flashTimer;
+  // The price and the text last drawn. A new price that is drawn the same
+  // (64,517.30 and 64,517.10 are both "64,517") changes nothing on screen, so
+  // it does not tint either; a later move is measured from the price drawn.
+  let lastPrice = null, lastText = null, flashTimer;
   // The digit each window showed last (see roll, below).
   const lastShown = new Map();
   $effect.pre(() => {
     const next = tick ? tick.price : null;
     // No price (a different coin is on its way): its digits will simply appear.
-    if (next === null) { clearTimeout(flashTimer); flash = 0; strength = 0; trend = 0; lastPrice = null; lastShown.clear(); return; }
+    if (next === null) { clearTimeout(flashTimer); flash = 0; strength = 0; trend = 0; lastPrice = null; lastText = null; lastShown.clear(); return; }
+    const text = parts.pieces.map(piece => piece.number + piece.mark).join(' ');
+    if (text === lastText) return;
     if (lastPrice !== null && next !== lastPrice) {
       trend = flash = next > lastPrice ? 1 : -1;
       strength = moveStrength(lastPrice, next);
       clearTimeout(flashTimer);
       flashTimer = setTimeout(() => { flash = 0; }, strength === 3 ? 1400 : 700);
     }
-    lastPrice = next;
+    lastPrice = next; lastText = text;
   });
   $effect(() => () => clearTimeout(flashTimer));
 
