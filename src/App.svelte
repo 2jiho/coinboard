@@ -113,11 +113,6 @@
   // Touch has no hover, so a tap opens it; it closes after a few seconds, on a
   // second tap, or on a tap anywhere else.
   let tipShown = $state(false);
-  // Burn-in protection: untouched for this long, the board rests (see app.css).
-  const REST_MS = 10 * 60 * 1000;
-  let resting = $state(false);
-  let restTimer;
-  function stir() { resting = false; clearTimeout(restTimer); restTimer = setTimeout(() => { resting = true; }, REST_MS); }
   let tipTimer;
   function hideTip() { clearTimeout(tipTimer); tipShown = false; }
   function tapDot(event) {
@@ -135,7 +130,6 @@
     document.body.classList.toggle('settings-open', panelOpen);
     document.body.dataset.palette = settings.palette;
     document.body.classList.toggle('oled', settings.burnIn);
-    document.body.classList.toggle('resting', resting);
   });
   // The "N초 후" countdowns only matter while something is wrong.
   $effect(() => {
@@ -245,11 +239,8 @@
     }
     try { hint = storage('localStorage')?.getItem(HINT_KEY) !== '1'; } catch { hint = true; }
     if (hint) hintTimer = setTimeout(() => { hint = false; }, 15000);
-    stir();
     const listeners = [
       [document, 'pointerdown', hintSeen, true],
-      [document, 'pointerdown', stir, true],
-      [document, 'keydown', stir, true],
       [document, 'keydown', hintSeen, true],
       [document, 'visibilitychange', () => setVisible(document.visibilityState === 'visible')],
       [document, 'pointerdown', event => { if (tipShown && !event.target.closest('#status-dot')) hideTip(); }],
@@ -270,7 +261,7 @@
     for (const [target, name, handler, capture] of listeners) target.addEventListener(name, handler, capture);
     return () => {
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
-      clearTimeout(cursorTimer); clearTimeout(tipTimer); clearTimeout(hintTimer); clearTimeout(restTimer);
+      clearTimeout(cursorTimer); clearTimeout(tipTimer); clearTimeout(hintTimer);
       controls.dispose(); feed.dispose(); wakeLock.dispose(); beat.reset();
     };
   });
