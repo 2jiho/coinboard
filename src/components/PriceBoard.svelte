@@ -174,21 +174,6 @@
     return () => { boardObserver.disconnect(); priceObserver.disconnect(); window.removeEventListener('resize', fit); };
   });
 
-  // Burn-in protection, every few hours: the single board changes sides in
-  // landscape (app.css draws it mirrored), fading out and back in to do so.
-  const SWAP_MS = 3 * 60 * 60 * 1000, FADE_MS = 800;
-  let mirrored = $state(false), swapping = $state(false);
-  $effect(() => {
-    if (!settings.burnIn || grid) { mirrored = false; swapping = false; return; }
-    if (!active) return;
-    let fade;
-    const timer = setInterval(() => {
-      swapping = true;
-      fade = setTimeout(() => { mirrored = !mirrored; swapping = false; }, FADE_MS);
-    }, SWAP_MS);
-    return () => { clearInterval(timer); clearTimeout(fade); swapping = false; };
-  });
-
   // Burn-in protection: once a minute pick a new spot close to the centre; the
   // CSS transition makes the move take the whole minute. Switched off, the
   // board sits exactly in the middle.
@@ -204,7 +189,7 @@
 
 <div id="stage">
   <div id="drift" class:is-grid={grid} style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
-    <div id="container" bind:this={container} class:is-grid={grid} class:mirrored={mirrored && !grid} class:swapping class:price-unavailable={!grid && statuses[0].unavailable}
+    <div id="container" bind:this={container} class:is-grid={grid} class:price-unavailable={!grid && statuses[0].unavailable}
       style:filter="brightness({brightness}%)" style:transform="scale({scale})">
       {#if !grid}
         {@const asset = assets[0]}

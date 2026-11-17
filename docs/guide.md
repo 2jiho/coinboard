@@ -142,7 +142,6 @@ The panel has two sections, **Prices** and **Display**.
 - the price is a warm off-white instead of pure white;
 - the status dot is hidden while all is well (it shows when something is wrong, and with the settings button);
 - a price that is not current (delayed, offline) is dimmed further;
-- every three hours a single board in landscape changes sides, the icon moving to the right and back, so that even the middle of the icon rests. The three hours are counted from when the app comes on screen (opened, returned to, or after a change in settings); portrait and the grid do not change sides.
 
 Nothing else is dimmed: the board stays fully lit, to be read at a glance.
 

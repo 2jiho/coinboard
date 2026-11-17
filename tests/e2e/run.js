@@ -1043,15 +1043,6 @@ async function oled(browser, base) {
   assert.equal(await settled('#board-head', 'opacity'), '1');
   assert.equal(await settled('#icon', 'opacity'), '1');
   assert.equal(await settled('#change', 'opacity'), '1');
-  // Every three hours, in landscape, the board changes sides: icon on the right, lines right-aligned.
-  const sides = async () => { const icon = await page.locator('#icon').boundingBox(), price = await page.locator('#price-text').boundingBox(); return icon.x > price.x ? 'right' : 'left'; };
-  assert.equal(await sides(), 'left');
-  await page.clock.runFor(3 * 60 * 60 * 1000); await page.clock.runFor(1000);
-  assert.equal(await page.locator('#container').evaluate(el => el.classList.contains('mirrored')), true);
-  await page.waitForTimeout(1200); // the fade back in (real time)
-  assert.equal(await sides(), 'right');
-  assert.ok(await page.locator('#container').evaluate(el => { const box = el.getBoundingClientRect(); return box.x >= 0 && box.y >= 0 && box.right <= innerWidth && box.bottom <= innerHeight; }), 'mirrored, it still fits the screen');
-  await page.screenshot({ path: path.join(evidence, 'board-mirrored.png') });
   // In settings the switch says what it is for.
   await open(page);
   assert.equal(await text(page, '#burn-in-hint'), 'OLED 화면에서 켜 두세요. LCD 화면에서는 꺼도 됩니다.');
@@ -1059,13 +1050,12 @@ async function oled(browser, base) {
   await page.locator('#admin-burn-in').click();
   await page.keyboard.press('Escape');
   assert.equal(await page.evaluate(() => document.body.classList.contains('oled')), false);
-  assert.equal(await page.locator('#container').evaluate(el => el.classList.contains('mirrored')), false);
   assert.equal(await settled('#price-main', 'color'), 'rgb(255, 255, 255)');
   await page.clock.fastForward(6000);
   assert.equal(await dotQuiet(), false);
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS oled: warm white price, status dot hidden while all is well, fully lit however long untouched, sides changed every three hours; none of it when switched off');
+  console.log('PASS oled: warm white price, status dot hidden while all is well, fully lit however long untouched; none of it when switched off');
 }
 
 async function idleUpdate(browser, base) {
