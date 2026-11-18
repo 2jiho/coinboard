@@ -381,3 +381,38 @@ test('replacing the only coin on a connection that has already gone quiet still 
   f.advance(32000);
   assert.equal(f.state().tickerSuspect, true);
 });
+
+test('a coin the exchange says it does not list is flagged at once; the others carry on', async () => {
+  const f = fixture(); f.feed.select('OKX-USDT', ['BTC', 'NOPE']); f.advance(0); f.sockets[0].open();
+  await f.message({ event: 'error', code: '60018', msg: "Subscribe failed, wrong URL or channel:tickers,instId:NOPE-USDT doesn't exist." });
+  const nope = f.states.filter(s => s.selection.ticker === 'NOPE').at(-1);
+  assert.equal(nope.tickerSuspect, true);
+  assert.equal(f.sockets[0].readyState, 1, 'the connection is kept');
+  await f.message({ arg: { channel: 'tickers', instId: 'BTC-USDT' }, data: [{ instId: 'BTC-USDT', last: '64000', open24h: '63000', ts: String(f.now()) }] });
+  assert.equal(f.states.filter(s => s.selection.ticker === 'BTC').at(-1).kind, 'live');
+});
+test('an address that says nothing is left for the next one', async () => {
+  const f = fixture(); f.feed.select('USDT', 'BTC');
+  assert.match(f.sockets[0].url, /^wss:\/\/data-stream\.binance\.vision\//);
+  f.sockets[0].close();          // refused before a word
+  f.advance(5000);
+  assert.match(f.sockets.at(-1).url, /^wss:\/\/stream\.binance\.com:443\//);
+  f.sockets.at(-1).open(); await f.message(f.tick('USDT'));
+  f.sockets.at(-1).close();      // this one worked: it is kept
+  f.advance(5000);
+  assert.match(f.sockets.at(-1).url, /^wss:\/\/stream\.binance\.com:443\//);
+});
+test('Bithumb is kept alive by asking for the same coins again', async () => {
+  const f = fixture(); f.feed.select('BITHUMB-KRW', ['BTC']); f.advance(0); f.sockets[0].open();
+  assert.equal(f.sockets[0].sent.length, 1, 'only the subscription at first');
+  f.advance(10000);
+  assert.equal(f.sockets[0].sent.length, 2);
+  assert.deepEqual(JSON.parse(f.sockets[0].sent[1])[1], { type: 'ticker', codes: ['KRW-BTC'] });
+});
+test('OKX answers its ping with a bare "pong", which keeps the connection alive', async () => {
+  const f = fixture(); f.feed.select('OKX-USDT', ['BTC']); f.advance(0); f.sockets[0].open();
+  await f.message({ arg: { channel: 'tickers', instId: 'BTC-USDT' }, data: [{ instId: 'BTC-USDT', last: '64000', open24h: '63000', ts: String(f.now()) }] });
+  for (let second = 0; second < 30; second += 10) { f.advance(10000); await f.sockets[0].onmessage({ data: 'pong' }); }
+  assert.equal(f.sockets[0].readyState, 1);
+  assert.ok(f.sockets[0].sent.includes('ping'));
+});

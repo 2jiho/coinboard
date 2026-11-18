@@ -31,6 +31,9 @@
   // Names for each market come from its exchange. The board is English only;
   // Korean lives in the settings panel.
   const markets = $derived(assets.map(asset => describeMarket(asset.currency, asset.ticker)));
+  // The same coin in the same currency on two exchanges reads the same: such
+  // cells also name their exchange.
+  const shared = $derived(new Set(markets.map(market => market.symbol).filter((symbol, index, all) => all.indexOf(symbol) !== index)));
   const keyOf = asset => `${asset.currency}:${asset.ticker}`;
   // The grid. Cells per row are chosen in settings, or left to the board
   // (settings.columns is 0). Left to the board, every row holds the same
@@ -222,7 +225,7 @@
               <div class="cell-inner" style:transform="scale({cellScale})">
               <p class="cell-head">
                 {#if !failedIcons.has(iconOf(asset))}<img class="cell-icon" src={iconOf(asset)} alt="" onerror={() => iconFailed(iconOf(asset))} />{/if}
-                <span class="cell-coin">{asset.ticker}</span><span class="cell-unit">{market.quote}</span>{#if market.tag}<span class="tag">{market.tag}</span>{/if}
+                <span class="cell-coin">{asset.ticker}</span><span class="cell-unit">{market.quote}</span>{#if market.tag}<span class="tag">{market.tag}</span>{/if}{#if shared.has(market.symbol)}<span class="cell-venue">{market.label.split(' ')[0]}</span>{/if}
               </p>
               <Price tick={ticks[index]} scale={priceScale} bind:line={lines[index]} bind:text={texts[index]} />
               <p class="sr-only">{market.label} · {market.pair}</p>

@@ -36,7 +36,7 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `src/components/Price.svelte` | One price line: rolling digits and a tint by the size of the move |
 | `src/components/SettingsPanel.svelte` | The settings panel |
 | `src/lib/feed.js` | Exchange WebSocket connections (one per market, carrying several coins), reconnection, liveness |
-| `src/lib/exchanges/` | Per exchange: addresses, subscription messages, reading messages (Upbit; Binance spot and perpetual futures) |
+| `src/lib/exchanges/` | Per exchange: addresses (with fallbacks, `hosts`), subscription messages, keep-alive, reading messages (Upbit, Bithumb; Binance and OKX spot and perpetuals; Coinbase). `index.js` lists them and groups them by currency for settings |
 | `src/lib/status.js` | Turns the connection state into the words shown |
 | `src/lib/quiet-controls.js` | Showing and hiding the settings button, first-tap protection, closing a panel left open |
 | `src/lib/presets.js` | The coins offered in settings |
@@ -112,7 +112,7 @@ The settings panel, state descriptions and messages are translated with [Paragli
 - **Plurals**: text that changes with a number, like `1 second` and `2 seconds`, uses a `plural` selector in the message file.
 - **Changing or adding messages**: change both files. `npm test` checks that both have the same keys and values, that none is empty and that the English has no Korean in it; the browser tests check, on an English device, that no Korean is left in the settings panel and that no choice is cut off.
 - **Compiling**: `npm run build` and `npm run dev` compile in memory through the Vite plugin (virtual modules); `npm test` first runs `npm run i18n`, which writes `src/paraglide/`. The message-format plugin is fetched from jsDelivr, so the first compile needs the internet.
-- **Terms**: 자산 = Asset, 시장 = Market, 코인 = Coin, 티커 = Ticker, 직접 입력 = Other, 가로 칸 수 = Columns, 밝기 = Brightness, 번인 방지 = Burn-in Protection, 등락 색 = Up/Down Colors, 무기한 = Perpetual.
+- **Terms**: 자산 = Asset, 시장 = Market, 원화 = KRW, 달러 = USD, 코인 = Coin, 티커 = Ticker, 직접 입력 = Other, 가로 칸 수 = Columns, 밝기 = Brightness, 번인 방지 = Burn-in Protection, 등락 색 = Up/Down Colors, 무기한 = Perpetual.
 
 ## Versions
 
@@ -166,6 +166,10 @@ A push to `main` runs the tests in GitHub Actions and, if they pass, publishes t
 - [Upbit rate limits](https://docs.upbit.com/kr/reference/rate-limits): connection requests from a browser (with an Origin) once every 10 seconds (the app uses 11).
 - [Upbit connection management](https://docs.upbit.com/kr/docs/websocket-best-practice): closed after 120 seconds idle; kept with PING.
 - [Binance market streams](https://developers.binance.com/en/docs/products/spot/web-socket-streams): `wss://data-stream.binance.vision/ws/<symbol>@ticker`, Binance's market-data-only host (the coin list from `https://data-api.binance.vision`). It carries the same streams as `stream.binance.com` and is reachable where binance.com itself is restricted. Futures have no such host.
+- [Bithumb WebSocket](https://apidocs.bithumb.com/reference/websocket-기본-정보): `wss://ws-api.bithumb.com/websocket/v1`, Upbit's format. It has no keep-alive answer and sends a ticker only on a trade, so the subscription is sent again every 10 seconds; Bithumb answers it with each coin's current ticker.
+- [OKX tickers channel](https://www.okx.com/docs-v5/en/#public-data-websocket-tickers-channel): `wss://ws.okx.com/ws/v5/public` on port 443 (the documented 8443 is closed on many networks), then `wss://wseea.okx.com/ws/v5/public`. `ping` every 20 seconds, answered `pong`. An unknown instrument is refused alone (code 60018). Coin lists from `/api/v5/public/instruments` (`www.okx.com`, then `my.okx.com`).
+- [Coinbase Exchange WebSocket feed](https://docs.cdp.coinbase.com/exchange/websocket-feed/channels): `wss://ws-feed.exchange.coinbase.com`, `ticker` and `heartbeat` channels (a heartbeat every second keeps it alive). An unknown product is refused alone. Coin list from `https://api.exchange.coinbase.com/products`.
+- **Fallback addresses**: an exchange may list several addresses (`hosts`); a connection that fails before receiving anything moves on to the next. Coin lists try their addresses in turn.
 - [Binance USDⓈ-M futures streams](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams): `wss://fstream.binance.com/market/ws/<symbol>@ticker`. Since 23 April 2026 the old address without the `/market` path delivers no tickers.
 
 ## License and notices

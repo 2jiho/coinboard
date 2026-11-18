@@ -52,6 +52,12 @@ export function createMarketFeed(options) {
   // Per coin: its latest price, whether it has ever sent one since it was
   // chosen, and whether it stayed silent on a connection where others spoke.
   let lasts = new Map(), everTicked = new Set(), unanswered = new Set();
+  // Coins the exchange said it does not list (OKX and Coinbase say so at once).
+  let refused = new Set();
+  // Which of the exchange's addresses to use (exchange.hosts), and whether the
+  // current connection has heard anything at all: one that fails before a word
+  // moves on to the next address, for a region where one is blocked.
+  let hostIndex = 0, heardNow = false;
   let socket = null, generation = 0;
   let retryTimer = null, healthTimer = null, heartbeatTimer = null;
   let failures = 0, active = options.active !== false, online = options.online !== false, disposed = false;
@@ -78,7 +84,7 @@ export function createMarketFeed(options) {
     const kind = connection.kind === "live" && !tickedNow.has(market) ? "waiting" : connection.kind;
     onState({ kind, cause: connection.cause, reason: connection.reason, retryAt: connection.retryAt, selection,
       last: lasts.get(market) || null,
-      tickerSuspect: !everTicked.has(market) && (silentAttempts >= 2 || unanswered.has(market)) });
+      tickerSuspect: !everTicked.has(market) && (silentAttempts >= 2 || unanswered.has(market) || refused.has(market)) });
   }
   // cause: a key of REASONS, "exchange-error", or null when nothing is wrong.
   function emit(kind, cause, retryAt, detail) {
@@ -116,14 +122,23 @@ export function createMarketFeed(options) {
     }, delay);
   }
   function fail(cause, minimumDelay) {
+    const silent = !heardNow;
     disconnect();
+    const hosts = EXCHANGES[currency]?.hosts;
+    if (silent && hosts && hosts.length > 1) hostIndex = (hostIndex + 1) % hosts.length;
     const backoff = Math.min(30000, 1000 * Math.pow(2, Math.min(failures++, 5)));
     schedule(Math.max(minimumDelay || 0, backoff + Math.floor(random() * backoff * 0.25)), cause);
   }
+  // JSON, or the bare text when it is not (OKX answers a ping with "pong").
   async function decode(data) {
-    if (typeof data === "string") return JSON.parse(data);
-    if (data && typeof data.text === "function") return JSON.parse(await data.text());
-    return JSON.parse(new TextDecoder().decode(data));
+    const text = typeof data === "string" ? data : data && typeof data.text === "function" ? await data.text() : new TextDecoder().decode(data);
+    try { return JSON.parse(text); } catch (_) { return text; }
+  }
+  // What keeps the connection alive: a fixed frame (Upbit's PING, OKX's ping),
+  // or, where the exchange has none, frames made from the coins (Bithumb: the
+  // subscription again, which it answers with every coin's current ticker).
+  function beat(exchange, markets) {
+    return typeof exchange.heartbeat === "function" ? exchange.heartbeat(markets, ++requests) : [exchange.heartbeat];
   }
   function connect() {
     if (!eligible()) return;
@@ -139,9 +154,10 @@ export function createMarketFeed(options) {
     const lastEventTime = new Map();
     pacer.mark(currency);
     emit("connecting");
+    heardNow = false;
     let ws;
     try {
-      ws = new WS(exchange.url(markets));
+      ws = new WS(exchange.url(markets, exchange.hosts ? exchange.hosts[hostIndex % exchange.hosts.length] : undefined));
       ws.binaryType = "arraybuffer";
     } catch (error) { fail("connect-failed"); return; }
     socket = ws;
@@ -181,7 +197,7 @@ export function createMarketFeed(options) {
       emit("waiting");
       try {
         exchange.subscribe(markets, `${startedAt}-${token}`).forEach((frame) => { ws.send(frame); });
-        if (exchange.heartbeat) ws.send(exchange.heartbeat);
+        if (exchange.heartbeat && exchange.heartbeatAtOpen !== false) beat(exchange, markets).forEach((frame) => { ws.send(frame); });
       } catch (error) { fail("subscribe-failed"); return; }
       subscribed = markets;
       // Coins chosen while it was connecting.
@@ -189,7 +205,7 @@ export function createMarketFeed(options) {
       if (exchange.heartbeat) {
         heartbeatTimer = clock.setInterval(() => {
           if (isCurrent() && ws.readyState === WS.OPEN) {
-            try { ws.send(exchange.heartbeat); } catch (_) { fail("heartbeat-failed"); }
+            try { beat(exchange, subscribed || markets).forEach((frame) => { ws.send(frame); }); } catch (_) { fail("heartbeat-failed"); }
           }
         }, exchange.heartbeatMs);
       }
@@ -199,8 +215,15 @@ export function createMarketFeed(options) {
       try {
         const data = await decode(event.data);
         if (!isCurrent()) return; // Includes a Blob decoding across a switch.
+        heardNow = true;
         const message = exchange.read(data);
         if (!message) return;
+        // A coin the exchange does not list: say so for that coin alone; the others carry on.
+        if (message.type === "unlisted") {
+          const selection = byMarket.get(message.market);
+          if (selection && !refused.has(message.market)) { refused.add(message.market); added.delete(message.market); report(selection); }
+          return;
+        }
         if (message.type === "error") {
           if (message.code === "TOO_MANY_REQUEST") { fail("rate-limited", 30000); return; }
           disconnect();
@@ -269,8 +292,9 @@ export function createMarketFeed(options) {
     const kept = new Set(nextCurrency === currency ? next.map((selection) => selection.market) : []);
     // Coins that stay keep their last price; anything else starts afresh.
     for (const market of [...lasts.keys()]) if (!kept.has(market)) lasts.delete(market);
-    for (const set of [everTicked, unanswered, tickedNow]) for (const market of [...set]) if (!kept.has(market)) set.delete(market);
+    for (const set of [everTicked, unanswered, tickedNow, refused]) for (const market of [...set]) if (!kept.has(market)) set.delete(market);
     for (const market of [...added.keys()]) if (!kept.has(market)) added.delete(market);
+    if (nextCurrency !== currency) hostIndex = 0;
     currency = nextCurrency; selections = next; byMarket = new Map(next.map((selection) => [selection.market, selection]));
     if (sameConnection) { resubscribe(); selections.forEach(report); return; }
     silentAttempts = 0;

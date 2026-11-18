@@ -137,7 +137,8 @@
   const tip = $derived.by(() => {
     const markets = settings.assets.map(asset => describeMarket(asset.currency, asset.ticker));
     const lines = markets.length === 1 ? [`${markets[0].label} · ${markets[0].pair}`, statuses[0].title]
-      : markets.map((market, index) => `${market.symbol} · ${statuses[index].title}`);
+            // The same coin and currency from two exchanges: name the exchange too.
+      : markets.map((market, index) => `${market.symbol}${markets.some((other, at) => at !== index && other.symbol === market.symbol) ? ` ${market.label.split(' ')[0]}` : ''} · ${statuses[index].title}`);
     return [...lines, wakeLost ? 'SCREEN MAY SLEEP' : ''].filter(Boolean).join('\n');
   });
   // A mouse shows the detail by hovering, and that is all: a click pins nothing.

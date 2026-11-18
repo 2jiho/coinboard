@@ -5,14 +5,14 @@
   import { flip } from 'svelte/animate';
   import { normalizeTicker, sameAsset } from '../lib/settings.js';
   import { PRESETS } from '../lib/presets.js';
-  import { EXCHANGES } from '../lib/exchanges/index.js';
+  import { EXCHANGES, MARKET_GROUPS } from '../lib/exchanges/index.js';
   import { m } from '../paraglide/messages.js';
   import { priceParts, change as formatChange, direction } from '../lib/format.js';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Switch } from '$lib/components/ui/switch/index.js';
   import { Slider } from '$lib/components/ui/slider/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
-  import { NativeSelect, NativeSelectOption } from '$lib/components/ui/native-select/index.js';
+  import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from '$lib/components/ui/native-select/index.js';
   import { ToggleGroup, ToggleGroupItem } from '$lib/components/ui/toggle-group/index.js';
   import { HugeiconsIcon } from '@hugeicons/svelte';
   import { Share03Icon, AddSquareIcon, Download04Icon, PictureInPictureOnIcon, PictureInPictureExitIcon } from '@hugeicons/core-free-icons';
@@ -42,14 +42,11 @@
   // starts in the market of the last asset, on the first listed coin not yet
   // shown there. An asset is not edited: another coin is added, and the old one deleted.
   let adding = $state(false);
-  // shownCurrency: the market chosen, kept when its button is tapped again
-  // (a toggle group would otherwise choose none).
-  let shownCurrency = 'KRW';
   let newCurrency = $state('KRW'), newCoin = $state(''), newText = $state(''), newError = $state('');
   let newListed = $state(null);
   const firstFree = currency => PRESETS.find(coin => !settings.assets.some(item => sameAsset(item, { currency, ticker: coin }))) ?? OTHER;
   function startAdding() {
-    newCurrency = shownCurrency = settings.assets.at(-1).currency; newCoin = firstFree(newCurrency); newText = ''; newError = '';
+    newCurrency = settings.assets.at(-1).currency; newCoin = firstFree(newCurrency); newText = ''; newError = '';
     adding = true;
   }
   $effect(() => {
@@ -133,11 +130,7 @@
 
 
   // ---- Choices shown as buttons ----
-  const MARKETS = [
-    { key: 'KRW', name: m.market_upbit, unit: m.market_krw },
-    { key: 'USDT', name: m.market_binance, unit: m.market_usdt },
-    { key: 'USDT-PERP', name: m.market_binance, unit: m.market_perp },
-  ];
+  const GROUP_LABELS = { KRW: m.group_krw, USDT: m.group_usdt, USD: m.group_usd };
   let columnsChoice = $state('0');
   $effect(() => { columnsChoice = String(settings.columns); });
   let paletteChoice = $state('green-red');
@@ -306,16 +299,16 @@
 
     {#if adding}
       <div class="flex flex-col gap-3 rounded-2xl bg-card p-3 animate-in fade-in-0 slide-in-from-top-1 duration-200 motion-reduce:animate-none" id="asset-new" role="group" aria-label={m.asset_new()}>
-        <div class="flex flex-col gap-2">
-          <span id="new-currency-label" class="px-1 text-[13px] text-muted-foreground">{m.field_market()}</span>
-          <ToggleGroup type="single" spacing={1} id="new-currency" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-3" bind:value={newCurrency} aria-labelledby="new-currency-label"
-            onValueChange={value => { newError = ''; if (!value) { const keep = shownCurrency; tick().then(() => { newCurrency = keep; }); return; } shownCurrency = value; if (newCoin !== OTHER) newCoin = firstFree(value); }}>
-            {#each MARKETS as market}
-              <ToggleGroupItem value={market.key} data-value={market.key} aria-label={EXCHANGES[market.key].choice} class="h-auto min-h-12 flex-col gap-0 rounded-[10px] px-1 py-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm">
-                <span class="text-[14px] font-semibold">{market.name()}</span><span class="text-[12px]">{market.unit()}</span>
-              </ToggleGroupItem>
+        <!-- Markets as a list, by the currency prices are in: room for any number of exchanges. -->
+        <div class="flex min-h-11 items-center justify-between gap-3 px-1">
+          <label for="new-currency">{m.field_market()}</label>
+          <NativeSelect id="new-currency" bind:value={newCurrency} onchange={() => { newError = ''; if (newCoin !== OTHER) newCoin = firstFree(newCurrency); }}>
+            {#each MARKET_GROUPS as group}
+              <NativeSelectOptGroup label={GROUP_LABELS[group.quote]()}>
+                {#each group.keys as key}<NativeSelectOption value={key}>{EXCHANGES[key].choice}</NativeSelectOption>{/each}
+              </NativeSelectOptGroup>
             {/each}
-          </ToggleGroup>
+          </NativeSelect>
         </div>
         <div class="flex min-h-11 items-center justify-between gap-3 px-1">
           <label for="new-coin">{m.field_coin()}</label>

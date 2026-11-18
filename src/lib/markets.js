@@ -23,12 +23,19 @@ export function createMarketList(options) {
         for (let wait = pacer.waitFor(currency); wait > 0; wait = pacer.waitFor(currency)) await sleep(wait);
         pacer.mark(currency);
       }
-      const response = await fetch(exchange.listUrl);
-      if (!response.ok) return null;
-      const body = await response.json();
-      if (!Array.isArray(body)) return null;
+      // The first address that answers; the next is tried where one is blocked.
+      let body = null;
+      for (const url of [exchange.listUrl].flat()) {
+        try {
+          const response = await fetch(url);
+          if (response.ok) { body = await response.json(); break; }
+        } catch (_) { /* the next address */ }
+      }
+      // Most exchanges answer a list; some wrap it (OKX: { data: [...] }).
+      const entries = exchange.listEntries ? exchange.listEntries(body) : body;
+      if (!Array.isArray(entries)) return null;
       const tickers = new Set();
-      for (const entry of body) {
+      for (const entry of entries) {
         const ticker = entry && exchange.listedTicker(entry);
         if (ticker && TICKER.test(ticker)) tickers.add(ticker);
       }
