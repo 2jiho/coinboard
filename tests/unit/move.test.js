@@ -20,3 +20,13 @@ test('no strength without a usable previous price', () => {
   for (const previous of [null, undefined, 0, NaN]) assert.equal(moveStrength(previous, 100), 0);
   assert.equal(moveStrength(100, NaN), 0);
 });
+test('the tint is held longer the bigger the move, up to three seconds', async () => {
+  const { tintHoldMs } = await import('../../src/lib/move.js');
+  assert.equal(tintHoldMs(100000, 100000), 0);
+  assert.equal(tintHoldMs(100000, 100010), 500);   // 0.01 %: slight
+  assert.equal(tintHoldMs(100000, 99950), 1200);   // 0.05 %: ordinary
+  assert.equal(tintHoldMs(100000, 100100), 2500);  // 0.1 %: large
+  assert.equal(tintHoldMs(100000, 100300), 2750);  // 0.3 %: halfway to huge
+  assert.equal(tintHoldMs(100000, 100500), 3000);  // 0.5 %
+  assert.equal(tintHoldMs(100000, 90000), 3000);   // 10 %: no longer than three seconds
+});

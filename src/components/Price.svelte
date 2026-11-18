@@ -4,7 +4,7 @@
   // the single large price and for each cell of the grid.
   import { untrack } from 'svelte';
   import { priceParts } from '../lib/format.js';
-  import { moveStrength } from '../lib/move.js';
+  import { moveStrength, tintHoldMs } from '../lib/move.js';
 
   // id and textId name the single board's price; grid cells have none.
   // live: announce changes to screen readers (the single board only: six
@@ -39,7 +39,7 @@
       trend = flash = next > lastPrice ? 1 : -1;
       strength = moveStrength(lastPrice, next);
       clearTimeout(flashTimer);
-      flashTimer = setTimeout(() => { flash = 0; }, strength === 3 ? 1400 : 700);
+      flashTimer = setTimeout(() => { flash = 0; }, tintHoldMs(lastPrice, next));
     }
     lastPrice = next; lastText = text;
   });
