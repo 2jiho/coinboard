@@ -1114,6 +1114,16 @@ async function popOut(browser, base) {
   console.log('PASS pop-out: the board in a small window on top, following the tab (one asset, then a grid), closed by the same button; no button where the browser cannot');
 }
 
+// Run in the page: whether every line matched keeps clear of the screen's
+// edges by a share of it (how far burn-in protection may float the board, plus
+// a little), measured where it would sit with the board unmoved.
+function lineClear([selector, floater, share]) {
+  const matrix = new DOMMatrix(getComputedStyle(document.querySelector(floater)).transform);
+  return [...document.querySelectorAll(selector)].every(line => {
+    const r = line.getBoundingClientRect(), left = r.left - matrix.e, right = r.right - matrix.e, bottom = r.bottom - matrix.f;
+    return left >= innerWidth * share - 1 && right <= innerWidth * (1 - share) + 1 && bottom <= innerHeight * (1 - share) + 1;
+  });
+}
 async function chart(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   // Upbit's candles, scripted: a day that rose. (Registered after scripted(), so it wins over its block.)
@@ -1134,11 +1144,13 @@ async function chart(browser, base) {
   assert.equal(await page.locator('#board-chart .spark').getAttribute('class'), 'spark up');
   assert.equal(await text(page, '#board-chart .spark-label'), '1D');
   assert.ok((await page.locator('#board-chart .spark-line').getAttribute('d')).split('L').length >= 90, 'one point per candle, and the live price');
-  // It lies across the bottom of the screen, below the price's middle, behind the board.
+  // It lies across the bottom of the screen, starting below the price line, so it never reaches the digits.
   assert.ok(await page.evaluate(() => {
     const chart = document.getElementById('board-chart').getBoundingClientRect(), price = document.getElementById('price-main').getBoundingClientRect();
-    return chart.left <= 0 && chart.right >= innerWidth && chart.bottom >= innerHeight - 1 && chart.top > price.top + price.height / 2;
+    return chart.left <= 0 && chart.right >= innerWidth && chart.bottom >= innerHeight - 1 && chart.top >= price.bottom - 1;
   }), 'the chart lies across the lower screen');
+  // Its line stays on the screen, with room to float down: the lowest point is not cut off at the bottom.
+  assert.ok(await page.evaluate(lineClear, ['#board-chart .spark-line', '#board-chart', 0.03]), 'the line clears the screen edges, however far the board floats');
   // Another period asks for other candles; off takes the chart away.
   await open(page);
   assert.equal(await chosen(page, '#admin-chart'), '1d');
@@ -1155,8 +1167,9 @@ async function chart(browser, base) {
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   await page.clock.runFor(12000);
   await until(page, () => document.querySelectorAll('.cell > .spark').length === 2);
+  assert.ok(await page.evaluate(lineClear, ['.cell > .spark .spark-line', '#drift', 0.015]), 'cell lines clear the screen edges, however far the grid floats');
   // In a cell, the chart runs below the price's middle.
-  assert.ok(await page.evaluate(() => [...document.querySelectorAll('.cell')].every(cell => { const chart = cell.querySelector('.spark').getBoundingClientRect(), price = cell.querySelector('.price').getBoundingClientRect(); return chart.top > price.top + price.height / 2; })), 'cell charts below the price');
+  assert.ok(await page.evaluate(() => [...document.querySelectorAll('.cell')].every(cell => { const chart = cell.querySelector('.spark').getBoundingClientRect(), price = cell.querySelector('.price').getBoundingClientRect(); const line = cell.querySelector('.spark-line').getBoundingClientRect(), box = cell.getBoundingClientRect(); return chart.top >= price.bottom - 1 && line.bottom < box.bottom - 4; })), 'cell charts start below the price line, their lines clear of the cell edge');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(evidence, 'chart.png') });
   assert.deepEqual(problems, []);
