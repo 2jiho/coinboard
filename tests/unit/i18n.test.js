@@ -47,7 +47,7 @@ test('won for readers of English: millions and billions, four significant figure
   assert.equal(price('USDT', 70123.4), '70,123 USDT', 'USDT is the same in both');
 });
 test('settings speak English: markets, states and their reasons', () => {
-  assert.deepEqual(Object.values(EXCHANGES).map(exchange => exchange.choice), ['Upbit · KRW', 'Binance · USDT', 'Binance · USDT Perpetual']);
+  assert.deepEqual(Object.values(EXCHANGES).map(exchange => exchange.choice), ['Upbit · KRW', 'Bithumb · KRW', 'Binance · USDT', 'Binance · USDT Perpetual', 'OKX · USDT', 'OKX · USDT Perpetual', 'Coinbase · USD']);
   const selection = describeMarket('USDT', 'BTC');
   assert.equal(describeState({ kind: 'live', selection }, 0).text, 'Binance · Live');
   const last = { price: 70123.4, receivedAt: 0, selection };

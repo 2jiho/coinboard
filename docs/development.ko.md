@@ -36,7 +36,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/components/Price.svelte` | 가격 한 줄: 숫자 굴림과 움직임 크기에 따른 색 |
 | `src/components/SettingsPanel.svelte` | 설정 창 |
 | `src/lib/feed.js` | 거래소 WebSocket 연결(시장마다 하나, 여러 코인), 재연결, 생존 판정 |
-| `src/lib/exchanges/` | 거래소별 주소, 구독 메시지, 메시지 해석(업비트, 바이낸스 현물·무기한 선물) |
+| `src/lib/exchanges/` | 거래소별 주소(대체 주소 `hosts` 포함), 구독 메시지, 연결 유지, 메시지 해석(업비트, 빗썸, 바이낸스·OKX 현물·무기한, 코인베이스). `index.js`가 목록과 설정 창의 통화별 묶음을 정합니다 |
 | `src/lib/status.js` | 연결 상태를 화면 문구로 바꿉니다 |
 | `src/lib/quiet-controls.js` | 설정 버튼의 표시·숨김, 첫 탭 보호, 방치된 설정 창 닫기 |
 | `src/lib/presets.js` | 설정 창의 코인 선택 목록 |
@@ -112,7 +112,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 - **복수형**: 영어의 `1 second` / `2 seconds`처럼 수에 따라 바뀌는 문구는 문구 파일에서 `plural` 선택으로 씁니다.
 - **문구를 바꾸거나 더할 때**: 두 파일을 함께 고칩니다. `npm test`가 두 파일의 키·값 이름이 같은지, 빈 문구가 없는지, 영어에 한글이 없는지 확인하고, 브라우저 테스트가 영어 기기에서 설정 창에 한글이 남지 않았는지와 잘리는 칸이 없는지 확인합니다.
 - **컴파일**: `npm run build`와 `npm run dev`는 Vite 플러그인이 메모리 안에서(가상 모듈) 컴파일하고, `npm test`는 `npm run i18n`으로 `src/paraglide/`에 먼저 컴파일합니다. 문구 형식 플러그인은 jsDelivr에서 받으므로 처음 컴파일할 때 인터넷이 필요합니다.
-- **용어**: 자산 = Asset, 시장 = Market, 코인 = Coin, 티커 = Ticker, 직접 입력 = Other, 가로 칸 수 = Columns, 밝기 = Brightness, 번인 방지 = Burn-in Protection, 등락 색 = Up/Down Colors, 무기한 = Perpetual.
+- **용어**: 자산 = Asset, 시장 = Market, 원화 = KRW, 달러 = USD, 코인 = Coin, 티커 = Ticker, 직접 입력 = Other, 가로 칸 수 = Columns, 밝기 = Brightness, 번인 방지 = Burn-in Protection, 등락 색 = Up/Down Colors, 무기한 = Perpetual.
 
 ## 버전
 
@@ -166,6 +166,10 @@ npm run test:e2e
 - [업비트 요청 제한](https://docs.upbit.com/kr/reference/rate-limits): 브라우저(Origin 포함) 연결 요청은 10초에 한 번입니다(앱은 11초 간격).
 - [업비트 연결 관리](https://docs.upbit.com/kr/docs/websocket-best-practice): 120초 idle 종료와 PING 유지.
 - [바이낸스 시장 스트림](https://developers.binance.com/en/docs/products/spot/web-socket-streams): `wss://data-stream.binance.vision/ws/<심볼>@ticker`. 바이낸스가 시세 조회용으로 따로 운영하는 주소이고(코인 목록은 `https://data-api.binance.vision`), `stream.binance.com`과 같은 스트림을 보내며 binance.com이 막힌 지역에서도 열립니다. 선물에는 이런 주소가 없습니다.
+- [빗썸 WebSocket](https://apidocs.bithumb.com/reference/websocket-기본-정보): `wss://ws-api.bithumb.com/websocket/v1`, 업비트와 같은 형식. 연결 유지 응답이 없고 거래가 있을 때만 시세를 보내므로, 10초마다 구독을 다시 보냅니다. 빗썸은 그때마다 코인별 현재 시세로 답합니다.
+- [OKX tickers 채널](https://www.okx.com/docs-v5/en/#public-data-websocket-tickers-channel): 443 포트의 `wss://ws.okx.com/ws/v5/public`(문서의 8443 포트는 막힌 네트워크가 많음), 다음은 `wss://wseea.okx.com/ws/v5/public`. 20초마다 `ping`, 답은 `pong`. 없는 종목은 그 종목만 거절합니다(코드 60018). 코인 목록은 `/api/v5/public/instruments`(`www.okx.com`, 다음은 `my.okx.com`).
+- [코인베이스 Exchange WebSocket](https://docs.cdp.coinbase.com/exchange/websocket-feed/channels): `wss://ws-feed.exchange.coinbase.com`, `ticker`와 `heartbeat` 채널(1초마다 오는 heartbeat로 연결 유지). 없는 상품은 그 상품만 거절합니다. 코인 목록은 `https://api.exchange.coinbase.com/products`.
+- **대체 주소**: 거래소마다 주소를 여러 개(`hosts`) 둘 수 있고, 아무것도 받기 전에 실패한 연결은 다음 주소로 넘어갑니다. 코인 목록도 주소를 차례로 시도합니다.
 - [바이낸스 USDT 선물 스트림](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams): `wss://fstream.binance.com/market/ws/<심볼>@ticker`. 2026년 4월 23일부터 경로(`/market`) 없는 예전 주소로는 시세가 오지 않습니다.
 
 ## 라이선스와 고지

@@ -130,8 +130,9 @@ async function open(page) {
   assert.equal(await page.locator('#admin-panel').isVisible(), true);
 }
 // Button groups (market, columns, colours): press one, or read which is on.
-const choose = (page, group, value) => page.locator(`${group} [data-value="${value}"]`).click();
-const chosen = (page, group) => page.locator(`${group} [data-state="on"]`).getAttribute('data-value');
+// The market in the add form is a list (a select); the others are button groups.
+const choose = async (page, group, value) => (await page.locator(group).evaluate(el => el.tagName)) === 'SELECT' ? page.locator(group).selectOption(value) : page.locator(`${group} [data-value="${value}"]`).click();
+const chosen = async (page, group) => (await page.locator(group).evaluate(el => el.tagName)) === 'SELECT' ? page.locator(group).inputValue() : page.locator(`${group} [data-state="on"]`).getAttribute('data-value');
 // An asset is not edited: another is added (in the add form), and the old one deleted.
 const LISTED = ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA'];
 async function addAsset(page, currency, ticker) {
@@ -309,7 +310,7 @@ async function board(browser, base, flags) {
   assert.equal(await boardSize(), steadySize, 'the PERP mark does not change the board size');
   // The whole choice is readable in the add form.
   await page.locator('#asset-add').click();
-  assert.ok(await page.locator('#new-currency [data-value]').evaluateAll(els => els.every(el => el.scrollWidth <= el.clientWidth + 1)), 'the market names are not cut off');
+  assert.ok(await page.locator('#new-currency').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'the market name is not cut off');
   await page.locator('#asset-new-cancel').click();
   await replaceAsset(page, 'USDT', 'BTC');
   await page.clock.runFor(3000); await live(page);
@@ -347,8 +348,11 @@ async function board(browser, base, flags) {
   assert.equal(await page.locator('#asset-new').count(), 0);
   await page.locator('#asset-add').click();
   assert.deepEqual(await page.locator('#new-coin option').allTextContents(), ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', '직접 입력…']);
-  assert.deepEqual(await page.locator('#new-currency [data-value]').evaluateAll(els => els.map(el => el.textContent.trim())), ['업비트원화', '바이낸스USDT', '바이낸스무기한']);
-  assert.deepEqual(await page.locator('#new-currency [data-value]').evaluateAll(els => els.map(el => el.getAttribute('aria-label'))), ['원화 · 업비트', 'USDT · 바이낸스', 'USDT 무기한 · 바이낸스']);
+  // The markets: a list grouped by the currency prices are in.
+  assert.deepEqual(await page.locator('#new-currency optgroup').evaluateAll(groups => groups.map(group => [group.label, [...group.querySelectorAll('option')].map(option => option.textContent.trim())])), [
+    ['원화', ['원화 · 업비트', '원화 · 빗썸']],
+    ['USDT', ['USDT · 바이낸스', 'USDT 무기한 · 바이낸스', 'USDT · OKX', 'USDT 무기한 · OKX']],
+    ['달러', ['달러 · 코인베이스']]]);
   assert.equal(await chosen(page, '#new-currency'), 'USDT', 'it starts in the market of the last asset');
   await page.locator('#new-coin').selectOption('__other');
   assert.equal(await page.locator('#new-symbol').isVisible(), true);
@@ -609,9 +613,10 @@ async function board(browser, base, flags) {
 
   // Everything the board loads comes from its own address; the only calls out
   // are the exchanges' coin lists, asked for when the ticker field is opened.
-  const LISTS = ['https://api.upbit.com/v1/market/all', 'https://data-api.binance.vision/api/v3/ticker/price'];
+  // (The exchanges are unreachable here, so Binance's list is also asked of its second address.)
+  const LISTS = ['https://api.upbit.com/v1/market/all', 'https://data-api.binance.vision/api/v3/ticker/price', 'https://api.binance.com/api/v3/ticker/price'];
   assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:') && !LISTS.includes(url)), []);
-  assert.ok(requests.filter(url => LISTS.includes(url)).length <= 8, 'coin lists are asked for a handful of times, not polled');
+  assert.ok(requests.filter(url => LISTS.includes(url)).length <= 12, 'coin lists are asked for a handful of times, not polled');
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS board: rest state, keyboard, wake lock recovery, currency/ticker, immediate settings, delay/suspect/offline/error, automatic update');
@@ -879,7 +884,7 @@ async function english(browser, base) {
   assert.equal((await text(page, '#wake-label')).trim(), 'Keep Screen On');
   // The add form, the columns row and a refusal, in English too.
   await page.locator('#asset-add').click();
-  assert.deepEqual(await page.locator('#new-currency [data-value]').evaluateAll(els => els.map(el => el.getAttribute('aria-label'))), ['Upbit · KRW', 'Binance · USDT', 'Binance · USDT Perpetual']);
+  assert.deepEqual(await page.locator('#new-currency option').allTextContents(), ['Upbit · KRW', 'Bithumb · KRW', 'Binance · USDT', 'Binance · USDT Perpetual', 'OKX · USDT', 'OKX · USDT Perpetual', 'Coinbase · USD']);
   await choose(page, '#new-currency', 'USDT-PERP');
   await page.locator('#new-coin').selectOption('__other');
   assert.doesNotMatch(await words(), hangul);
@@ -892,8 +897,8 @@ async function english(browser, base) {
   assert.doesNotMatch(await words(), hangul);
   // English is longer: every choice is still readable in its row.
   await page.locator('#asset-add').click();
-  assert.ok(await page.locator('#new-coin').evaluate(el => el.scrollWidth <= el.clientWidth + 1), '#new-coin is not cut off');
-  for (const id of ['#new-currency', '#admin-columns', '#admin-palette']) {
+  for (const id of ['#new-coin', '#new-currency']) assert.ok(await page.locator(id).evaluate(el => el.scrollWidth <= el.clientWidth + 1), `${id} is not cut off`);
+  for (const id of ['#admin-columns', '#admin-palette']) {
     assert.ok(await page.locator(`${id} [data-value]`).evaluateAll(els => els.every(el => el.scrollWidth <= el.clientWidth + 1)), `${id} is not cut off`);
   }
   await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));

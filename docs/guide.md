@@ -124,11 +124,15 @@ The panel has two sections, **Prices** and **Display**.
 
 **Add Asset**: unfolds a market and a coin to choose. Choose, then tap **Add**, or **Cancel** to leave it. An asset already shown cannot be added again.
 
-**Market** (in Add Asset): three buttons side by side. It starts on the market of the last asset.
+**Market** (in Add Asset): a list, grouped by the currency prices are in. It starts on the market of the last asset.
 
-- **Upbit / KRW**: Upbit, Korean won market
-- **Binance / USDT**: Binance spot
-- **Binance / Perpetual**: Binance USDT perpetual futures
+| Currency | Markets |
+|---|---|
+| KRW (won) | Upbit, Bithumb |
+| USDT | Binance spot, Binance USDT perpetual futures, OKX spot, OKX USDT perpetual swaps |
+| USD (dollars) | Coinbase |
+
+The change shown is the one each exchange gives: against the previous day's close (`1D`) on Upbit and Bithumb, over the last 24 hours (`24H`) elsewhere. When the same coin in the same currency is on the board from two exchanges, their cells also name the exchange.
 
 **Coin** (in Add Asset): six common coins are listed (BTC, ETH, XRP, SOL, DOGE, ADA). For any other, choose **Other…**, type its ticker (for example `LINK`) and press Enter or **Add**. While typing, the coins really listed on that exchange are offered, and a ticker it does not list is pointed out.
 

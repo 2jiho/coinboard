@@ -48,7 +48,7 @@ function usdtPieces(value) {
 // The pieces to draw: each number with its mark (억/만, or M/B; if any), and
 // the currency code, which is shown apart from the price.
 export function priceParts(currency, value, locale = getLocale()) {
-  if (currency !== "KRW") return { pieces: usdtPieces(value), unit: "USDT" };
+  if (currency !== "KRW") return { pieces: usdtPieces(value), unit: currency };
   return { pieces: locale === "ko" ? wonPieces(value) : englishWonPieces(value), unit: "KRW" };
 }
 // "1억 2340만 KRW", "451.2만 KRW", "70,123 USDT", "152.3 USDT"

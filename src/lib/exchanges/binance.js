@@ -34,9 +34,11 @@ function binanceMarket(options) {
     // The streams are chosen by the URL; nothing to send. One market is a raw
     // stream; several are one combined stream, whose messages come wrapped as
     // { stream, data }.
-    url(markets) {
+    // The addresses to try in turn (the feed moves on when one says nothing).
+    hosts: options.hosts,
+    url(markets, host = options.hosts[0]) {
       const streams = markets.map((market) => `${market.toLowerCase()}@ticker`);
-      return streams.length === 1 ? `${options.stream}/ws/${streams[0]}` : `${options.stream}/stream?streams=${streams.join("/")}`;
+      return streams.length === 1 ? `${host}/ws/${streams[0]}` : `${host}/stream?streams=${streams.join("/")}`;
     },
     subscribe() { return []; },
     // Other coins on the open connection: unsubscribe the ones dropped and
@@ -70,7 +72,9 @@ function binanceMarket(options) {
 // also reachable where binance.com itself is restricted.
 export const binance = binanceMarket({
   name: m.exchange_binance, label: "BINANCE", choice: m.market_binance_usdt, listName: m.list_binance_usdt, tag: "",
-  stream: "wss://data-stream.binance.vision", listUrl: "https://data-api.binance.vision/api/v3/ticker/price",
+  // Then binance.com itself, should the market-data host ever be out of reach.
+  hosts: ["wss://data-stream.binance.vision", "wss://stream.binance.com:443"],
+  listUrl: ["https://data-api.binance.vision/api/v3/ticker/price", "https://api.binance.com/api/v3/ticker/price"],
 });
 
 // USDⓈ-margined perpetual contracts: the last traded price of e.g. BTCUSDT perpetual.
@@ -78,5 +82,5 @@ export const binanceFutures = binanceMarket({
   name: m.exchange_binance_futures, label: "BINANCE FUTURES", choice: m.market_binance_perp, listName: m.list_binance_perp, tag: "PERP",
   // Futures streams are routed by path since 2026-04-23: tickers are regular
   // market data, under /market. Without the path no ticker arrives.
-  stream: "wss://fstream.binance.com/market", listUrl: "https://fapi.binance.com/fapi/v1/ticker/price",
+  hosts: ["wss://fstream.binance.com/market"], listUrl: "https://fapi.binance.com/fapi/v1/ticker/price",
 });
