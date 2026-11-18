@@ -36,6 +36,8 @@ function serve() {
 // Scripted exchanges and wake lock: no real network, no machine-dependent grants.
 // Most scenarios start from one Upbit asset (seed); a new board's own default
 // (Binance) is checked where nothing is seeded.
+// Each cell's name as its head line spells it: coin, currency, tag and exchange (not the change after them).
+const cellNames = page => page.locator('.cell-head').evaluateAll(heads => heads.map(head => [...head.querySelectorAll('.cell-coin, .cell-unit, .tag, .cell-venue')].map(part => part.textContent).join('')));
 async function scripted(context, { seed = true } = {}) {
   await context.route('https://**/*', route => route.abort());
   if (seed) await context.addInitScript(() => {
@@ -672,7 +674,7 @@ async function gridBoard(browser, base) {
   assert.equal(await page.evaluate(() => sockets.filter(socket => socket.url.includes('upbit')).length), 1);
   assert.deepEqual(JSON.parse(await page.evaluate(() => sent.filter(frame => frame !== 'PING').at(-1)))[1].codes, ['KRW-BTC', 'KRW-ETH']);
   assert.deepEqual(await cellPrices(), ['9800만', '500.0만']);
-  assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'ETHKRW']);
+  assert.deepEqual(await cellNames(page), ['BTCKRW', 'ETHKRW']);
 
   // ETH becomes SOL on Binance futures: SOL is added, then ETH deleted.
   await addAsset(page, 'USDT-PERP', 'SOL'); await deleteAsset(page, 1);
@@ -697,7 +699,7 @@ async function gridBoard(browser, base) {
   // changed in place since, so what it carries is read from it, not from its URL.
   assert.deepEqual((await openUrls()).map(url => url.split('/market/')[0]).sort(), ['wss://api.upbit.com/websocket/v1', 'wss://fstream.binance.com']);
   assert.deepEqual(await page.evaluate(() => sockets.find(socket => socket.readyState !== 3 && socket.url.includes('fstream')).markets.slice().sort()), ['BTCUSDT', 'SOLUSDT']);
-  assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'SOLUSDTPERP', 'BTCUSDTPERP']);
+  assert.deepEqual(await cellNames(page), ['BTCKRW', 'SOLUSDTPERP', 'BTCUSDTPERP']);
   assert.deepEqual(await cellPrices(), ['9800만', '180.3', '70,000']);
   assert.equal(await page.title(), '9800만 | BTCKRW | Coinboard', 'the tab follows the first asset');
 
@@ -712,7 +714,7 @@ async function gridBoard(browser, base) {
   await page.mouse.up();
   await until(page, () => JSON.parse(localStorage.getItem('coinboard-settings')).assets.map(asset => asset.ticker + asset.currency).join() === 'BTCKRW,BTCUSDT-PERP,SOLUSDT-PERP');
   assert.deepEqual(await assets(), ['BTC:KRW', 'BTC:USDT-PERP', 'SOL:USDT-PERP']);
-  assert.deepEqual((await page.locator('.cell-head').allTextContents()).map(head => head.trim()), ['BTCKRW', 'BTCUSDTPERP', 'SOLUSDTPERP']);
+  assert.deepEqual(await cellNames(page), ['BTCKRW', 'BTCUSDTPERP', 'SOLUSDTPERP']);
   assert.deepEqual(await cellPrices(), ['9800만', '70,000', '180.3']);
   assert.equal(await page.evaluate(() => sockets.length), socketCount, 'reordering does not reconnect');
   // By keyboard: an arrow key on the handle moves the card by one.
@@ -1075,7 +1077,7 @@ async function popOut(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
-  const pip = () => page.evaluate(() => { const doc = window.documentPictureInPicture.window?.document; return doc && { price: doc.getElementById('price-main')?.textContent ?? null, head: doc.getElementById('board-head')?.textContent ?? null, cells: doc.querySelectorAll('.cell').length }; });
+  const pip = () => page.evaluate(() => { const doc = window.documentPictureInPicture.window?.document; return doc && { price: doc.getElementById('price-main')?.textContent ?? null, head: doc.getElementById('board-head') ? doc.getElementById('coin').textContent + doc.getElementById('unit').textContent : null, cells: doc.querySelectorAll('.cell').length }; });
   await open(page);
   assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창으로 띄우기');
   assert.equal(await text(page, '#pip-hint'), '다른 창 위에 늘 떠 있는 작은 창으로 시세를 띄웁니다. 이 탭을 닫으면 함께 닫힙니다.');
@@ -1126,21 +1128,24 @@ async function chart(browser, base) {
   // The test clock: Upbit's ten seconds between requests pass at once.
   await page.clock.install(); await page.goto(base); await live(page);
   await page.clock.runFor(12000);
-  // On by default, for a day: the line beside the change, coloured by the day's move, with its period.
-  await page.locator('#board-foot .spark').waitFor();
+  // On by default, for a day: the chart behind the lower screen, coloured by the day's move, with its period.
+  await page.locator('#board-chart .spark').waitFor();
   assert.match(asked[0], /candles\/minutes\/15\?market=KRW-BTC&count=97$/);
-  assert.equal(await page.locator('#board-foot .spark').getAttribute('class'), 'spark up');
-  assert.equal(await text(page, '#board-foot .spark-label'), '1D');
-  assert.ok((await page.locator('#board-foot .spark path').getAttribute('d')).split('L').length >= 90, 'one point per candle, and the live price');
-  // It stays inside the board's text column.
-  assert.ok(await page.evaluate(() => { const foot = document.getElementById('board-foot').getBoundingClientRect(), text = document.getElementById('board-text').getBoundingClientRect(); return foot.right <= text.right + 1; }), 'the chart fits beside the change');
+  assert.equal(await page.locator('#board-chart .spark').getAttribute('class'), 'spark up');
+  assert.equal(await text(page, '#board-chart .spark-label'), '1D');
+  assert.ok((await page.locator('#board-chart .spark-line').getAttribute('d')).split('L').length >= 90, 'one point per candle, and the live price');
+  // It lies across the bottom of the screen, below the price's middle, behind the board.
+  assert.ok(await page.evaluate(() => {
+    const chart = document.getElementById('board-chart').getBoundingClientRect(), price = document.getElementById('price-main').getBoundingClientRect();
+    return chart.left <= 0 && chart.right >= innerWidth && chart.bottom >= innerHeight - 1 && chart.top > price.top + price.height / 2;
+  }), 'the chart lies across the lower screen');
   // Another period asks for other candles; off takes the chart away.
   await open(page);
   assert.equal(await chosen(page, '#admin-chart'), '1d');
   assert.deepEqual(await page.locator('#admin-chart [data-value]').allTextContents(), ['끔', '15분', '1시간', '1일', '1주', '1달']);
   await choose(page, '#admin-chart', '1w');
   await page.clock.runFor(12000);
-  await until(page, () => document.querySelector('#board-foot .spark-label')?.textContent === '7D');
+  await until(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
   assert.match(asked.at(-1), /candles\/minutes\/60\?market=KRW-BTC&count=169$/);
   assert.equal((await saved(page)).chart, '1w');
   await choose(page, '#admin-chart', 'off');
@@ -1149,12 +1154,14 @@ async function chart(browser, base) {
   await choose(page, '#admin-chart', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   await page.clock.runFor(12000);
-  await until(page, () => document.querySelectorAll('.cell .spark').length === 2);
+  await until(page, () => document.querySelectorAll('.cell > .spark').length === 2);
+  // In a cell, the chart runs below the price's middle.
+  assert.ok(await page.evaluate(() => [...document.querySelectorAll('.cell')].every(cell => { const chart = cell.querySelector('.spark').getBoundingClientRect(), price = cell.querySelector('.price').getBoundingClientRect(); return chart.top > price.top + price.height / 2; })), 'cell charts below the price');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(evidence, 'chart.png') });
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS chart: past prices beside the change, coloured by the move, a period to choose or none, one per grid cell');
+  console.log('PASS chart: past prices behind the board, coloured by the move, a period to choose or none, one per grid cell');
 }
 
 async function idleUpdate(browser, base, flags) {
@@ -1329,26 +1336,14 @@ async function layouts(browser, base) {
     const reach = await page.evaluate(() => { const b = document.getElementById('container').getBoundingClientRect(), p = document.getElementById('price-main').getBoundingClientRect(); const mid = p.top + p.height / 2; return 2 * Math.max(mid - b.top, b.bottom - mid); });
     const fills = Math.max(face.width / (area.width * 0.86), reach / (area.height * 0.62));
     assert.ok(fills > 0.98 && fills < 1.02, s.name + ' board fills the screen: ' + fills);
-    // Head, price and change are always stacked, with the price the largest line.
-    const box = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, midX: r.left + r.width / 2, midY: r.top + r.height / 2, height: r.height }; }, id);
-    const [head, priceLine, foot, icon] = [await box('board-head'), await box('price-main'), await box('board-foot'), await box('icon')];
-    assert.ok(head.top < priceLine.top && priceLine.top < foot.top, s.name + ' stacked');
-    assert.ok(priceLine.height > head.height * 1.8 && priceLine.height > foot.height * 1.8, s.name + ' price dominates');
-    if (s.height > s.width) {
-      // Portrait: the icon sits on top and everything is centred.
-      assert.ok(icon.top < head.top, s.name + ' icon on top');
-      for (const row of [icon, head, foot, await box('price-text')]) assert.ok(Math.abs(row.midX - priceLine.midX) < 2, s.name + ' centred');
-      assert.ok(Math.abs(priceLine.midX - (s.left + (s.width - s.left - s.right) / 2)) <= s.width * 0.03 + 2, s.name + ' centred on the screen');
-    } else {
-      // Landscape: a large icon to the left, level with the price; the text lines share a left edge.
-      assert.ok(icon.right < priceLine.left, s.name + ' icon to the left');
-      assert.ok(Math.abs(icon.midY - priceLine.midY) < 2, s.name + ' icon level with the price');
-      // The icon is as tall as the digits: 152 of the 232 design pixels the price zone is high.
-      assert.ok(Math.abs(icon.height / priceLine.height - 152 / 232) < 0.02, s.name + ' icon matches the digits in height');
-      assert.ok(Math.abs(head.left - priceLine.left) < 2 && Math.abs(foot.left - priceLine.left) < 2, s.name + ' text left-aligned');
-      const digits = await box('price-text');
-      assert.ok(Math.abs(digits.left - head.left) < 2, s.name + ' digits start at the same left edge');
-    }
+    // One line above the price: icon, coin and change, small; the price the largest line, everything centred.
+    const box = id => page.evaluate(id => { const r = document.getElementById(id).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, midX: r.left + r.width / 2, midY: r.top + r.height / 2, height: r.height }; }, id);
+    const [head, priceLine, icon, change] = [await box('board-head'), await box('price-main'), await box('icon'), await box('change')];
+    assert.ok(head.bottom <= priceLine.top + 1, s.name + ' head above the price');
+    assert.ok(Math.abs(icon.midY - head.midY) < 2 && Math.abs(change.midY - head.midY) < 4 && icon.right < change.left, s.name + ' icon, coin and change on one line');
+    assert.ok(priceLine.height > head.height * 3, s.name + ' price dominates');
+    for (const row of [head, await box('price-text')]) assert.ok(Math.abs(row.midX - priceLine.midX) < 2, s.name + ' centred');
+    assert.ok(Math.abs(priceLine.midX - (s.left + (s.width - s.left - s.right) / 2)) <= s.width * 0.03 + 2, s.name + ' centred on the screen');
     // The price line is at mid-height of the usable screen.
     assert.ok(Math.abs(priceLine.midY - (s.top + (s.height - s.top - s.bottom) / 2)) <= s.height * 0.03 + 2, s.name + ' price at mid-height');
     if (['ipad-portrait', 'ipad-landscape', 'phone'].includes(s.name)) await page.screenshot({ path: path.join(evidence, `board-${s.name}.png`) });

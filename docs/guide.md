@@ -44,6 +44,8 @@ Open it in a browser and go full screen (F11; on macOS, Control+Command+F). Chro
 
 The board shows only what is needed. The settings panel follows the device's language: Korean on a device set to Korean, English otherwise.
 
+One small line above the price holds the coin and its change; the price below it is large. The chart lies faintly across the lower part of the screen (of each cell, with several assets), behind the text.
+
 | What you see | Meaning |
 |---|---|
 | Icon and `BTC` | The coin |
@@ -53,6 +55,7 @@ The board shows only what is needed. The settings panel follows the device's lan
 | `▲ 1.42%` / `▼ 0.64%` | The change |
 | `1D` | Against the previous day's close (Upbit) |
 | `24H` | Over the last 24 hours (Binance) |
+| The faint chart below, with `1D`, `7D` and the like | The price over the period chosen |
 
 **How prices are written**: always at least four figures, with no decimals that add nothing. Won from a million up is written in millions (`M`) and billions (`B`).
 
@@ -155,7 +158,7 @@ Switched off, the board looks as it always did.
 
 **Pop Out** (desktop Chrome and Edge only): opens the board in a small window that stays on top of other windows, drawn to the window's size, with the same prices. Move and resize it as you like; press the button again (**Close Pop-out**) or close the window to end it. It closes with the tab. Other browsers do not offer such windows, so the button is not shown there.
 
-**Chart**: a small line chart beside the change, of the price over a period: **Off**, **15m**, **1h**, **1d** (the default), **1w** or **1mo**. It is drawn from the exchange's own candles and ends at the live price; it is green when the price rose over the period and red when it fell (in the up/down colors chosen). The board writes the period after it: `15M`, `1H`, `1D`, `7D`, `30D`. On Upbit and Bithumb the change is against the previous day's close while a `1D` chart covers the last 24 hours, so the two can point different ways. Where an exchange's past prices cannot be had (Binance futures or Bybit in a restricted region), its chart is simply not shown. Coinone does not give web pages its past prices, so its coins have no chart. Upbit lets a browser ask it something only once every ten seconds, so Upbit charts appear one by one, about ten seconds apart, after the prices.
+**Chart**: the price over a period, as a faint line and fill across the lower part of the screen (of each cell, with several assets), below the price so as not to cover it: **Off**, **15m**, **1h**, **1d** (the default), **1w** or **1mo**. It is drawn from the exchange's own candles and ends at the live price; it is green when the price rose over the period and red when it fell (in the up/down colors chosen). The board writes the period at the chart's top right: `15M`, `1H`, `1D`, `7D`, `30D`. On Upbit and Bithumb the change is against the previous day's close while a `1D` chart covers the last 24 hours, so the two can point different ways. Where an exchange's past prices cannot be had (Binance futures or Bybit in a restricted region), its chart is simply not shown. Coinone does not give web pages its past prices, so its coins have no chart. Upbit lets a browser ask it something only once every ten seconds, so Upbit charts appear one by one, about ten seconds apart, after the prices.
 
 **Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 
