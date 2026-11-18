@@ -404,8 +404,9 @@
 </button>
 <Toaster position="bottom-center" />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
-<!-- The brightness while swiping, as video players show it: the screen veiled,
-     and in the middle a sun and the level. Never dimmed with the board. -->
+<!-- The brightness while swiping, as video players show it: a sun and the level
+     in the middle, on a soft shade of their own, so the board shows the brightness
+     it will keep. Never dimmed with the board. -->
 <div id="brightness-hud" class:show={swipeShown} aria-hidden="true" style:--level={hudLevel / 100}>
   <div class="hud-body">
     <svg class="hud-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">

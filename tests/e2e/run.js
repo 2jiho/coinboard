@@ -1265,14 +1265,15 @@ async function swipeBrightness(browser, base) {
   const hud = () => page.locator('#brightness-hud').evaluate(el => ({ shown: el.classList.contains('show'), value: el.querySelector('.hud-value').textContent, filter: getComputedStyle(el).filter }));
   assert.equal(await filter(), 'brightness(100%)');
   assert.equal((await hud()).shown, false);
-  // Down by a third of the swipe's span (60% of the screen): 100% less a third of the 10-100 range, in steps of 5; shown over the veiled screen as it goes, and kept on letting go.
+  // Down by a third of the swipe's span (60% of the screen): 100% less a third of the 10-100 range, in steps of 5; shown in the middle as it goes, with nothing else veiling the board, and kept on letting go.
   const height = await page.evaluate(() => innerHeight);
   await drag([500, 300], [500, 300 + height * 0.6 / 3]);
   // (The last move can reach the page a frame later.)
   await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '70%', null, { timeout: 2000 }).catch(() => {});
   assert.deepEqual(await hud(), { shown: true, value: '70%', filter: 'none' }, 'the overlay is not dimmed with the board');
   assert.equal(await filter(), 'brightness(70%)');
-  assert.deepEqual(await page.locator('#brightness-hud').boundingBox(), { x: 0, y: 0, width: 1024, height: await page.evaluate(() => innerHeight) }, 'the whole screen is veiled');
+  // Nothing veils the board while the finger moves: what shows is the brightness it will keep.
+  assert.equal(await page.locator('#brightness-hud').evaluate(el => getComputedStyle(el).backgroundImage + ' ' + getComputedStyle(el).backgroundColor), 'none rgba(0, 0, 0, 0)');
   await touch('touchEnd', []);
   await page.waitForFunction(() => !document.getElementById('brightness-hud').classList.contains('show'));
   assert.equal((await saved(page)).brightness, 70);
@@ -1306,7 +1307,7 @@ async function swipeBrightness(browser, base) {
   await touch('touchEnd', []);
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS swipe brightness: no zoom; a finger drawn up or down sets the brightness in steps of 5, shown over a veiled screen and saved; a second finger, a sideways drag or a drag on the panel does not');
+  console.log('PASS swipe brightness: no zoom; a finger drawn up or down sets the brightness in steps of 5, shown in the middle without veiling the board, and saved; a second finger, a sideways drag or a drag on the panel does not');
 }
 
 async function statusTipOnTouch(browser, base) {
