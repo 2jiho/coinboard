@@ -541,10 +541,11 @@ async function board(browser, base, flags) {
   assert.equal(await tintAfter('70300.00', '70,300'), 'up 3');   // 0.39 %
   const large = await colour();
   assert.equal(new Set([slight, ordinary, large]).size, 3, `three different tints: ${slight} / ${ordinary} / ${large}`);
-  // A large move holds its colour longer than the others, then lets go.
-  await page.clock.runFor(1000);
+  // A large move holds its colour longer than the others, the longer the larger
+  // (0.39 %: about 2.9 seconds, between 2.5 at 0.1 % and 3 at 0.5 %), then lets go.
+  await page.clock.runFor(2600);
   assert.equal(await page.locator('#price-main').getAttribute('data-strength'), '3');
-  await page.clock.runFor(600);
+  await page.clock.runFor(400);
   assert.equal(await page.locator('#price-main').getAttribute('data-strength'), null);
   assert.equal(await tintAfter('69000.00', '69,000'), 'down 3');
   // A new price drawn the same (69,000.40 is still "69,000") changes nothing: no tint either.
