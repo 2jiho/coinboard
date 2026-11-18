@@ -68,3 +68,40 @@ test('an answer is kept while fresh: a candle\'s time, at least a minute', async
 test('every exchange can draw a chart', () => {
   for (const [key, exchange] of Object.entries(EXCHANGES)) assert.equal(typeof exchange.candles, 'function', key);
 });
+test('a live price moves the latest candle, or starts the next, and old points go', async () => {
+  const { extend } = await import('../../src/lib/history.js');
+  const minute = 60e3, start = NOW - 60 * minute;
+  const points = Array.from({ length: 60 }, (_, i) => [start + i * minute, 100 + i]);
+  const moved = extend(points, NOW - 30e3, 500, '1h');
+  assert.equal(moved.length, 60); assert.deepEqual(moved.at(-1), [points.at(-1)[0], 500]);
+  assert.equal(extend(moved, NOW - 20e3, 500, '1h'), moved, 'the same price changes nothing');
+  const next = extend(moved, NOW + 2 * minute, 600, '1h');
+  assert.deepEqual(next.at(-1), [NOW + 2 * minute, 600]);
+  assert.ok(next[0][0] >= NOW + 2 * minute - 61 * minute, 'points older than the period go');
+});
+test('requests take turns with the price connection, one at a time per exchange', async () => {
+  const marks = [], waits = [];
+  let last = -Infinity, time = NOW;
+  const pacer = { waitFor: () => Math.max(0, last + 11000 - time), mark: currency => { last = time; marks.push(currency); } };
+  const asked = [];
+  const fetch = async url => { asked.push([url, time]); return { ok: true, json: async () => [{ candle_date_time_utc: new Date(minutesAgo(30)).toISOString().slice(0, 19), trade_price: 1 }, { candle_date_time_utc: new Date(minutesAgo(15)).toISOString().slice(0, 19), trade_price: 2 }] }; };
+  const sleep = async ms => { waits.push(ms); time += ms; };
+  const history = createHistory({ fetch, now: () => time, pacer, sleep });
+  pacer.mark('KRW'); // the price connection took the first turn
+  await Promise.all([history.load('KRW', 'BTC', '1d'), history.load('KRW', 'ETH', '1d')]);
+  assert.equal(asked.length, 2);
+  assert.ok(asked[1][1] - asked[0][1] >= 11000, 'eleven seconds between Upbit requests');
+  assert.ok(asked[0][1] - NOW >= 11000, 'and after the price connection');
+  assert.deepEqual(marks, ['KRW', 'KRW', 'KRW']);
+});
+test('a failure is asked again a minute later, an answer only after ten minutes', async () => {
+  let ok = false; const asked = [];
+  let time = NOW;
+  const fetch = async url => { asked.push(url); return ok ? { ok: true, json: async () => [[minutesAgo(30), 0, 0, 0, '1'], [minutesAgo(15), 0, 0, 0, '2']] } : { ok: false }; };
+  const history = createHistory({ fetch, now: () => time });
+  assert.equal(await history.load('USDT-PERP', 'BTC', '1h'), null);
+  time += 30e3; await history.load('USDT-PERP', 'BTC', '1h'); assert.equal(asked.length, 1);
+  time += 31e3; ok = true; await history.load('USDT-PERP', 'BTC', '1h'); assert.equal(asked.length, 2);
+  time += 5 * 60e3; await history.load('USDT-PERP', 'BTC', '1h'); assert.equal(asked.length, 2, 'a 1-minute chart is not asked for every minute');
+  time += 6 * 60e3; await history.load('USDT-PERP', 'BTC', '1h'); assert.equal(asked.length, 3);
+});
