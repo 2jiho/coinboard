@@ -1,5 +1,6 @@
 // Load, validate and persist kiosk settings. Knows nothing about the DOM.
 import { EXCHANGES } from "./exchanges/index.js";
+import { CHART_CHOICES } from "./history.js";
 
 const KEY = "coinboard-settings";
 const TICKER = /^[A-Z0-9]{1,20}$/;
@@ -35,7 +36,8 @@ function readAssets(list) {
 }
 export function createSettings(storage) {
   // columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
-  const settings = { assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red" };
+  // chart: the period of the line chart beside the change ("off" for none).
+  const settings = { assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: "1d" };
   try {
     const saved = JSON.parse(storage.getItem(KEY));
     if (saved && typeof saved === "object") {
@@ -47,17 +49,18 @@ export function createSettings(storage) {
       settings.burnIn = saved.burnIn !== false;
       // Up/down colours: green and red, or the Korean red and blue.
       if (saved.palette === "red-blue") settings.palette = "red-blue";
+      if (CHART_CHOICES.includes(saved.chart)) settings.chart = saved.chart;
       const brightness = Number(saved.brightness);
       if (Number.isFinite(brightness) && brightness >= 10 && brightness <= 100) settings.brightness = brightness;
     }
   } catch (error) { /* Unreadable storage: run on defaults. */ }
   function get() {
-    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette };
+    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette, chart: settings.chart };
   }
   // Callers pass validated values; a failed write still applies for this run.
   function update(patch) {
     if (patch.assets !== undefined) settings.assets = patch.assets.map((asset) => ({ currency: asset.currency, ticker: asset.ticker }));
-    ["columns", "brightness", "burnIn", "palette"].forEach((key) => {
+    ["columns", "brightness", "burnIn", "palette", "chart"].forEach((key) => {
       if (patch[key] !== undefined) settings[key] = patch[key];
     });
     try { storage.setItem(KEY, JSON.stringify(settings)); return { saved: true }; }

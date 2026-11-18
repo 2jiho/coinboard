@@ -40,6 +40,14 @@ function binanceMarket(options) {
       const streams = markets.map((market) => `${market.toLowerCase()}@ticker`);
       return streams.length === 1 ? `${host}/ws/${streams[0]}` : `${host}/stream?streams=${streams.join("/")}`;
     },
+    // Past prices for the chart: klines (open time, ..., close), oldest first.
+    candles(ticker, minutes, count) {
+      const interval = { 1: "1m", 15: "15m", 60: "1h", 240: "4h" }[minutes];
+      return {
+        url: [options.klinesUrl].flat().map((base) => `${base}?symbol=${ticker}USDT&interval=${interval}&limit=${Math.min(count, 1000)}`),
+        parse: (body) => Array.isArray(body) ? body.map((kline) => [number(kline[0]), number(kline[4])]) : null,
+      };
+    },
     subscribe() { return []; },
     // Other coins on the open connection: unsubscribe the ones dropped and
     // subscribe the new ones, whatever the URL first asked for. A raw stream
@@ -75,6 +83,7 @@ export const binance = binanceMarket({
   // Then binance.com itself, should the market-data host ever be out of reach.
   hosts: ["wss://data-stream.binance.vision", "wss://stream.binance.com:443"],
   listUrl: ["https://data-api.binance.vision/api/v3/ticker/price", "https://api.binance.com/api/v3/ticker/price"],
+  klinesUrl: ["https://data-api.binance.vision/api/v3/klines", "https://api.binance.com/api/v3/klines"],
 });
 
 // USDⓈ-margined perpetual contracts: the last traded price of e.g. BTCUSDT perpetual.
@@ -82,5 +91,5 @@ export const binanceFutures = binanceMarket({
   name: m.exchange_binance_futures, label: "BINANCE FUTURES", choice: m.market_binance_perp, listName: m.list_binance_perp, tag: "PERP",
   // Futures streams are routed by path since 2026-04-23: tickers are regular
   // market data, under /market. Without the path no ticker arrives.
-  hosts: ["wss://fstream.binance.com/market"], listUrl: "https://fapi.binance.com/fapi/v1/ticker/price",
+  hosts: ["wss://fstream.binance.com/market"], listUrl: "https://fapi.binance.com/fapi/v1/ticker/price", klinesUrl: "https://fapi.binance.com/fapi/v1/klines",
 });

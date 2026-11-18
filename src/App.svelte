@@ -16,6 +16,7 @@
   import { createPacer } from './lib/pace.js';
   import { createBeat } from './lib/steady.js';
   import { installOffer, isStandalone } from './lib/install.js';
+  import { createHistory } from './lib/history.js';
   import { m } from './paraglide/messages.js';
   import { getLocale } from './paraglide/runtime.js';
   import { Toaster } from '$lib/components/ui/sonner/index.js';
@@ -89,7 +90,7 @@
       else doc.head.append(sheet.cloneNode(true));
     }
     const app = mount(PriceBoard, { target: doc.body, props: {
-      get settings() { return settings; }, get ticks() { return assetTicks; }, get statuses() { return statuses; },
+      get settings() { return settings; }, get ticks() { return assetTicks; }, get statuses() { return statuses; }, get charts() { return assetCharts; },
       get brightness() { return previewBrightness ?? settings.brightness; }, get active() { return visible; }, view: win,
     } });
     win.addEventListener('pagehide', () => { unmount(app); pipWindow = null; }, { once: true });
@@ -116,6 +117,24 @@
 
   const statuses = $derived(settings.assets.map(asset => describeState(feedStates[assetKey(asset)] ?? null, now)));
   const assetTicks = $derived(settings.assets.map(asset => ticks[assetKey(asset)] ?? null));
+  // The line chart's past prices, per asset and period. Asked again every
+  // minute while the board is shown; the history keeps each answer while it is fresh.
+  const history = createHistory({ fetch: url => window.fetch(url) });
+  let charts = $state.raw({});
+  const assetCharts = $derived(settings.assets.map(asset => charts[`${assetKey(asset)}:${settings.chart}`] ?? null));
+  $effect(() => {
+    const period = settings.chart, assets = settings.assets;
+    if (period === 'off' || !visible) return;
+    const refresh = () => {
+      for (const asset of assets) {
+        const key = `${assetKey(asset)}:${period}`;
+        history.load(asset.currency, asset.ticker, period).then(points => { if (points && charts[key] !== points) charts = { ...charts, [key]: points }; });
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 60000);
+    return () => clearInterval(timer);
+  });
   // The worst of all: one asset in trouble is enough to say so.
   const RANK = { ok: 0, warn: 1, bad: 2 };
   const worst = $derived(statuses.reduce((level, next) => RANK[next.level] > RANK[level] ? next.level : level, 'ok'));
@@ -311,6 +330,7 @@
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
     onBurnIn={burnIn => save({ burnIn })}
     onPalette={palette => save({ palette })}
+    onChart={chart => save({ chart })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}
     onUpdate={() => updater.reload()}
@@ -322,4 +342,4 @@
 <Toaster position="bottom-center" />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
 <div id="status-dot" data-level={level} class:show={tipShown} class:quiet={settings.burnIn && level === 'ok' && !tipShown && !controlsVisible && !panelOpen} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
-<PriceBoard {settings} ticks={assetTicks} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />
+<PriceBoard {settings} ticks={assetTicks} charts={assetCharts} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />

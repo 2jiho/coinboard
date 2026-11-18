@@ -23,6 +23,13 @@ export const bithumb = {
   listUrl: "https://api.bithumb.com/v1/market/all",
   listedTicker(entry) { return typeof entry.market === "string" && entry.market.startsWith("KRW-") ? entry.market.slice(4) : null; },
   pair(ticker) { return `KRW-${ticker}`; },
+  // Past prices for the chart: minute candles (1, 15, 60, 240), newest first.
+  candles(ticker, minutes, count) {
+    return {
+      url: `https://api.bithumb.com/v1/candles/minutes/${minutes}?market=KRW-${ticker}&count=${Math.min(count, 200)}`,
+      parse: (body) => Array.isArray(body) ? body.map((candle) => [Date.parse(`${candle.candle_date_time_utc}Z`), number(candle.trade_price)]) : null,
+    };
+  },
   url() { return "wss://ws-api.bithumb.com/websocket/v1"; },
   subscribe(markets, id) {
     return [JSON.stringify([{ ticket: `coinboard-${id}` }, { type: "ticker", codes: markets }, { format: "DEFAULT" }])];

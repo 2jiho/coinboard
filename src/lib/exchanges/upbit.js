@@ -29,6 +29,13 @@ export const upbit = {
   listedTicker(entry) { return typeof entry.market === "string" && entry.market.startsWith("KRW-") ? entry.market.slice(4) : null; },
   // How the market is written for people.
   pair(ticker) { return `KRW-${ticker}`; },
+  // Past prices for the chart: minute candles (1, 15, 60, 240), newest first.
+  candles(ticker, minutes, count) {
+    return {
+      url: `https://api.upbit.com/v1/candles/minutes/${minutes}?market=KRW-${ticker}&count=${Math.min(count, 200)}`,
+      parse: (body) => Array.isArray(body) ? body.map((candle) => [Date.parse(`${candle.candle_date_time_utc}Z`), number(candle.trade_price)]) : null,
+    };
+  },
   // One connection carries every KRW market on the board.
   url() { return "wss://api.upbit.com/websocket/v1"; },
   // Frames to send once the socket is open: one subscription for all the markets.

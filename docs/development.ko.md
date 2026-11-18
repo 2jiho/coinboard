@@ -43,6 +43,8 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/lib/markets.js` | 거래소가 상장한 코인 목록(티커 자동 완성과 확인용) |
 | `src/lib/pace.js` | 거래소로 보내는 요청의 간격 관리(시세 연결과 코인 목록이 함께 씀) |
 | `src/lib/steady.js` | 화면 갱신을 모든 칸이 함께 쓰는 3초 박자로 묶기 |
+| `src/lib/history.js` | 선 그래프의 과거 시세: 기간별 봉 크기, 거래소별 요청(정의의 `candles`), 새로운 동안 답 보관 |
+| `src/components/Spark.svelte` | 등락률 옆 선 그래프 |
 | `src/lib/move.js` | 가격 움직임의 크기(옅게·보통·진하게) 판정 |
 | `src/lib/format.js` | 가격·등락률 문자열 |
 | `src/lib/settings.js` | 설정 불러오기·검증·저장 |

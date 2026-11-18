@@ -128,5 +128,12 @@
   "list_coinbase_usd": "코인베이스 달러",
   "group_krw": "원화",
   "group_usdt": "USDT",
-  "group_usd": "달러"
+  "group_usd": "달러",
+  "chart": "그래프",
+  "chart_off": "끔",
+  "chart_15m": "15분",
+  "chart_1h": "1시간",
+  "chart_1d": "1일",
+  "chart_1w": "1주",
+  "chart_1M": "1달"
 }

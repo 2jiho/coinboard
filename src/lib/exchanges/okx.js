@@ -30,6 +30,15 @@ function okxMarket(options) {
       if (typeof entry.instId !== "string" || entry.state !== "live" || !entry.instId.endsWith(`-USDT${options.suffix}`)) return null;
       return entry.instId.slice(0, entry.instId.length - `-USDT${options.suffix}`.length);
     },
+    // Past prices for the chart: candles (ts, o, h, l, close), newest first, wrapped in { data }.
+    candles(ticker, minutes, count) {
+      const bar = { 1: "1m", 15: "15m", 60: "1H", 240: "4H" }[minutes];
+      const query = `/api/v5/market/candles?instId=${exchange.market(ticker)}&bar=${bar}&limit=${Math.min(count, 300)}`;
+      return {
+        url: [`https://www.okx.com${query}`, `https://my.okx.com${query}`],
+        parse: (body) => body && Array.isArray(body.data) ? body.data.map((candle) => [number(candle[0]), number(candle[4])]) : null,
+      };
+    },
     url(markets, host = exchange.hosts[0]) { return host; },
     subscribe(markets) {
       return markets.length ? [JSON.stringify({ op: "subscribe", args: markets.map((instId) => ({ channel: "tickers", instId })) })] : [];
