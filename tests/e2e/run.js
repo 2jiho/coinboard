@@ -1114,13 +1114,15 @@ async function popOut(browser, base) {
   console.log('PASS pop-out: the board in a small window on top, following the tab (one asset, then a grid), closed by the same button; no button where the browser cannot');
 }
 
-// Run in the page: whether every line matched keeps clear of the screen's
-// edges by a share of it (how far burn-in protection may float the board, plus
+// Run in the page: whether every line matched (its prices, not the level run-on
+// to the chart's edges) keeps clear of the screen's edges by a share of it (how far burn-in protection may float the board, plus
 // a little), measured where it would sit with the board unmoved.
 function lineClear([selector, floater, share]) {
   const matrix = new DOMMatrix(getComputedStyle(document.querySelector(floater)).transform);
   return [...document.querySelectorAll(selector)].every(line => {
-    const r = line.getBoundingClientRect(), left = r.left - matrix.e, right = r.right - matrix.e, bottom = r.bottom - matrix.f;
+    // The line runs on, level, to the chart's edges; the period's prices lie inset from them.
+    const box = line.closest('svg').getBoundingClientRect(), inset = Number(line.closest('.spark').dataset.inset) * box.width;
+    const r = line.getBoundingClientRect(), left = box.left + inset - matrix.e, right = box.right - inset - matrix.e, bottom = r.bottom - matrix.f;
     return left >= innerWidth * share - 1 && right <= innerWidth * (1 - share) + 1 && bottom <= innerHeight * (1 - share) + 1;
   });
 }
@@ -1151,6 +1153,8 @@ async function chart(browser, base) {
   }), 'the chart lies across the lower screen');
   // Its line stays on the screen, with room to float down: the lowest point is not cut off at the bottom.
   assert.ok(await page.evaluate(lineClear, ['#board-chart .spark-line', '#board-chart', 0.03]), 'the line clears the screen edges, however far the board floats');
+  // ...and the line itself reaches across the whole screen, level beyond the first and last prices.
+  assert.ok(await page.evaluate(() => { const r = document.querySelector('#board-chart .spark-line').getBoundingClientRect(); return r.left <= 0 && r.right >= innerWidth; }), 'the line reaches both screen edges');
   // Another period asks for other candles; off takes the chart away.
   await open(page);
   assert.equal(await chosen(page, '#admin-chart'), '1d');
