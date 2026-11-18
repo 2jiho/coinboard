@@ -65,8 +65,11 @@ test('an answer is kept while fresh: a candle\'s time, at least a minute', async
   assert.equal(f.asked.length, 2);
   assert.equal(PERIODS['1d'].bar, 15);
 });
-test('every exchange can draw a chart', () => {
-  for (const [key, exchange] of Object.entries(EXCHANGES)) assert.equal(typeof exchange.candles, 'function', key);
+test('every exchange can draw a chart, but Coinone, whose REST API web pages cannot read', async () => {
+  for (const [key, exchange] of Object.entries(EXCHANGES)) assert.equal(typeof exchange.candles, key === 'COINONE-KRW' ? 'undefined' : 'function', key);
+  const f = fixture({});
+  assert.equal(await f.history.load('COINONE-KRW', 'BTC', '1d'), null);
+  assert.equal(f.asked.length, 0);
 });
 test('a live price moves the latest candle, or starts the next, and old points go', async () => {
   const { extend } = await import('../../src/lib/history.js');

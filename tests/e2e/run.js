@@ -350,9 +350,9 @@ async function board(browser, base, flags) {
   assert.deepEqual(await page.locator('#new-coin option').allTextContents(), ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', '직접 입력…']);
   // The markets: a list grouped by the currency prices are in.
   assert.deepEqual(await page.locator('#new-currency optgroup').evaluateAll(groups => groups.map(group => [group.label, [...group.querySelectorAll('option')].map(option => option.textContent.trim())])), [
-    ['원화', ['원화 · 업비트', '원화 · 빗썸']],
-    ['USDT', ['USDT · 바이낸스', 'USDT 무기한 · 바이낸스', 'USDT · OKX', 'USDT 무기한 · OKX']],
-    ['달러', ['달러 · 코인베이스']]]);
+    ['원화', ['원화 · 업비트', '원화 · 빗썸', '원화 · 코인원']],
+    ['USDT', ['USDT · 바이낸스', 'USDT 무기한 · 바이낸스', 'USDT · OKX', 'USDT 무기한 · OKX', 'USDT · 바이비트', 'USDT 무기한 · 바이비트']],
+    ['달러', ['달러 · 코인베이스', '달러 · 크라켄']]]);
   assert.equal(await chosen(page, '#new-currency'), 'USDT', 'it starts in the market of the last asset');
   await page.locator('#new-coin').selectOption('__other');
   assert.equal(await page.locator('#new-symbol').isVisible(), true);
@@ -886,7 +886,7 @@ async function english(browser, base) {
   assert.equal((await text(page, '#wake-label')).trim(), 'Keep Screen On');
   // The add form, the columns row and a refusal, in English too.
   await page.locator('#asset-add').click();
-  assert.deepEqual(await page.locator('#new-currency option').allTextContents(), ['Upbit · KRW', 'Bithumb · KRW', 'Binance · USDT', 'Binance · USDT Perpetual', 'OKX · USDT', 'OKX · USDT Perpetual', 'Coinbase · USD']);
+  assert.deepEqual(await page.locator('#new-currency option').allTextContents(), ['Upbit · KRW', 'Bithumb · KRW', 'Coinone · KRW', 'Binance · USDT', 'Binance · USDT Perpetual', 'OKX · USDT', 'OKX · USDT Perpetual', 'Bybit · USDT', 'Bybit · USDT Perpetual', 'Coinbase · USD', 'Kraken · USD']);
   await choose(page, '#new-currency', 'USDT-PERP');
   await page.locator('#new-coin').selectOption('__other');
   assert.doesNotMatch(await words(), hangul);
