@@ -1170,6 +1170,17 @@ async function chart(browser, base) {
   // It lies across the bottom of the screen, edge to edge, held still while the board floats, below the price line wherever that floats.
   assert.ok(await page.evaluate(() => { const chart = document.getElementById('board-chart').getBoundingClientRect(); return chart.left <= 0 && chart.right >= innerWidth && chart.bottom >= innerHeight - 1; }), 'the chart lies across the lower screen');
   assert.ok(await page.evaluate(chartsHold), 'the chart holds still, below the price however it floats, its line from edge to edge');
+  // The live price has a point; when the price shown moves, the point sends out a ring in the move's colour, as wide as the move is large.
+  assert.equal(await page.locator('#board-chart .spark-point').count(), 1);
+  assert.equal(await page.locator('#board-chart .spark-ring').count(), 0, 'no ring before the price moves');
+  await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98600000 }));
+  await page.clock.runFor(3100);
+  await page.locator('#board-chart .spark-ring').waitFor({ state: 'attached' });
+  assert.deepEqual(await page.locator('#board-chart .spark-ring').evaluate(el => [el.className, el.dataset.strength, getComputedStyle(el).animationName]), ['spark-ring up', '3', 'spark-ring']);
+  await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98590000 }));
+  await page.clock.runFor(3100);
+  await until(page, () => document.querySelector('#board-chart .spark-ring')?.className === 'spark-ring down');
+  assert.equal(await page.locator('#board-chart .spark-ring').getAttribute('data-strength'), '1', 'a slight move, a small ring');
   // Another period asks for other candles; off takes the chart away.
   await open(page);
   assert.equal(await chosen(page, '#admin-chart'), '1d');
@@ -1184,7 +1195,8 @@ async function chart(browser, base) {
   // A grid has one per cell (here only Upbit's can be had).
   await choose(page, '#admin-chart', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
-  await page.clock.runFor(12000);
+  // The new coin's candles wait their turn behind Upbit's other requests: let the test clock run until they come.
+  for (let step = 0; step < 40 && await page.evaluate(() => document.querySelectorAll('#chart-grid .spark').length) < 2; step += 1) await page.clock.runFor(1000);
   await until(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
   assert.ok(await page.evaluate(chartsHold), 'cell charts hold still, below their prices and clear of the lines between cells however the grid floats');
   await page.keyboard.press('Escape');
@@ -1438,7 +1450,9 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // the others still run.
 const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
-const queue = [...scenarios];
+// E2E_ONLY=chart,board runs just those.
+const only = process.env.E2E_ONLY?.split(',');
+const queue = scenarios.filter(scenario => !only || only.includes(scenario.name));
 async function worker() {
   for (let scenario = queue.shift(); scenario; scenario = queue.shift()) {
     const { server, flags, base } = await serve();
