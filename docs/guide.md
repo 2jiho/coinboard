@@ -145,7 +145,7 @@ The change shown is the one each exchange gives: against the previous day's clos
 
 **Burn-in Protection**: for an OLED screen, which wears where it stays lit; an LCD screen does not burn in and does not need it. On by default. While it is on:
 
-- the board floats a little (within 3% of the screen) towards a new spot every minute;
+- the board floats a little (within 3% of the screen) towards a new spot every minute (the chart below stays where it is: what it draws keeps changing);
 - the price is a warm off-white instead of pure white;
 - the status dot is hidden while all is well (it shows when something is wrong, and with the settings button);
 - a price that is not current (delayed, offline) is dimmed further;
@@ -158,7 +158,7 @@ Switched off, the board looks as it always did.
 
 **Pop Out** (desktop Chrome and Edge only): opens the board in a small window that stays on top of other windows, drawn to the window's size, with the same prices. Move and resize it as you like; press the button again (**Close Pop-out**) or close the window to end it. It closes with the tab. Other browsers do not offer such windows, so the button is not shown there.
 
-**Chart**: the price over a period, as a faint line and fill across the lower part of the screen (of each cell, with several assets), below the price so as not to cover it: **Off**, **15m**, **1h**, **1d** (the default), **1w** or **1mo**. It is drawn from the exchange's own candles and ends at the live price; it is green when the price rose over the period and red when it fell (in the up/down colors chosen). The board writes the period at the chart's top right: `15M`, `1H`, `1D`, `7D`, `30D`. On Upbit and Bithumb the change is against the previous day's close while a `1D` chart covers the last 24 hours, so the two can point different ways. Where an exchange's past prices cannot be had (Binance futures or Bybit in a restricted region), its chart is simply not shown. Coinone does not give web pages its past prices, so its coins have no chart. Upbit lets a browser ask it something only once every ten seconds, so Upbit charts appear one by one, about ten seconds apart, after the prices.
+**Chart**: the price over a period, as a faint line and fill across the lower part of the screen (of each cell, with several assets), below the price so as not to cover it: **Off**, **15m**, **1h**, **1d** (the default), **1w** or **1mo**. It is drawn from the exchange's own candles and ends at the live price; it takes the color of the change above it (in the up/down colors chosen), so the two never disagree even where the chart's period and the change's reference differ a little. The board writes the period at the chart's top right: `15M`, `1H`, `1D`, `7D`, `30D`. On Upbit and Bithumb the change is against the previous day's close while a `1D` chart covers the last 24 hours, so the two can point different ways. Where an exchange's past prices cannot be had (Binance futures or Bybit in a restricted region), its chart is simply not shown. Coinone does not give web pages its past prices, so its coins have no chart. Upbit lets a browser ask it something only once every ten seconds, so Upbit charts appear one by one, about ten seconds apart, after the prices.
 
 **Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 
@@ -176,6 +176,8 @@ For a board that stays up:
 - **Auto-Lock**: the app keeps the screen on, but to be sure set Settings → Display & Brightness → Auto-Lock to **Never**.
 - **Lock it to the app (optional)**: Accessibility → **Guided Access** keeps the device in Coinboard.
 - **Burn-in protection**: leave it on for an OLED screen.
+- **Lower the device's brightness (OLED)**: burn-in goes faster the brighter the screen. The app's brightness slider dims the board too, but turning the device's own brightness down to what reads well indoors does the most for the screen's life. Auto-brightness dims it at night by itself.
+- **Limit charging**: always plugged in, the battery sits at 100% and wears faster. If the device's settings offer a charging limit (for example 85%) or battery protection, turn it on.
 
 ## Updates
 
