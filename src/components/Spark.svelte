@@ -2,9 +2,10 @@
   let made = 0;
 </script>
 <script>
+  import { direction } from '../lib/format.js';
   // The chart behind the board: the closing prices over the chosen period, then
   // the live price at its right end, as a faint line over a fading fill.
-  // Coloured by the move over the period: up or down, in the board's own
+  // Coloured up or down as the change shown above it, in the board's own
   // colours. It fills whatever box its parent gives it (the lower part of a
   // cell, or of the screen), and its line keeps one width however it is stretched.
   // The share of the height kept free below the line's lowest point; the fill fades on into it.
@@ -22,7 +23,9 @@
     const x = (time) => (time - first) / span * W;
     const y = (price) => PAD + (1 - (price - low) / range) * (H * (1 - FLOOR) - PAD);
     const coords = all.map(([time, price]) => `${x(time).toFixed(2)},${y(price).toFixed(2)}`);
-    const move = all.at(-1)[1] - all[0][1];
+    // Coloured as the change beside the price is, so the two never disagree;
+    // by the period's own move only while there is no live price yet.
+    const move = tick && Number.isFinite(tick.change) ? direction(tick.change) : all.at(-1)[1] - all[0][1];
     const path = 'M' + coords.join('L');
     return { path, area: `${path}L${W},${H}L0,${H}Z`, tone: move > 0 ? 'up' : move < 0 ? 'down' : 'flat' };
   });

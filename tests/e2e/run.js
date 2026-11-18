@@ -1156,10 +1156,12 @@ async function chart(browser, base) {
   // The test clock: Upbit's ten seconds between requests pass at once.
   await page.clock.install(); await page.goto(base); await live(page);
   await page.clock.runFor(12000);
-  // On by default, for a day: the chart behind the lower screen, coloured by the day's move, with its period.
+  // On by default, for a day: the chart behind the lower screen, coloured as the change, with its period.
   await page.locator('#board-chart .spark').waitFor();
   assert.match(asked[0], /candles\/minutes\/15\?market=KRW-BTC&count=97$/);
-  assert.equal(await page.locator('#board-chart .spark').getAttribute('class'), 'spark up');
+  // The day's candles rose, but the change shown is -2.50%: the chart takes the change's colour, so the two agree.
+  assert.equal(await page.locator('#board-chart .spark').getAttribute('class'), 'spark down');
+  assert.equal(await page.locator('#change').getAttribute('class'), 'change down');
   assert.equal(await text(page, '#board-chart .spark-label'), '1D');
   assert.ok((await page.locator('#board-chart .spark-line').getAttribute('d')).split('L').length >= 90, 'one point per candle, and the live price');
   // It lies across the bottom of the screen, edge to edge, held still while the board floats, below the price line wherever that floats.
