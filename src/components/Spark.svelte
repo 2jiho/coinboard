@@ -13,8 +13,10 @@
   // cell, or of the screen), and its line keeps one width however it is stretched.
   // The share of the height kept free below the line's lowest point; the fill fades on into it.
   const FLOOR = 0.06;
-  // The live price is drawn this far in from the right edge, so its point and
-  // the ring it sends out are not cut by the screen; the line runs on, level, to the edge.
+  // The chart is drawn this far in from each side: on the right so the live
+  // price's point and the ring it sends out are not cut by the screen, on the
+  // left to match. Line and fill end at the live price: past it there are no
+  // prices to draw.
   const END = 0.05;
   let { points = null, tick = null, period, label } = $props();
   const W = 100, H = 30, PAD = 1;
@@ -26,15 +28,15 @@
     let low = Infinity, high = -Infinity;
     for (const [, price] of all) { low = Math.min(low, price); high = Math.max(high, price); }
     const range = high - low || 1;
-    const x = (time) => (time - first) / span * (1 - END) * W;
+    const x = (time) => (END + (time - first) / span * (1 - 2 * END)) * W;
     const y = (price) => PAD + (1 - (price - low) / range) * (H * (1 - FLOOR) - PAD);
     const coords = all.map(([time, price]) => `${x(time).toFixed(2)},${y(price).toFixed(2)}`);
     // Coloured as the change beside the price is, so the two never disagree;
     // by the period's own move only while there is no live price yet.
     const move = tick && Number.isFinite(tick.change) ? direction(tick.change) : all.at(-1)[1] - all[0][1];
     const endY = y(all.at(-1)[1]);
-    const path = `M${coords.join('L')}L${W},${endY.toFixed(2)}`;
-    return { path, area: `${path}L${W},${H}L0,${H}Z`, tone: move > 0 ? 'up' : move < 0 ? 'down' : 'flat',
+    const path = `M${coords.join('L')}`, startX = (END * W).toFixed(2), endX = ((1 - END) * W).toFixed(2);
+    return { path, area: `${path}L${endX},${H}L${startX},${H}Z`, tone: move > 0 ? 'up' : move < 0 ? 'down' : 'flat',
       end: { x: (1 - END) * 100, y: endY / H * 100 } };
   });
 
