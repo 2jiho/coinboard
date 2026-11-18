@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { PRESETS } from './src/lib/presets.js';
 
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-const CSP = "default-src 'self'; connect-src 'self' wss://api.upbit.com https://api.upbit.com wss://ws-api.bithumb.com https://api.bithumb.com wss://data-stream.binance.vision https://data-api.binance.vision wss://stream.binance.com:443 https://api.binance.com wss://fstream.binance.com https://fapi.binance.com wss://ws.okx.com wss://wseea.okx.com https://www.okx.com https://my.okx.com wss://ws-feed.exchange.coinbase.com https://api.exchange.coinbase.com; " +
+const CSP = "default-src 'self'; connect-src 'self' wss://api.upbit.com https://api.upbit.com wss://ws-api.bithumb.com https://api.bithumb.com wss://data-stream.binance.vision https://data-api.binance.vision wss://stream.binance.com:443 https://api.binance.com wss://fstream.binance.com https://fapi.binance.com wss://ws.okx.com wss://wseea.okx.com https://www.okx.com https://my.okx.com wss://ws-feed.exchange.coinbase.com https://api.exchange.coinbase.com wss://stream.bybit.com https://api.bybit.com https://api.bytick.com wss://ws.kraken.com https://api.kraken.com wss://stream.coinone.co.kr; " +
   "script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self';";
 // Coin icons live in public/coins (CC0, from the cryptocurrency-icons project).
 // All of them are published with the app; only the preset coins' icons are

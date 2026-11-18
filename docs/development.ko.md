@@ -36,7 +36,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/components/Price.svelte` | 가격 한 줄: 숫자 굴림과 움직임 크기에 따른 색 |
 | `src/components/SettingsPanel.svelte` | 설정 창 |
 | `src/lib/feed.js` | 거래소 WebSocket 연결(시장마다 하나, 여러 코인), 재연결, 생존 판정 |
-| `src/lib/exchanges/` | 거래소별 주소(대체 주소 `hosts` 포함), 구독 메시지, 연결 유지, 메시지 해석(업비트, 빗썸, 바이낸스·OKX 현물·무기한, 코인베이스). `index.js`가 목록과 설정 창의 통화별 묶음을 정합니다 |
+| `src/lib/exchanges/` | 거래소별 주소(대체 주소 `hosts` 포함), 구독 메시지, 연결 유지, 메시지 해석(업비트, 빗썸, 코인원, 바이낸스·OKX·바이비트 현물·무기한, 코인베이스, 크라켄). `index.js`가 목록과 설정 창의 통화별 묶음을 정합니다 |
 | `src/lib/status.js` | 연결 상태를 화면 문구로 바꿉니다 |
 | `src/lib/quiet-controls.js` | 설정 버튼의 표시·숨김, 첫 탭 보호, 방치된 설정 창 닫기 |
 | `src/lib/presets.js` | 설정 창의 코인 선택 목록 |
@@ -171,6 +171,9 @@ npm run test:e2e
 - [빗썸 WebSocket](https://apidocs.bithumb.com/reference/websocket-기본-정보): `wss://ws-api.bithumb.com/websocket/v1`, 업비트와 같은 형식. 연결 유지 응답이 없고 거래가 있을 때만 시세를 보내므로, 10초마다 구독을 다시 보냅니다. 빗썸은 그때마다 코인별 현재 시세로 답합니다.
 - [OKX tickers 채널](https://www.okx.com/docs-v5/en/#public-data-websocket-tickers-channel): 443 포트의 `wss://ws.okx.com/ws/v5/public`(문서의 8443 포트는 막힌 네트워크가 많음), 다음은 `wss://wseea.okx.com/ws/v5/public`. 20초마다 `ping`, 답은 `pong`. 없는 종목은 그 종목만 거절합니다(코드 60018). 코인 목록은 `/api/v5/public/instruments`(`www.okx.com`, 다음은 `my.okx.com`).
 - [코인베이스 Exchange WebSocket](https://docs.cdp.coinbase.com/exchange/websocket-feed/channels): `wss://ws-feed.exchange.coinbase.com`, `ticker`와 `heartbeat` 채널(1초마다 오는 heartbeat로 연결 유지). 없는 상품은 그 상품만 거절합니다. 코인 목록은 `https://api.exchange.coinbase.com/products`.
+- [바이비트 tickers](https://bybit-exchange.github.io/docs/v5/websocket/public/ticker): `wss://stream.bybit.com/v5/public/spot`과 `/linear`. 요청 하나에 `tickers.<심볼>` 하나씩 보냅니다(없는 코인이 섞인 요청은 통째로 거절됨). 10초마다 `{"op":"ping"}`. 무기한은 처음에 전체 시세, 그 뒤로는 바뀐 항목만 보내므로, 가격만 온 경우 마지막 24시간 등락률을 그대로 씁니다. REST(코인 목록, 봉)는 `api.bybit.com`, 다음은 `api.bytick.com`. 바이비트는 일부 지역(미국 등)을 주소로 막습니다.
+- [크라켄 WebSocket v2](https://docs.kraken.com/api/docs/websocket-v2/ticker): `wss://ws.kraken.com/v2`, `ticker` 채널, `BTC/USD` 형식. 구독하면 1초마다 heartbeat가 옵니다. 없는 페어는 그 페어만 거절합니다. 코인 목록은 `/0/public/AssetPairs`(`wsname`에는 BTC·DOGE가 아직 `XBT`·`XDG`로 적힘), 봉은 `/0/public/OHLC`.
+- [코인원 WebSocket](https://docs.coinone.co.kr/reference/public-websocket-1): `wss://stream.coinone.co.kr`, 코인마다 `TICKER` 구독 하나, 10초마다 `PING`. 없는 코인에는 어느 코인인지 밝히지 않고 `Invalid Topic`으로 답하므로 그 코인은 대기 상태로 남습니다. 코인원 REST API는 CORS 헤더를 보내지 않아 코인 목록과 그래프가 없습니다.
 - **대체 주소**: 거래소마다 주소를 여러 개(`hosts`) 둘 수 있고, 아무것도 받기 전에 실패한 연결은 다음 주소로 넘어갑니다. 코인 목록도 주소를 차례로 시도합니다.
 - [바이낸스 USDT 선물 스트림](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams): `wss://fstream.binance.com/market/ws/<심볼>@ticker`. 2026년 4월 23일부터 경로(`/market`) 없는 예전 주소로는 시세가 오지 않습니다.
 

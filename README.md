@@ -10,7 +10,7 @@ A crypto price board: live prices from exchange WebSockets, in large type, on a 
 
 **Open it: https://2jiho.github.io/coinboard/**
 
-- **Markets**: Upbit (Korean won), Binance spot (USDT) and Binance USDT perpetual futures (marked `PERP`). It starts on BTC on Binance.
+- **Markets**: in Korean won, Upbit, Bithumb and Coinone; in USDT, Binance, OKX and Bybit, spot and perpetual futures (marked `PERP`); in US dollars, Coinbase and Kraken. It starts on BTC on Binance.
 - **Several assets**: one asset fills the screen; two or more share it in a grid, markets mixed as you like.
 - **A calm board**: digits roll only where they change, the tint deepens with the size of the move, and every place changes together on one three-second beat.
 - **Made to stay on**: keeps the screen awake, drifts slightly against burn-in, dims on request, runs offline and updates itself.
@@ -32,4 +32,4 @@ A crypto price board: live prices from exchange WebSockets, in large type, on a 
 
 ## License
 
-[MIT](LICENSE). The font, coin icons and libraries shipped with the app keep their own licenses: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Market data belongs to the exchanges; Coinboard is not affiliated with Upbit or Binance and is not investment advice.
+[MIT](LICENSE). The font, coin icons and libraries shipped with the app keep their own licenses: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Market data belongs to the exchanges; Coinboard is not affiliated with any exchange and is not investment advice.

@@ -135,5 +135,17 @@
   "chart_1h": "1시간",
   "chart_1d": "1일",
   "chart_1w": "1주",
-  "chart_1M": "1달"
+  "chart_1M": "1달",
+  "exchange_bybit": "바이비트",
+  "market_bybit_usdt": "USDT · 바이비트",
+  "list_bybit_usdt": "바이비트 USDT",
+  "exchange_bybit_futures": "바이비트 선물",
+  "market_bybit_perp": "USDT 무기한 · 바이비트",
+  "list_bybit_perp": "바이비트 USDT 무기한 선물",
+  "exchange_kraken": "크라켄",
+  "market_kraken_usd": "달러 · 크라켄",
+  "list_kraken_usd": "크라켄 달러",
+  "exchange_coinone": "코인원",
+  "market_coinone_krw": "원화 · 코인원",
+  "list_coinone_krw": "코인원 원화"
 }

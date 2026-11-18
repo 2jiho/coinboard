@@ -128,13 +128,13 @@ The panel has two sections, **Prices** and **Display**.
 
 | Currency | Markets |
 |---|---|
-| KRW (won) | Upbit, Bithumb |
-| USDT | Binance spot, Binance USDT perpetual futures, OKX spot, OKX USDT perpetual swaps |
-| USD (dollars) | Coinbase |
+| KRW (won) | Upbit, Bithumb, Coinone |
+| USDT | Binance spot, Binance USDT perpetual futures, OKX spot, OKX USDT perpetual swaps, Bybit spot, Bybit USDT perpetuals |
+| USD (dollars) | Coinbase, Kraken |
 
 The change shown is the one each exchange gives: against the previous day's close (`1D`) on Upbit and Bithumb, over the last 24 hours (`24H`) elsewhere. When the same coin in the same currency is on the board from two exchanges, their cells also name the exchange.
 
-**Coin** (in Add Asset): six common coins are listed (BTC, ETH, XRP, SOL, DOGE, ADA). For any other, choose **Other…**, type its ticker (for example `LINK`) and press Enter or **Add**. While typing, the coins really listed on that exchange are offered, and a ticker it does not list is pointed out.
+**Coin** (in Add Asset): six common coins are listed (BTC, ETH, XRP, SOL, DOGE, ADA). For any other, choose **Other…**, type its ticker (for example `LINK`) and press Enter or **Add**. While typing, the coins really listed on that exchange are offered, and a ticker it does not list is pointed out. Coinone does not give web pages its coin list, so there is nothing to complete, and a ticker it does not list just stays at `—`.
 
 **Columns**: shown with two or more assets. Tap **Auto** or 1 to 6 cells per row; 1 puts everything in one column.
 
@@ -155,7 +155,7 @@ Switched off, the board looks as it always did.
 
 **Pop Out** (desktop Chrome and Edge only): opens the board in a small window that stays on top of other windows, drawn to the window's size, with the same prices. Move and resize it as you like; press the button again (**Close Pop-out**) or close the window to end it. It closes with the tab. Other browsers do not offer such windows, so the button is not shown there.
 
-**Chart**: a small line chart beside the change, of the price over a period: **Off**, **15m**, **1h**, **1d** (the default), **1w** or **1mo**. It is drawn from the exchange's own candles and ends at the live price; it is green when the price rose over the period and red when it fell (in the up/down colors chosen). The board writes the period after it: `15M`, `1H`, `1D`, `7D`, `30D`. On Upbit and Bithumb the change is against the previous day's close while a `1D` chart covers the last 24 hours, so the two can point different ways. Where an exchange's past prices cannot be had (Binance futures in a restricted region), its chart is simply not shown. Upbit lets a browser ask it something only once every ten seconds, so Upbit charts appear one by one, about ten seconds apart, after the prices.
+**Chart**: a small line chart beside the change, of the price over a period: **Off**, **15m**, **1h**, **1d** (the default), **1w** or **1mo**. It is drawn from the exchange's own candles and ends at the live price; it is green when the price rose over the period and red when it fell (in the up/down colors chosen). The board writes the period after it: `15M`, `1H`, `1D`, `7D`, `30D`. On Upbit and Bithumb the change is against the previous day's close while a `1D` chart covers the last 24 hours, so the two can point different ways. Where an exchange's past prices cannot be had (Binance futures or Bybit in a restricted region), its chart is simply not shown. Coinone does not give web pages its past prices, so its coins have no chart. Upbit lets a browser ask it something only once every ten seconds, so Upbit charts appear one by one, about ten seconds apart, after the prices.
 
 **Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 

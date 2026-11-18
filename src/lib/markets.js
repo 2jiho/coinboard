@@ -16,6 +16,8 @@ export function createMarketList(options) {
 
   async function request(currency) {
     const exchange = EXCHANGES[currency];
+    // Coinone has no list a web page may read: any ticker is let through.
+    if (!exchange.listUrl) return null;
     try {
       if (pacer) {
         // Take a turn: wait until the exchange may be sent something, and
