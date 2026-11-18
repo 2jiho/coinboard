@@ -139,7 +139,7 @@ npm run test:e2e
 ~~~
 
 - `npm test`: unit tests for the modules in `src/lib`.
-- `npm run test:e2e`: builds, then checks the real page in Chromium. Exchanges and the wake lock are scripted; screenshots are left in `evidence/` (not in git).
+- `npm run test:e2e`: builds, then checks the real page in Chromium. Exchanges and the wake lock are scripted; screenshots are left in `evidence/` (not in git). The scenarios run four at a time, each against its own local server (`E2E_JOBS` sets how many; `E2E_JOBS=1` runs them one by one); about 40 seconds on a laptop.
   - The board and settings panel, keyboard use, delayed, failing and offline prices
   - The grid: adding, cancelling and refusing duplicates, reordering by drag handle and by keyboard, deleting and undoing, live prices in the list, one connection per market, cell and type size, a coin that never answers, layouts by orientation, cells per row, back to one asset, reading settings saved before the grid
   - The first connection is kept when the page loads; a page shown again reconnects
@@ -151,7 +151,7 @@ npm run test:e2e
 
 ## Deployment
 
-A push to `main` runs the tests in GitHub Actions and, if they pass, publishes the build to GitHub Pages. The repository's Settings → Pages → Source must be "GitHub Actions".
+A push to `main` runs the tests in GitHub Actions and, if they pass, publishes the build to GitHub Pages. Pull requests run the tests too (a newer push to one cancels the run before it); a branch push alone does not. The repository's Settings → Pages → Source must be "GitHub Actions".
 
 ## Known limits
 
