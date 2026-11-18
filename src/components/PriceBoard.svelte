@@ -176,10 +176,13 @@
     const boardObserver = new ResizeObserver(fit);
     boardObserver.observe(container);
     view.addEventListener('resize', fit);
+    // An icon that failed while offline is tried again once back online.
+    const retryIcons = () => { failedIcons = new Set(); };
+    view.addEventListener('online', retryIcons);
     fit(); fitPrice();
     // The board's own font arrives a moment after the first paint; measure again then.
     view.document.fonts?.ready.then(() => { fit(); fitPrice(); });
-    return () => { boardObserver.disconnect(); priceObserver.disconnect(); view.removeEventListener('resize', fit); };
+    return () => { boardObserver.disconnect(); priceObserver.disconnect(); view.removeEventListener('resize', fit); view.removeEventListener('online', retryIcons); };
   });
 
   // Burn-in protection: once a minute pick a new spot close to the centre; the

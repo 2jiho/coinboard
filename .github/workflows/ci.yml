@@ -21,7 +21,17 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # The runner already has Google Chrome: the browser tests use it, which
+      # saves installing Playwright's browser and its system libraries (four
+      # minutes and more). Only a runner without Chrome installs them.
+      - name: Browser for the tests
+        run: |
+          if [ -x /usr/bin/google-chrome ]; then
+            echo "CHROME_PATH=/usr/bin/google-chrome" >> "$GITHUB_ENV"
+            /usr/bin/google-chrome --version
+          else
+            npx playwright install --with-deps chromium
+          fi
       - run: npm test
       - run: npm run test:e2e
       - if: github.ref == 'refs/heads/main' && github.event_name == 'push'

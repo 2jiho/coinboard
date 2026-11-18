@@ -153,7 +153,7 @@ npm run test:e2e
 
 ## Deployment
 
-A push to `main` runs the tests in GitHub Actions and, if they pass, publishes the build to GitHub Pages. Pull requests run the tests too (a newer push to one cancels the run before it); a branch push alone does not. The repository's Settings → Pages → Source must be "GitHub Actions".
+A push to `main` runs the tests in GitHub Actions and, if they pass, publishes the build to GitHub Pages. Pull requests run the tests too (a newer push to one cancels the run before it); a branch push alone does not. The browser tests use the Google Chrome already on GitHub's runner, so nothing has to be installed for them. The repository's Settings → Pages → Source must be "GitHub Actions".
 
 ## Known limits
 

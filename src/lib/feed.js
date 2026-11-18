@@ -36,6 +36,9 @@ export function describeMarket(currency, ticker) {
 // carrying every coin the board shows there. States are reported per coin:
 // the connection's state, except that a coin which has sent nothing on a live
 // connection is still waiting.
+// After an error from the exchange, how long before trying again.
+const ERROR_RETRY_MS = 60000;
+
 export function createMarketFeed(options) {
   options = options || {};
   const WS = options.WebSocket || globalThis.WebSocket;
@@ -155,7 +158,7 @@ export function createMarketFeed(options) {
     pacer.mark(currency);
     emit("connecting");
     heardNow = false;
-    let ws;
+    let ws, opened = false;
     try {
       ws = new WS(exchange.url(markets, exchange.hosts ? exchange.hosts[hostIndex % exchange.hosts.length] : undefined));
       ws.binaryType = "arraybuffer";
@@ -176,7 +179,9 @@ export function createMarketFeed(options) {
         disconnect(); schedule(0); return;
       }
       if (firstTickAt === null && now - startedAt >= staleMs) {
-        silentAttempts++;
+        // Only an open connection that stayed silent says something about the
+        // coins; one that never opened says only that the network did not.
+        if (opened) silentAttempts++;
         fail("timeout");
       } else if (firstTickAt !== null && now - lastMessageAt >= staleMs) {
         // Gone quiet with none of the coins now chosen ever heard on it (they
@@ -194,6 +199,7 @@ export function createMarketFeed(options) {
     }, 1000);
     ws.onopen = () => {
       if (!isCurrent()) return;
+      opened = true;
       emit("waiting");
       try {
         exchange.subscribe(markets, `${startedAt}-${token}`).forEach((frame) => { ws.send(frame); });
@@ -202,6 +208,7 @@ export function createMarketFeed(options) {
       subscribed = markets;
       // Coins chosen while it was connecting.
       resubscribe();
+      if (!isCurrent()) return; // it failed, and a new connection may be on its way
       if (exchange.heartbeat) {
         heartbeatTimer = clock.setInterval(() => {
           if (isCurrent() && ws.readyState === WS.OPEN) {
@@ -226,8 +233,12 @@ export function createMarketFeed(options) {
         }
         if (message.type === "error") {
           if (message.code === "TOO_MANY_REQUEST") { fail("rate-limited", 30000); return; }
+          // Said once, it is said for a while: try again a minute on, not at once.
+          // (An always-on board has nobody to press Reconnect.)
           disconnect();
-          emit("error", "exchange-error", null, m.reason_exchange_error({ code: message.code }));
+          emit("error", "exchange-error", clock.now() + ERROR_RETRY_MS, m.reason_exchange_error({ code: message.code }));
+          const token = generation;
+          retryTimer = clock.setTimeout(() => { retryTimer = null; if (token === generation && eligible()) schedule(0); }, ERROR_RETRY_MS);
           return;
         }
         if (message.type === "restart") { fail("restart"); return; }

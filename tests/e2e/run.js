@@ -1123,7 +1123,9 @@ async function chart(browser, base) {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body), headers: { 'access-control-allow-origin': '*' } });
   });
   const page = await context.newPage(); const problems = watch(page);
-  await page.goto(base); await live(page);
+  // The test clock: Upbit's ten seconds between requests pass at once.
+  await page.clock.install(); await page.goto(base); await live(page);
+  await page.clock.runFor(12000);
   // On by default, for a day: the line beside the change, coloured by the day's move, with its period.
   await page.locator('#board-foot .spark').waitFor();
   assert.match(asked[0], /candles\/minutes\/15\?market=KRW-BTC&count=97$/);
@@ -1137,6 +1139,7 @@ async function chart(browser, base) {
   assert.equal(await chosen(page, '#admin-chart'), '1d');
   assert.deepEqual(await page.locator('#admin-chart [data-value]').allTextContents(), ['끔', '15분', '1시간', '1일', '1주', '1달']);
   await choose(page, '#admin-chart', '1w');
+  await page.clock.runFor(12000);
   await until(page, () => document.querySelector('#board-foot .spark-label')?.textContent === '7D');
   assert.match(asked.at(-1), /candles\/minutes\/60\?market=KRW-BTC&count=169$/);
   assert.equal((await saved(page)).chart, '1w');
@@ -1145,6 +1148,7 @@ async function chart(browser, base) {
   // A grid has one per cell (here only Upbit's can be had).
   await choose(page, '#admin-chart', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
+  await page.clock.runFor(12000);
   await until(page, () => document.querySelectorAll('.cell .spark').length === 2);
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(evidence, 'chart.png') });

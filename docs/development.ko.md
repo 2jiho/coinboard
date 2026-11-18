@@ -153,7 +153,7 @@ npm run test:e2e
 
 ## 배포
 
-`main`에 푸시하면 GitHub Actions가 테스트를 돌리고, 통과하면 빌드 결과를 GitHub Pages에 올립니다. PR에서도 테스트가 돌고(새 커밋이 올라오면 돌던 테스트는 취소), 브랜치에 푸시만 해서는 돌지 않습니다. 레포의 Settings → Pages → Source가 "GitHub Actions"로 설정되어 있어야 합니다.
+`main`에 푸시하면 GitHub Actions가 테스트를 돌리고, 통과하면 빌드 결과를 GitHub Pages에 올립니다. PR에서도 테스트가 돌고(새 커밋이 올라오면 돌던 테스트는 취소), 브랜치에 푸시만 해서는 돌지 않습니다. 브라우저 테스트는 GitHub 실행 환경에 이미 있는 Google Chrome을 써서 따로 설치할 것이 없습니다. 레포의 Settings → Pages → Source가 "GitHub Actions"로 설정되어 있어야 합니다.
 
 ## 알려진 한계
 
