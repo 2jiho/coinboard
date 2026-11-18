@@ -18,8 +18,9 @@
 </script>
 
 {#if line}
+  <!-- The chart in a faint frame; its period after it, set like the change's own 24H. -->
   <span class="spark {line.tone}" data-period={period}>
     <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-hidden="true"><path d={line.path} /></svg>
-    <span class="spark-label">{label}</span>
   </span>
+  <span class="spark-label change-label">{label}</span>
 {/if}

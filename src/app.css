@@ -174,12 +174,11 @@ body {
 .change .arrow { display: inline-block; margin-right: 0.22em; font-size: 0.62em; transform: translateY(-0.12em); }
 /* The line chart beside the change: the period's closing prices and the live
    price, coloured by the move over the period. Its line keeps one width however the board is scaled. */
-.spark { display: inline-flex; align-items: center; gap: 0.25em; margin-left: 0.2em; align-self: center; }
-.spark svg { width: 2.6em; height: 0.9em; overflow: visible; }
+.spark { display: inline-flex; align-self: center; margin-left: 0.15em; padding: 0.12em 0.16em; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 0.16em; }
+.spark svg { display: block; width: 2.4em; height: 0.72em; overflow: visible; }
 .spark path { fill: none; stroke: #8e8e93; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .spark.up path { stroke: var(--up); }
 .spark.down path { stroke: var(--down); }
-.spark-label { font-size: 0.4em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 .change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 #container.price-unavailable #price-main { opacity: 0.55; }
 /* The grid: the whole screen divided into equal cells, as many per row as
