@@ -1,7 +1,7 @@
 <script>
   // Wires settings, the market feed, the wake lock and the updater to the
   // board, and owns the one quiet control: the settings button.
-  import { onMount, mount, unmount, tick as flushed } from 'svelte';
+  import { onMount, mount, unmount, untrack, tick as flushed } from 'svelte';
   import PriceBoard from './components/PriceBoard.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
   import { createSettings, sameAsset, MAX_ASSETS } from './lib/settings.js';
@@ -16,6 +16,7 @@
   import { createPacer } from './lib/pace.js';
   import { createBeat } from './lib/steady.js';
   import { installOffer, isStandalone } from './lib/install.js';
+  import { createHistory, extend } from './lib/history.js';
   import { m } from './paraglide/messages.js';
   import { getLocale } from './paraglide/runtime.js';
   import { Toaster } from '$lib/components/ui/sonner/index.js';
@@ -89,7 +90,7 @@
       else doc.head.append(sheet.cloneNode(true));
     }
     const app = mount(PriceBoard, { target: doc.body, props: {
-      get settings() { return settings; }, get ticks() { return assetTicks; }, get statuses() { return statuses; },
+      get settings() { return settings; }, get ticks() { return assetTicks; }, get statuses() { return statuses; }, get charts() { return assetCharts; },
       get brightness() { return previewBrightness ?? settings.brightness; }, get active() { return visible; }, view: win,
     } });
     win.addEventListener('pagehide', () => { unmount(app); pipWindow = null; }, { once: true });
@@ -116,6 +117,50 @@
 
   const statuses = $derived(settings.assets.map(asset => describeState(feedStates[assetKey(asset)] ?? null, now)));
   const assetTicks = $derived(settings.assets.map(asset => ticks[assetKey(asset)] ?? null));
+  // The line chart's past prices, per asset and period. Candles are asked for
+  // once the price connections have started (so a chart never takes the first
+  // turn from a price), taking turns with them (the pacer), and then rarely:
+  // in between, each new price drawn carries the chart along (extend).
+  const history = createHistory({ fetch: (url, init) => window.fetch(url, init), pacer });
+  let charts = $state.raw({});
+  let chartsReady = $state(false);
+  const assetCharts = $derived(settings.assets.map(asset => charts[`${assetKey(asset)}:${settings.chart}`] ?? null));
+  // The candles each chart was last drawn from: a newer answer replaces the chart; the same one leaves it be.
+  const drawnFrom = new Map();
+  $effect(() => {
+    const period = settings.chart, assets = settings.assets;
+    // The pop-out window keeps its chart current while this tab is behind others.
+    if (period === 'off' || !chartsReady || !(visible || pipWindow)) return;
+    const refresh = () => {
+      for (const asset of assets) {
+        const key = `${assetKey(asset)}:${period}`;
+        history.load(asset.currency, asset.ticker, period).then(points => {
+          if (!points || drawnFrom.get(key) === points) return;
+          drawnFrom.set(key, points);
+          const tick = ticks[assetKey(asset)];
+          charts = { ...charts, [key]: tick ? extend(points, tick.receivedAt, tick.price, period) : points };
+        });
+      }
+    };
+    refresh();
+    const timer = setInterval(refresh, 60000);
+    return () => clearInterval(timer);
+  });
+  // Each price drawn moves its chart's latest candle (or starts the next).
+  $effect(() => {
+    const period = settings.chart;
+    if (period === 'off') return;
+    // Read without tracking: this effect follows the prices, not the charts it writes.
+    const current = untrack(() => charts);
+    let next = current;
+    for (const asset of settings.assets) {
+      const key = `${assetKey(asset)}:${period}`, tick = ticks[assetKey(asset)];
+      if (!tick || !current[key]) continue;
+      const extended = extend(current[key], tick.receivedAt, tick.price, period);
+      if (extended !== current[key]) next = { ...next, [key]: extended };
+    }
+    if (next !== current) charts = next;
+  });
   // The worst of all: one asset in trouble is enough to say so.
   const RANK = { ok: 0, warn: 1, bad: 2 };
   const worst = $derived(statuses.reduce((level, next) => RANK[next.level] > RANK[level] ? next.level : level, 'ok'));
@@ -239,6 +284,8 @@
       },
     });
     applySelection();
+    // The price connections have taken their first turn: charts may ask now.
+    chartsReady = true;
     wakeLock = createWakeLock({ navigator, document, window, onChange(next) { wake = next; } });
     updater = createUpdater({
       navigator, location: window.location, document, version, workerUrl: './sw.js',
@@ -311,6 +358,7 @@
     onBrightness={value => { previewBrightness = null; save({ brightness: value }); }}
     onBurnIn={burnIn => save({ burnIn })}
     onPalette={palette => save({ palette })}
+    onChart={chart => save({ chart })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}
     onUpdate={() => updater.reload()}
@@ -322,4 +370,4 @@
 <Toaster position="bottom-center" />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
 <div id="status-dot" data-level={level} class:show={tipShown} class:quiet={settings.burnIn && level === 'ok' && !tipShown && !controlsVisible && !panelOpen} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
-<PriceBoard {settings} ticks={assetTicks} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />
+<PriceBoard {settings} ticks={assetTicks} charts={assetCharts} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />

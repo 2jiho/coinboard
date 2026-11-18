@@ -43,6 +43,8 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `src/lib/markets.js` | The coins an exchange lists (for ticker completion and checking) |
 | `src/lib/pace.js` | Spacing of requests to an exchange (shared by price connections and coin lists) |
 | `src/lib/steady.js` | One three-second beat for the whole board |
+| `src/lib/history.js` | Past prices for the line chart: the period's candle size, asking each exchange (`candles` in its definition) in turn with its price connection (the pacer: Upbit refuses a browser's second request within 10 seconds, candles included), at most every 10 minutes; `extend` carries a chart along with the live price in between |
+| `src/components/Spark.svelte` | The line chart beside the change |
 | `src/lib/move.js` | The size of a price move (faint, normal, full tint) |
 | `src/lib/format.js` | Price and change strings |
 | `src/lib/settings.js` | Loading, checking and saving settings |

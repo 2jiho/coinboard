@@ -20,6 +20,15 @@ export const coinbase = {
   pair(ticker) { return `${ticker}/USD`; },
   listUrl: "https://api.exchange.coinbase.com/products",
   listedTicker(entry) { return entry.quote_currency === "USD" && entry.status === "online" && typeof entry.base_currency === "string" ? entry.base_currency : null; },
+  // Past prices for the chart: candles [time (s), low, high, open, close], newest
+  // first, up to 300. There are no 4-hour ones: 6 hours stand in.
+  candles(ticker, minutes) {
+    const seconds = minutes === 240 ? 21600 : minutes * 60;
+    return {
+      url: `https://api.exchange.coinbase.com/products/${ticker}-USD/candles?granularity=${seconds}`,
+      parse: (body) => Array.isArray(body) ? body.map((candle) => [number(candle[0]) * 1000, number(candle[4])]) : null,
+    };
+  },
   url() { return "wss://ws-feed.exchange.coinbase.com"; },
   subscribe(markets) { return markets.length ? [JSON.stringify({ type: "subscribe", product_ids: markets, channels: CHANNELS })] : []; },
   resubscribe(from, to) {

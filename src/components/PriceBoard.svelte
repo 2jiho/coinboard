@@ -7,16 +7,20 @@
   // every price is drawn at the size the longest one needs, so they match.
   import { onMount, tick as flushed } from 'svelte';
   import Price from './Price.svelte';
+  import Spark from './Spark.svelte';
   import { change as formatChange, direction } from '../lib/format.js';
   import { describeMarket } from '../lib/feed.js';
 
   // ticks and statuses: one per asset, in the order of settings.assets.
   // view: the window the board is drawn in (this one, or the small window on top).
-  let { settings, ticks, statuses, brightness, active, view = window } = $props();
+  // charts: per asset, its past prices for the line chart (or null).
+  let { settings, ticks, statuses, brightness, active, view = window, charts = [] } = $props();
 
   // Burn-in protection moves the board only a little: far enough to rest the
   // pixels, not far enough to look off-centre. A share of each screen side.
   const DRIFT = 0.03;
+  // The chart's period as the board writes it (English, like 24H).
+  const CHART_LABELS = { '15m': '15M', '1h': '1H', '1d': '1D', '1w': '7D', '1M': '30D' };
 
   // How much of the screen the board may take; the rest is room to float in.
   // A grid fills more of it, since its cells are smaller to begin with.
@@ -212,6 +216,7 @@
           <p id="board-foot">
             <span id="change" class="change {change.tone}" aria-live="polite" aria-atomic="true">{#if change.arrow}<span class="arrow">{change.arrow}</span>{/if}{change.number}</span>
             <span id="change-label" class="change-label">{market.changeLabel}</span>
+            {#if settings.chart !== 'off'}<Spark points={charts[0]} tick={ticks[0]} period={settings.chart} label={CHART_LABELS[settings.chart]} />{/if}
           </p>
         </div>
       {:else}
@@ -232,6 +237,7 @@
               <p class="cell-foot">
                 <span class="change {change.tone}">{#if change.arrow}<span class="arrow">{change.arrow}</span>{/if}{change.number}</span>
                 <span class="change-label">{market.changeLabel}</span>
+                {#if settings.chart !== 'off'}<Spark points={charts[index]} tick={ticks[index]} period={settings.chart} label={CHART_LABELS[settings.chart]} />{/if}
               </p>
               </div>
             </div>

@@ -388,7 +388,7 @@ async function board(browser, base, flags) {
   assert.equal(await brightnessThumb.getAttribute('aria-valuenow'), '50');
   assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red' });
+  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: '1d' });
   // Up and down colours: green and red, or the Korean red and blue.
   const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
@@ -615,7 +615,9 @@ async function board(browser, base, flags) {
   // are the exchanges' coin lists, asked for when the ticker field is opened.
   // (The exchanges are unreachable here, so Binance's list is also asked of its second address.)
   const LISTS = ['https://api.upbit.com/v1/market/all', 'https://data-api.binance.vision/api/v3/ticker/price', 'https://api.binance.com/api/v3/ticker/price'];
-  assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:') && !LISTS.includes(url)), []);
+  // And, for the line chart, the exchanges' candles.
+  const CANDLES = /^https:\/\/(api\.upbit\.com\/v1\/candles\/|data-api\.binance\.vision\/api\/v3\/klines\?|api\.binance\.com\/api\/v3\/klines\?|fapi\.binance\.com\/fapi\/v1\/klines\?)/;
+  assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:') && !LISTS.includes(url) && !CANDLES.test(url)), []);
   assert.ok(requests.filter(url => LISTS.includes(url)).length <= 12, 'coin lists are asked for a handful of times, not polled');
   assert.deepEqual(problems, []);
   await context.close();
@@ -1110,6 +1112,47 @@ async function popOut(browser, base) {
   console.log('PASS pop-out: the board in a small window on top, following the tab (one asset, then a grid), closed by the same button; no button where the browser cannot');
 }
 
+async function chart(browser, base) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
+  // Upbit's candles, scripted: a day that rose. (Registered after scripted(), so it wins over its block.)
+  let asked = [];
+  await context.route('https://api.upbit.com/v1/candles/**', route => {
+    asked.push(route.request().url());
+    const now = Date.now();
+    const body = Array.from({ length: 96 }, (_, i) => ({ candle_date_time_utc: new Date(now - (i + 1) * 15 * 60e3).toISOString().slice(0, 19), trade_price: 90000000 - i * 50000 }));
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body), headers: { 'access-control-allow-origin': '*' } });
+  });
+  const page = await context.newPage(); const problems = watch(page);
+  await page.goto(base); await live(page);
+  // On by default, for a day: the line beside the change, coloured by the day's move, with its period.
+  await page.locator('#board-foot .spark').waitFor();
+  assert.match(asked[0], /candles\/minutes\/15\?market=KRW-BTC&count=97$/);
+  assert.equal(await page.locator('#board-foot .spark').getAttribute('class'), 'spark up');
+  assert.equal(await text(page, '#board-foot .spark-label'), '1D');
+  assert.ok((await page.locator('#board-foot .spark path').getAttribute('d')).split('L').length >= 90, 'one point per candle, and the live price');
+  // It stays inside the board's text column.
+  assert.ok(await page.evaluate(() => { const foot = document.getElementById('board-foot').getBoundingClientRect(), text = document.getElementById('board-text').getBoundingClientRect(); return foot.right <= text.right + 1; }), 'the chart fits beside the change');
+  // Another period asks for other candles; off takes the chart away.
+  await open(page);
+  assert.equal(await chosen(page, '#admin-chart'), '1d');
+  assert.deepEqual(await page.locator('#admin-chart [data-value]').allTextContents(), ['끔', '15분', '1시간', '1일', '1주', '1달']);
+  await choose(page, '#admin-chart', '1w');
+  await until(page, () => document.querySelector('#board-foot .spark-label')?.textContent === '7D');
+  assert.match(asked.at(-1), /candles\/minutes\/60\?market=KRW-BTC&count=169$/);
+  assert.equal((await saved(page)).chart, '1w');
+  await choose(page, '#admin-chart', 'off');
+  assert.equal(await page.locator('.spark').count(), 0);
+  // A grid has one per cell (here only Upbit's can be had).
+  await choose(page, '#admin-chart', '1d');
+  await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
+  await until(page, () => document.querySelectorAll('.cell .spark').length === 2);
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: path.join(evidence, 'chart.png') });
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS chart: past prices beside the change, coloured by the move, a period to choose or none, one per grid cell');
+}
+
 async function idleUpdate(browser, base, flags) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
@@ -1364,7 +1407,7 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
 // against its own server. A failure is reported with the scenario's name;
 // the others still run.
-const scenarios = [board, english, help, install, oled, popOut, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
 const queue = [...scenarios];
 async function worker() {
