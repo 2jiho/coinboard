@@ -65,9 +65,12 @@ function binanceMarket(options) {
   };
 }
 
+// Spot market data comes from Binance's market-data-only hosts
+// (data-stream / data-api .binance.vision): the same streams and prices,
+// also reachable where binance.com itself is restricted.
 export const binance = binanceMarket({
   name: m.exchange_binance, label: "BINANCE", choice: m.market_binance_usdt, listName: m.list_binance_usdt, tag: "",
-  stream: "wss://stream.binance.com:443", listUrl: "https://api.binance.com/api/v3/ticker/price",
+  stream: "wss://data-stream.binance.vision", listUrl: "https://data-api.binance.vision/api/v3/ticker/price",
 });
 
 // USDⓈ-margined perpetual contracts: the last traded price of e.g. BTCUSDT perpetual.

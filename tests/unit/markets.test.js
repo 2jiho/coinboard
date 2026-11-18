@@ -21,12 +21,12 @@ test('Upbit: the coins of the KRW market, sorted', async () => {
   assert.deepEqual(f.asked, ['https://api.upbit.com/v1/market/all']);
 });
 test('Binance: the coins quoted in USDT, sorted', async () => {
-  const f = fixture({ 'api.binance.com': { body: BINANCE } });
+  const f = fixture({ 'data-api.binance.vision': { body: BINANCE } });
   assert.deepEqual(await f.list.load('USDT'), ['1INCH', 'BTC', 'ETH']);
-  assert.deepEqual(f.asked, ['https://api.binance.com/api/v3/ticker/price']);
+  assert.deepEqual(f.asked, ['https://data-api.binance.vision/api/v3/ticker/price']);
 });
 test('each exchange is asked once, however often its list is wanted', async () => {
-  const f = fixture({ 'api.upbit.com': { body: UPBIT }, 'api.binance.com': { body: BINANCE } });
+  const f = fixture({ 'api.upbit.com': { body: UPBIT }, 'data-api.binance.vision': { body: BINANCE } });
   await Promise.all([f.list.load('KRW'), f.list.load('KRW'), f.list.load('USDT')]);
   await f.list.load('KRW'); await f.list.load('USDT');
   assert.equal(f.asked.length, 2);

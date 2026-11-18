@@ -603,7 +603,7 @@ async function board(browser, base) {
 
   // Everything the board loads comes from its own address; the only calls out
   // are the exchanges' coin lists, asked for when the ticker field is opened.
-  const LISTS = ['https://api.upbit.com/v1/market/all', 'https://api.binance.com/api/v3/ticker/price'];
+  const LISTS = ['https://api.upbit.com/v1/market/all', 'https://data-api.binance.vision/api/v3/ticker/price'];
   assert.deepEqual(requests.filter(url => !url.startsWith(base) && !url.startsWith('data:') && !LISTS.includes(url)), []);
   assert.ok(requests.filter(url => LISTS.includes(url)).length <= 8, 'coin lists are asked for a handful of times, not polled');
   assert.deepEqual(problems, []);
@@ -814,7 +814,7 @@ async function gridBoard(browser, base) {
   const freshPage = await fresh.newPage(); await freshPage.goto(base); await live(freshPage);
   assert.equal(await text(freshPage, '#price-source'), 'BINANCE · BTC/USDT');
   assert.equal(await text(freshPage, '#price-main'), '70,000');
-  assert.deepEqual(await freshPage.evaluate(() => sockets.map(socket => socket.url)), ['wss://stream.binance.com:443/ws/btcusdt@ticker']);
+  assert.deepEqual(await freshPage.evaluate(() => sockets.map(socket => socket.url)), ['wss://data-stream.binance.vision/ws/btcusdt@ticker']);
   await fresh.close();
 
   assert.deepEqual(problems, []);

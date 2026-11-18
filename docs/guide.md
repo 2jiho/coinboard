@@ -180,8 +180,8 @@ It takes a few seconds after opening; up to 11 seconds on Upbit, which limits ho
 **`CHECK TICKER`**
 Most likely the coin is not listed in that market: not in Upbit's won market, say, or not in Binance futures. In settings, add the coin in a market that lists it and delete this one. A coin that hardly ever trades can look like this too.
 
-**Only the Binance assets show nothing**
-Binance is blocked in some regions (the United States, for one). On an internet connection there, Binance prices do not arrive. Upbit is not affected.
+**Only the Binance futures assets show nothing**
+Binance is restricted in some regions (the United States, for one). Spot prices come from Binance's market-data address and arrive there too, but futures prices and the futures coin list may not. Upbit is not affected.
 
 **Yellow dot and `DELAYED`**
 No prices for more than 15 seconds; the app is reconnecting. The last price stays on screen, dimmed, until prices come back by themselves. If it goes on, check the internet connection.

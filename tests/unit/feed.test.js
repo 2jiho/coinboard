@@ -57,7 +57,7 @@ test('Upbit KRW-BTC subscription and binary ticker use actual KRW and signed dai
 });
 test('Binance pushed ticker uses USDT and 24h change; no price requests or JSON ping', async () => {
   const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open();
-  assert.equal(f.sockets[0].url, 'wss://stream.binance.com:443/ws/btcusdt@ticker');
+  assert.equal(f.sockets[0].url, 'wss://data-stream.binance.vision/ws/btcusdt@ticker');
   await f.message(f.tick('USDT')); assert.equal(f.ticks[0].price, 70000.1);
   assert.equal(f.ticks[0].selection.currency, 'USDT'); assert.equal(f.ticks[0].selection.changeLabel, '24H');
   assert.deepEqual(f.sockets[0].sent, []);
@@ -247,7 +247,7 @@ test('several Upbit coins share one connection and one subscription; each report
   assert.equal(latest('ETH').kind, 'live'); assert.equal(latest('ETH').last.price, 5000000);
 });
 test('several Binance coins use one combined stream, whose messages come wrapped', async () => {
-  for (const [currency, base] of [['USDT', 'wss://stream.binance.com:443'], ['USDT-PERP', 'wss://fstream.binance.com/market']]) {
+  for (const [currency, base] of [['USDT', 'wss://data-stream.binance.vision'], ['USDT-PERP', 'wss://fstream.binance.com/market']]) {
     const f = fixture(); f.feed.select(currency, ['BTC', 'ETH']); f.sockets[0].open();
     assert.equal(f.sockets[0].url, `${base}/stream?streams=btcusdt@ticker/ethusdt@ticker`);
     await f.message({ stream: 'ethusdt@ticker', data: f.tick('USDT', { s: 'ETHUSDT', c: '3500.5' }) });
@@ -332,7 +332,7 @@ test('the board feed opens one connection per market kind and closes the ones no
   const states = [];
   const board = createBoardFeed({ WebSocket: Socket, attemptStore: null, onState: s => states.push(s), random: () => 0 });
   board.select([{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT-PERP', ticker: 'SOL' }]);
-  assert.deepEqual(sockets.map(s => s.url), ['wss://api.upbit.com/websocket/v1', 'wss://stream.binance.com:443/ws/btcusdt@ticker', 'wss://fstream.binance.com/market/ws/solusdt@ticker']);
+  assert.deepEqual(sockets.map(s => s.url), ['wss://api.upbit.com/websocket/v1', 'wss://data-stream.binance.vision/ws/btcusdt@ticker', 'wss://fstream.binance.com/market/ws/solusdt@ticker']);
   board.select([{ currency: 'KRW', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }]);
   assert.deepEqual(sockets.map(s => s.readyState), [0, 3, 3]);
   board.dispose(); assert.deepEqual(sockets.map(s => s.readyState), [3, 3, 3]);

@@ -165,7 +165,7 @@ A push to `main` runs the tests in GitHub Actions and, if they pass, publishes t
 - [Upbit ticker](https://docs.upbit.com/kr/reference/websocket-ticker): `wss://api.upbit.com/websocket/v1`, ticker subscription.
 - [Upbit rate limits](https://docs.upbit.com/kr/reference/rate-limits): connection requests from a browser (with an Origin) once every 10 seconds (the app uses 11).
 - [Upbit connection management](https://docs.upbit.com/kr/docs/websocket-best-practice): closed after 120 seconds idle; kept with PING.
-- [Binance market streams](https://developers.binance.com/en/docs/products/spot/web-socket-streams): `wss://stream.binance.com:443/ws/<symbol>@ticker`.
+- [Binance market streams](https://developers.binance.com/en/docs/products/spot/web-socket-streams): `wss://data-stream.binance.vision/ws/<symbol>@ticker`, Binance's market-data-only host (the coin list from `https://data-api.binance.vision`). It carries the same streams as `stream.binance.com` and is reachable where binance.com itself is restricted. Futures have no such host.
 - [Binance USDⓈ-M futures streams](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams): `wss://fstream.binance.com/market/ws/<symbol>@ticker`. Since 23 April 2026 the old address without the `/market` path delivers no tickers.
 
 ## License and notices
