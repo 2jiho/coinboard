@@ -1,7 +1,7 @@
 <script>
   // Wires settings, the market feed, the wake lock and the updater to the
   // board, and owns the one quiet control: the settings button.
-  import { onMount, tick as flushed } from 'svelte';
+  import { onMount, mount, unmount, tick as flushed } from 'svelte';
   import PriceBoard from './components/PriceBoard.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
   import { createSettings, sameAsset, MAX_ASSETS } from './lib/settings.js';
@@ -70,6 +70,37 @@
     installPrompt = null;
     try { await prompt.prompt(); await prompt.userChoice; } catch { /* nothing to do */ }
   }
+  // The small window that stays on top (desktop Chrome and Edge): the same
+  // board, drawn to the small window's size, with the same prices. Opened
+  // only by a press, as the browser requires.
+  const pipSupported = 'documentPictureInPicture' in window;
+  let pipWindow = $state.raw(null);
+  async function togglePip() {
+    if (pipWindow) { pipWindow.close(); return; }
+    let win;
+    try { win = await window.documentPictureInPicture.requestWindow({ width: 380, height: Math.min(96 + 72 * settings.assets.length, 520) }); }
+    catch { return; }
+    const doc = win.document;
+    doc.title = 'Coinboard';
+    doc.documentElement.lang = getLocale();
+    // The board's own stylesheet (and the dev server's style tags), by absolute address.
+    for (const sheet of document.querySelectorAll('link[rel="stylesheet"], style')) {
+      if (sheet.tagName === 'LINK') { const link = doc.createElement('link'); link.rel = 'stylesheet'; link.href = sheet.href; doc.head.append(link); }
+      else doc.head.append(sheet.cloneNode(true));
+    }
+    const app = mount(PriceBoard, { target: doc.body, props: {
+      get settings() { return settings; }, get ticks() { return assetTicks; }, get statuses() { return statuses; },
+      get brightness() { return previewBrightness ?? settings.brightness; }, get active() { return visible; }, view: win,
+    } });
+    win.addEventListener('pagehide', () => { unmount(app); pipWindow = null; }, { once: true });
+    pipWindow = win;
+  }
+  // The small window follows the board's colours and its burn-in care.
+  $effect(() => {
+    if (!pipWindow) return;
+    pipWindow.document.body.dataset.palette = settings.palette;
+    pipWindow.document.body.classList.toggle('oled', settings.burnIn);
+  });
   function hintSeen() {
     if (!hint) return;
     hint = false; clearTimeout(hintTimer);
@@ -269,7 +300,7 @@
 
 {#if panelOpen}
   <div id="scrim"></div>
-  <SettingsPanel {settings} {canAdd} {install} {installDismissed} onInstall={runInstall} onDismissInstall={dismissInstall} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
+  <SettingsPanel {settings} {canAdd} {install} {installDismissed} {pipSupported} pipOpen={!!pipWindow} onPip={togglePip} onInstall={runInstall} onDismissInstall={dismissInstall} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
     onClose={closePanel}
     onAdd={addAsset}
     onColumns={columns => save({ columns })}

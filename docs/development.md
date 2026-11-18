@@ -32,6 +32,7 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 |---|---|
 | `src/App.svelte` | Connects the modules below to the page, and shows and hides the settings button |
 | `src/components/PriceBoard.svelte` | The board: one asset large, or a grid of several; layout and sizing; burn-in drift |
+| `src/components/PriceBoard.svelte` (`view`) | Also drawn in the small window on top (Document Picture-in-Picture): App mounts a second board there, `view` being that window, which it measures instead of this one |
 | `src/components/Price.svelte` | One price line: rolling digits and a tint by the size of the move |
 | `src/components/SettingsPanel.svelte` | The settings panel |
 | `src/lib/feed.js` | Exchange WebSocket connections (one per market, carrying several coins), reconnection, liveness |
