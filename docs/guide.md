@@ -111,6 +111,8 @@ With two or more assets the whole screen is divided into cells of one size, with
 
 Tap the screen once and the settings button (a gear) appears in the bottom-right corner; it goes away again after five seconds untouched. The tap that brings the button up does not press it, so tap the button once it is showing. On a keyboard, Tab brings it up. The first time the app opens, a line at the bottom of the screen says so (*Tap the screen for settings*); it goes once the screen is touched and does not come back.
 
+**Refresh**: draw one finger down the board and let go to reload it. A round mark follows the finger down from the top and lights up once you have pulled far enough; let go then and it spins while the page reloads. A short pull, or a second finger, lets it go. The board does not zoom with a pinch or a double tap.
+
 ![Settings](images/settings.en.png)
 
 Changes apply and are saved at once (only adding an asset waits for **Add**).

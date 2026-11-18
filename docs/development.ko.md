@@ -44,6 +44,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 | `src/lib/pace.js` | 거래소로 보내는 요청의 간격 관리(시세 연결과 코인 목록이 함께 씀) |
 | `src/lib/steady.js` | 화면 갱신을 모든 칸이 함께 쓰는 3초 박자로 묶기 |
 | `src/lib/history.js` | 선 그래프의 과거 시세: 기간별 봉 크기, 거래소별 요청(정의의 `candles`)을 시세 연결과 순서를 맞춰 보냄(pacer: 업비트는 브라우저의 두 번째 요청을 10초 안에는 거절하며 과거 시세도 마찬가지), 최대 10분에 한 번. 그사이에는 `extend`가 실시간 가격으로 그래프를 이어 감 |
+| `src/lib/pull.js` | 당겨서 새로고침: 한 손가락으로 아래로 120px 넘게 당겼다 놓으면 새로고침. 두 번째 손가락, 옆으로 끌기, 컨트롤·패널에서 시작한 끌기는 제외. 확대는 `touch-action: none`(패널은 `pan-y`), 뷰포트 `user-scalable=no`, iOS `gesturestart` 거부로 막음 |
 | `src/components/Spark.svelte` | 전광판 아래쪽 배경의 선 그래프 |
 | `src/lib/move.js` | 가격 움직임의 크기(옅게·보통·진하게) 판정 |
 | `src/lib/format.js` | 가격·등락률 문자열 |

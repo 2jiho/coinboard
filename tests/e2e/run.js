@@ -322,7 +322,8 @@ async function board(browser, base, flags) {
   assert.equal(await page.locator('#admin-panel').count(), 0);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'settings-toggle');
   // On iOS two quick taps must stay two taps (no double-tap zoom), and a long press presses (no text selection).
-  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).touchAction), 'manipulation');
+  // (touch-action none: no zoom of any kind; see the pull-to-refresh scenario.)
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).touchAction), 'none');
   assert.equal(await page.locator('#settings-toggle').evaluate(el => getComputedStyle(el).userSelect), 'none');
   // A press on the button just as it starts to fade out opens settings; it is not taken for a tap to reveal it.
   await tapBoard(page); await page.clock.fastForward(5000);
@@ -1244,6 +1245,53 @@ async function lockedStorage(browser, base) {
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');
 }
 
+async function pullToRefresh(browser, base) {
+  // A tablet: the board cannot be zoomed, and a finger drawn down it reloads the page.
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true }); await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.goto(base); await live(page);
+  assert.match(await page.locator('meta[name="viewport"]').getAttribute('content'), /maximum-scale=1\.0, user-scalable=no/);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).touchAction), 'none', 'no pinch, no double-tap zoom, no browser pull on the board');
+  // Real touches, so the browser makes its own pointer events from them.
+  const cdp = await context.newCDPSession(page);
+  const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([x, y], id) => ({ x, y, id })) });
+  const drag = async (from, to, steps = 8) => {
+    await touch('touchStart', [from]);
+    for (let i = 1; i <= steps; i += 1) await touch('touchMove', [[from[0] + (to[0] - from[0]) * i / steps, from[1] + (to[1] - from[1]) * i / steps]]);
+  };
+  const mark = () => page.locator('#pull').evaluate(el => [...el.classList].filter(name => name !== '').sort().join(' '));
+  // A short pull shows the mark, not ready; let go, it goes back and nothing reloads.
+  let reloads = 0; page.on('load', () => { reloads += 1; });
+  await drag([500, 150], [505, 230]);
+  assert.equal(await mark(), 'pulling');
+  await touch('touchEnd', []);
+  assert.equal(await mark(), '');
+  // Two fingers are a pinch: the pull lets go.
+  await drag([500, 150], [500, 300]);
+  assert.equal(await mark(), 'pulling ready');
+  await touch('touchMove', [[500, 300], [700, 300]]);
+  assert.equal(await mark(), '', 'a second finger lets the pull go');
+  await touch('touchEnd', []);
+  assert.equal(reloads, 0);
+  // Far enough, and let go: the mark spins and the page reloads.
+  await drag([500, 150], [500, 320]);
+  assert.equal(await mark(), 'pulling ready');
+  const reloaded = page.waitForEvent('load');
+  await touch('touchEnd', []);
+  assert.equal(await mark(), 'refreshing');
+  await reloaded; await live(page);
+  // A drag that starts on the open settings panel scrolls it and reloads nothing.
+  await page.touchscreen.tap(500, 400); await page.locator('#settings-toggle').tap();
+  assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('admin-panel')).touchAction), 'pan-y');
+  const panel = await page.locator('#admin-panel').boundingBox();
+  await drag([panel.x + panel.width / 2, panel.y + 80], [panel.x + panel.width / 2, panel.y + 300]);
+  assert.equal(await mark(), '');
+  await touch('touchEnd', []);
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS pull to refresh: no zoom; a finger drawn down the board reloads it, a short pull, a pinch or a drag on the panel does not');
+}
+
 async function statusTipOnTouch(browser, base) {
   // A tablet: touch only, nothing can hover.
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true }); await scripted(context);
@@ -1450,7 +1498,7 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
 // against its own server. A failure is reported with the scenario's name;
 // the others still run.
-const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, pullToRefresh, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
 // E2E_ONLY=chart,board runs just those.
 const only = process.env.E2E_ONLY?.split(',');
