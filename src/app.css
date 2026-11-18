@@ -194,8 +194,8 @@ body {
 .spark-ring[data-strength="3"] { --ring: 6; animation-duration: 1.6s; }
 @keyframes spark-ring { from { transform: scale(1); opacity: 0.9; } to { transform: scale(var(--ring, 4)); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .spark-ring { display: none; } }
-/* The period, small in the chart's top left corner, away from the live price's point. */
-.spark .spark-label { position: absolute; top: 0; left: 16px; font-size: 15px; }
+/* The period, small above the chart's start (Spark draws it 5% in), away from the live price's point. */
+.spark .spark-label { position: absolute; top: 0; left: 5%; font-size: 15px; }
 .chart-box .spark-label { font-size: 13px; }
 .change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 #container.price-unavailable #price-main { opacity: 0.55; }

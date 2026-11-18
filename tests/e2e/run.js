@@ -1119,8 +1119,8 @@ async function popOut(browser, base) {
 
 // Run in the page: whether each chart (the single board's, or each cell's) is
 // held still, starts below its price line wherever burn-in protection floats
-// the board, and keeps clear of the lines between cells; and its line reaches
-// across the chart, with the lowest point inside it.
+// the board, and keeps clear of the lines between cells; and its line runs
+// from 5% in on the left to the live price's point, 5% in on the right, with the lowest point inside it.
 function chartsHold() {
   const drift = document.getElementById('drift'), matrix = new DOMMatrix(getComputedStyle(drift).transform);
   const room = { x: Number(drift.dataset.roomX), y: Number(drift.dataset.roomY) };
@@ -1133,7 +1133,9 @@ function chartsHold() {
     const chart = box.getBoundingClientRect(), line = box.querySelector('.spark-line').getBoundingClientRect();
     const still = getComputedStyle(box).transform === 'none' && getComputedStyle(box.parentElement).transform === 'none';
     const clearOfPrice = chart.top >= price.getBoundingClientRect().bottom - now.y + room.y - 1;
-    const across = line.left <= chart.left + 1 && line.right >= chart.right - 1 && line.bottom <= chart.bottom - 1;
+    // The line runs from 5% in on the left to the live price's point, 5% in from the right; nothing is drawn past it.
+    const point = box.querySelector('.spark-point').getBoundingClientRect(), pointX = point.left + point.width / 2;
+    const across = Math.abs(line.left - (chart.left + chart.width * 0.05)) <= 2 && Math.abs(line.right - (chart.left + chart.width * 0.95)) <= 2 && Math.abs(pointX - line.right) <= 2 && line.bottom <= chart.bottom - 1;
     let clearOfLines = true;
     if (cell) {
       // The cell as it would sit with the board unmoved; a line on its side may float room in.
@@ -1169,7 +1171,7 @@ async function chart(browser, base) {
   assert.ok((await page.locator('#board-chart .spark-line').getAttribute('d')).split('L').length >= 90, 'one point per candle, and the live price');
   // It lies across the bottom of the screen, edge to edge, held still while the board floats, below the price line wherever that floats.
   assert.ok(await page.evaluate(() => { const chart = document.getElementById('board-chart').getBoundingClientRect(); return chart.left <= 0 && chart.right >= innerWidth && chart.bottom >= innerHeight - 1; }), 'the chart lies across the lower screen');
-  assert.ok(await page.evaluate(chartsHold), 'the chart holds still, below the price however it floats, its line from edge to edge');
+  assert.ok(await page.evaluate(chartsHold), 'the chart holds still, below the price however it floats, its line 5% in from each side, ending at the live point');
   // The live price has a point; when the price shown moves, the point sends out a ring in the move's colour, as wide as the move is large.
   assert.equal(await page.locator('#board-chart .spark-point').count(), 1);
   assert.equal(await page.locator('#board-chart .spark-ring').count(), 0, 'no ring before the price moves');
