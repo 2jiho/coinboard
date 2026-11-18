@@ -106,11 +106,14 @@ test('background/offline cancel timers and resume waits for new data', async () 
   f.feed.setOnline(true); f.sockets[2].open(); await f.message(f.tick()); assert.equal(f.state().kind, 'live');
   f.feed.dispose(); assert.equal(f.timers.size, 0); f.advance(60000); assert.equal(f.sockets.length, 3);
 });
-test('parameter error stops retries; rate limit waits at least 30 seconds', async () => {
+test('an exchange error waits a minute before trying again; rate limit at least 30 seconds', async () => {
   const f = fixture(); f.feed.select('KRW', 'BTC'); f.sockets[0].open();
   await f.message({ error: { name: 'INVALID_PARAM' } }); assert.equal(f.state().kind, 'error');
-  f.advance(60000); assert.equal(f.sockets.length, 1); assert.equal(f.timers.size, 0);
-  f.feed.retry(); f.sockets[1].open(); await f.message({ error: { name: 'TOO_MANY_REQUEST' } });
+  assert.equal(f.state().retryAt - f.now(), 60000);
+  // An always-on board has nobody to press Reconnect: it tries again by itself, but not at once.
+  f.advance(59999); assert.equal(f.sockets.length, 1);
+  f.advance(1); assert.equal(f.sockets.length, 2);
+  f.sockets[1].open(); await f.message({ error: { name: 'TOO_MANY_REQUEST' } });
   assert.equal(f.state().retryAt - f.now(), 30000);
 });
 test('Binance server shutdown reconnects; unchanged selection does not', async () => {
@@ -191,12 +194,22 @@ test('a ticker that has delivered prices is not suspect after timeouts; switchin
   g.advance(g.state().retryAt - g.now()); g.sockets[1].open(); g.advance(15000); assert.equal(g.state().tickerSuspect, true);
   g.feed.select('USDT', 'BTC'); assert.equal(g.state().tickerSuspect, false);
 });
-test('Binance error replies in either shape stop retries', async () => {
+test('Binance error replies in either shape are errors, tried again a minute later', async () => {
   for (const reply of [{ code: -1121, msg: 'Invalid symbol.' }, { error: { code: 2, msg: 'Invalid request' } }, { error: { name: 'INVALID_PARAM' } }]) {
     const f = fixture(); f.feed.select('USDT', 'BTC'); f.sockets[0].open();
     await f.message(reply); assert.equal(f.state().kind, 'error', JSON.stringify(reply));
-    f.advance(60000); assert.equal(f.sockets.length, 1);
+    f.advance(59000); assert.equal(f.sockets.length, 1);
+    f.advance(1000); assert.equal(f.sockets.length, 2);
   }
+});
+test('a connection that never opens says nothing about the coins', () => {
+  const f = fixture(); f.feed.select('USDT', 'BTC');
+  for (let second = 0; second < 120; second += 1) f.advance(1000); // every connection hangs before opening
+  assert.equal(f.state().tickerSuspect, false);
+});
+test('every keep-alive is sent well inside the 15 seconds after which a silent connection is given up', async () => {
+  const { EXCHANGES } = await import('../../src/lib/exchanges/index.js');
+  for (const [key, exchange] of Object.entries(EXCHANGES)) if (exchange.heartbeat) assert.ok(exchange.heartbeatMs <= 10000, key);
 });
 test('describeMarket names a market the way each part of the app needs it', () => {
   assert.deepEqual(describeMarket('KRW', 'BTC'), { currency: 'KRW', ticker: 'BTC', quote: 'KRW', tag: '', symbol: 'BTCKRW', exchange: '업비트', label: 'UPBIT', market: 'KRW-BTC', pair: 'KRW-BTC', changeLabel: '1D' });
@@ -367,18 +380,20 @@ test('retrying the board leaves a connection that is still connecting alone, and
   board.retry(); assert.equal(sockets.length, 1, 'waiting out the pace, as before');
   board.dispose();
 });
+// Time passing on a network where connections open (as real ones do).
+function run(f, ms) { for (let t = 0; t < ms; t += 1000) { f.advance(1000); for (const socket of f.sockets) if (socket.readyState === 0) socket.open(); } }
 test('a coin that replaces the only one and never answers is still flagged as a ticker to check', async () => {
   const f = fixture(); f.feed.select('USDT', 'ETH'); f.sockets[0].open(); await f.message(f.tick('USDT', { s: 'ETHUSDT' }));
   f.feed.select('USDT', 'NOPE');
   assert.equal(f.sockets.length, 1);
-  f.advance(40000);
+  run(f, 40000);
   assert.equal(f.state().selection.ticker, 'NOPE'); assert.equal(f.state().tickerSuspect, true);
 });
 test('replacing the only coin on a connection that has already gone quiet still flags it in time', async () => {
   const f = fixture(); f.feed.select('USDT', 'ETH'); f.sockets[0].open(); await f.message(f.tick('USDT', { s: 'ETHUSDT' }));
   f.advance(10000);
   f.feed.select('USDT', 'NOPE');
-  f.advance(32000);
+  run(f, 32000);
   assert.equal(f.state().tickerSuspect, true);
 });
 

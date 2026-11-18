@@ -17,10 +17,11 @@ function okxMarket(options) {
     // Port 443: the documented 8443 is closed on many networks. Then the EEA
     // address, for a region where the main one is not served.
     hosts: ["wss://ws.okx.com/ws/v5/public", "wss://wseea.okx.com/ws/v5/public"],
-    // OKX closes a connection silent for 30 seconds: "ping" is answered "pong".
+    // OKX closes a connection silent for 30 seconds, and a quiet coin may send
+    // nothing for longer than the board's 15: "ping" is answered "pong", so ping
+    // at open and every 10 seconds.
     heartbeat: "ping",
-    heartbeatAtOpen: false,
-    heartbeatMs: 20000,
+    heartbeatMs: 10000,
     market(ticker) { return `${ticker}-USDT${options.suffix}`; },
     pair(ticker) { return options.tag ? `${ticker}/USDT ${options.tag}` : `${ticker}/USDT`; },
     // Each instrument: spot ones are "<ticker>-USDT"; swaps "<ticker>-USDT-SWAP", settled in USDT.

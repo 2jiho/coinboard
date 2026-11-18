@@ -76,11 +76,16 @@
   // only by a press, as the browser requires.
   const pipSupported = 'documentPictureInPicture' in window;
   let pipWindow = $state.raw(null);
+  let pipOpening = false;
   async function togglePip() {
     if (pipWindow) { pipWindow.close(); return; }
+    // A second press while the window is being opened does nothing.
+    if (pipOpening) return;
+    pipOpening = true;
     let win;
     try { win = await window.documentPictureInPicture.requestWindow({ width: 380, height: Math.min(96 + 72 * settings.assets.length, 520) }); }
     catch { return; }
+    finally { pipOpening = false; }
     const doc = win.document;
     doc.title = 'Coinboard';
     doc.documentElement.lang = getLocale();
@@ -93,7 +98,7 @@
       get settings() { return settings; }, get ticks() { return assetTicks; }, get statuses() { return statuses; }, get charts() { return assetCharts; },
       get brightness() { return previewBrightness ?? settings.brightness; }, get active() { return visible; }, view: win,
     } });
-    win.addEventListener('pagehide', () => { unmount(app); pipWindow = null; }, { once: true });
+    win.addEventListener('pagehide', () => { unmount(app); if (pipWindow === win) pipWindow = null; }, { once: true });
     pipWindow = win;
   }
   // The small window follows the board's colours and its burn-in care.
