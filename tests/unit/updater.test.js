@@ -61,9 +61,9 @@ test('storage missing or throwing: no automatic reload, button shown', async () 
     assert.equal(f.state.reloads, 0); assert.equal(f.button.hidden, false);
   }
 });
-test('checks for updates at start, every five minutes while visible and on becoming visible, not while hidden', async () => {
+test('checks for updates at start, every 30 seconds while visible and on becoming visible, not while hidden', async () => {
   const f = fixture(); await settle(); assert.equal(f.state.updates, 1);
-  assert.equal(f.intervals.length, 1); assert.equal(f.intervals[0].ms, 300000);
+  assert.equal(f.intervals.length, 1); assert.equal(f.intervals[0].ms, 30000);
   f.intervals[0].cb(); assert.equal(f.state.updates, 2);
   f.visibility('hidden'); f.intervals[0].cb(); assert.equal(f.state.updates, 2);
   f.visibility('visible'); assert.equal(f.state.updates, 3);

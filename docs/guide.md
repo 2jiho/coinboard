@@ -111,7 +111,7 @@ With two or more assets the whole screen is divided into cells of one size, with
 
 Tap the screen once and the settings button (a gear) appears in the bottom-right corner; it goes away again after five seconds untouched. The tap that brings the button up does not press it, so tap the button once it is showing. On a keyboard, Tab brings it up. The first time the app opens, a line at the bottom of the screen says so (*Tap the screen for settings*); it goes once the screen is touched and does not come back.
 
-**Refresh**: draw one finger down the board and let go to reload it. A round mark follows the finger down from the top and lights up once you have pulled far enough; let go then and it spins while the page reloads. A short pull, or a second finger, lets it go. The board does not zoom with a pinch or a double tap.
+**Brightness**: draw one finger up the board to brighten it, down to dim it; the screen's whole height is the whole range, 10% to 100%. While the finger moves, a capsule at the top shows a sun, a bar and the level; let go and the level is kept (it is the same as the brightness in settings). A second finger puts it back. With the lights off at night, one finger dims the board. The board does not zoom with a pinch or a double tap.
 
 ![Settings](images/settings.en.png)
 
@@ -183,7 +183,7 @@ For a board that stays up:
 
 ## Updates
 
-New versions apply themselves. While the screen is on, the app checks every five minutes and reloads itself when there is a new version (if the settings panel is open, when it is closed). It usually takes 5 to 15 minutes after a release. To apply one at once, tap **Update Now** when it shows in settings, or close the app and open it again. The current version is at the bottom of the settings panel.
+New versions apply themselves. While the screen is on, the app checks every 30 seconds, and on coming back to it, and reloads itself when there is a new version (if the settings panel is open, when it is closed). It usually takes under a minute after a release. To apply one at once, tap **Update Now** when it shows in settings, or close the app and open it again. The current version is at the bottom of the settings panel.
 
 ## Troubleshooting
 
@@ -206,7 +206,7 @@ Keeping the screen on was released. Tap the screen once and the app asks again. 
 Tap the screen once to bring the button up, then tap the button. The first tap only shows it.
 
 **An update has not arrived**
-Wait 5 to 15 minutes, or close the app completely and open it again. The version is at the bottom of the settings panel.
+Wait a minute, or close the app completely and open it again. The version is at the bottom of the settings panel.
 
 **A message says settings could not be saved**
 The browser is not letting the page store anything (some privacy settings, or no storage space left). Changes apply only until the page is closed. Open it in a normal window or from the home screen, and check the browser's website data settings.

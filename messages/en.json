@@ -110,7 +110,7 @@
   "help_back": "Back to settings",
   "help_hint": "Tap the screen for settings",
   "help_settings_title": "Opening Settings",
-  "help_settings_body": "Tap the screen once and the settings button appears in the bottom-right corner; it goes away after five seconds untouched. The first tap only brings the button up, so tap the button once it shows. On a keyboard, Tab brings it up. Pull the board down and let go to reload it.",
+  "help_settings_body": "Tap the screen once and the settings button appears in the bottom-right corner; it goes away after five seconds untouched. The first tap only brings the button up, so tap the button once it shows. On a keyboard, Tab brings it up. Swipe the board up or down to change its brightness.",
   "help_status_title": "Status Dot",
   "help_status_body": "The small dot in the bottom-left corner is the connection. Tap it (or hover over it with a mouse) for details.",
   "help_status_ok": "All well",

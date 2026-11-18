@@ -17,7 +17,7 @@
   import { createBeat } from './lib/steady.js';
   import { installOffer, isStandalone } from './lib/install.js';
   import { createHistory, extend } from './lib/history.js';
-  import { createPull, PULL_MAX } from './lib/pull.js';
+  import { createSwipeBrightness } from './lib/swipe-brightness.js';
   import { m } from './paraglide/messages.js';
   import { getLocale } from './paraglide/runtime.js';
   import { Toaster } from '$lib/components/ui/sonner/index.js';
@@ -42,8 +42,10 @@
   let cache = $state({ state: 'waiting', version: null });
   let updateReady = $state(false);
   let controlsVisible = $state(false);
-  // Pull to refresh: how far the mark has come down, and whether letting go reloads.
-  let pull = $state({ distance: 0, progress: 0, ready: false, refreshing: false });
+  // Brightness by swiping the board up or down: the level shown while the
+  // finger moves, and whether the indicator is up.
+  let swipeLevel = $state(null), swipeShown = $state(false), swipeHideTimer;
+  const BRIGHTNESS_MIN = 10, BRIGHTNESS_MAX = 100;
   let panelOpen = $state(false);
   let toggleButton;
   // A new board says once how to reach settings, until the screen is first
@@ -349,14 +351,25 @@
     // iOS zooms on a pinch whatever touch-action says; refuse its gesture.
     const noPinch = event => event.preventDefault();
     for (const name of ['gesturestart', 'gesturechange']) document.addEventListener(name, noPinch, { passive: false });
-    // A finger drawn down the board reloads it (the controls and an open panel keep their own touches).
-    const puller = createPull({
+    // A finger drawn up the board brightens it, down dims it (the controls and an open panel keep their own touches).
+    let swipeBase = settings.brightness;
+    const swiper = createSwipeBrightness({
       target: document, ignore: '#settings-toggle, #admin-panel, #scrim, [data-sonner-toaster], #status-dot',
-      onChange(state) { pull = state; },
-      onRefresh() { setTimeout(() => location.reload(), 350); },
+      height: () => window.innerHeight,
+      onStart() { clearTimeout(swipeHideTimer); swipeBase = settings.brightness; swipeLevel = swipeBase; swipeShown = true; },
+      onChange(share) {
+        swipeLevel = Math.max(BRIGHTNESS_MIN, Math.min(BRIGHTNESS_MAX, Math.round(swipeBase + share * (BRIGHTNESS_MAX - BRIGHTNESS_MIN))));
+        previewBrightness = swipeLevel;
+      },
+      onEnd() {
+        previewBrightness = null;
+        if (swipeLevel !== settings.brightness) save({ brightness: swipeLevel });
+        swipeHideTimer = setTimeout(() => { swipeShown = false; }, 900);
+      },
+      onCancel() { previewBrightness = null; swipeLevel = settings.brightness; swipeHideTimer = setTimeout(() => { swipeShown = false; }, 300); },
     });
     return () => {
-      puller.dispose();
+      swiper.dispose(); clearTimeout(swipeHideTimer);
       for (const name of ['gesturestart', 'gesturechange']) document.removeEventListener(name, noPinch);
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
       clearTimeout(cursorTimer); clearTimeout(tipTimer); clearTimeout(hintTimer);
@@ -388,9 +401,14 @@
 </button>
 <Toaster position="bottom-center" />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
-<div id="pull" class:pulling={pull.distance > 0} class:ready={pull.ready} class:refreshing={pull.refreshing} aria-hidden="true"
-  style:transform="translateY({pull.refreshing ? PULL_MAX : pull.distance}px) rotate({pull.progress * 270}deg)">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66" /><path d="M20 4v5h-5" /></svg>
+<!-- The brightness while swiping: a glass capsule at the top, never dimmed with the board. -->
+<div id="brightness-hud" class:show={swipeShown} aria-hidden="true" style:--level={(swipeLevel ?? settings.brightness) / 100}>
+  <svg class="hud-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
+    <g class="hud-rays"><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" /></g>
+  </svg>
+  <span class="hud-track"><span class="hud-fill"></span></span>
+  <span class="hud-value">{swipeLevel ?? settings.brightness}%</span>
 </div>
 <div id="status-dot" data-level={level} class:show={tipShown} class:quiet={settings.burnIn && level === 'ok' && !tipShown && !controlsVisible && !panelOpen} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
 <PriceBoard {settings} ticks={assetTicks} charts={assetCharts} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />
