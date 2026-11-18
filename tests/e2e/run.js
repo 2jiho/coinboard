@@ -493,16 +493,18 @@ async function board(browser, base, flags) {
   assert.equal(await text(page, '#price-main'), '70,010');
   assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
   assert.match(await page.locator('#price-text .digit').nth(4).getAttribute('class'), /\bup\b/);
-  // The new digit pushes the old one out, so it knows which digit it replaces,
-  // and each digit sits in a window that hides whatever is pushed past its edge.
+  // The new digit knows which digit it replaces; a copy of the old one fades away over it, and nothing is clipped.
   // (Digits changed earlier in this run keep the mark of that change; only the new one is of interest.)
   const pushed = () => page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen ? '' : (el.dataset.old ?? '')));
   assert.deepEqual(await pushed(), ['', '', '', '', '0', '']);
   assert.equal(await page.locator('#price-text .slot').count(), 6);
-  assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el, '::before').content), '"0"');
-  assert.notEqual(await page.locator('#price-text .slot').nth(4).evaluate(el => getComputedStyle(el).clipPath), 'none');
-  // The price rose, so the movement is upwards: the new digit rises from below.
-  assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'push-up');
+  assert.deepEqual(await page.locator('#price-text .slot').nth(4).locator('.digit-old').evaluateAll(els => els.map(el => [el.dataset.digit, el.className, getComputedStyle(el).animationName, el.textContent])), [['0', 'digit-old up', 'leave-up', '']]);
+  assert.equal(await page.locator('#price-text .slot').nth(4).evaluate(el => getComputedStyle(el).clipPath), 'none');
+  // The price rose, so the movement is upwards: the new digit drifts up from below, the old one away above.
+  assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'arrive-up');
+  // The old copy is gone once its fade ends; the screen reader never hears it.
+  await page.waitForFunction(() => !document.querySelector('#price-text .digit-old'));
+  assert.equal(await text(page, '#price-main'), '70,010');
   // Only that digit moves. The others carry no direction and are not animating:
   // not now, and not when the price turns round and falls.
   const moving = () => page.locator('#price-text .digit').evaluateAll(els => els.map(el => (el.dataset.seen ? 'still' : (/\b(up|down)\b/.exec(el.className) || ['still'])[0]) + (el.getAnimations().length ? '*' : '')));
@@ -514,9 +516,10 @@ async function board(browser, base, flags) {
   assert.equal(await text(page, '#price-main'), '70,000');
   assert.deepEqual(await page.locator('#price-text .digit').evaluateAll(els => els.map(el => el.dataset.seen || 'new')), ['1', '1', '1', '1', 'new', '1']);
   assert.deepEqual((await moving()).map(state => state.replace('*', '')), ['still', 'still', 'still', 'still', 'down', 'still'], 'a change of direction moves only the changed digit');
-  // The price fell, so the movement is downwards: the new digit descends, pushing the old "1" down and out.
+  // The price fell, so the movement is downwards: the new digit drifts down from above, the old "1" away below.
   assert.deepEqual(await pushed(), ['', '', '', '', '1', '']);
-  assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'push-down');
+  assert.equal(await page.locator('#price-text .digit').nth(4).evaluate(el => getComputedStyle(el).animationName), 'arrive-down');
+  assert.equal(await page.locator('#price-text .digit-old').first().evaluate(el => getComputedStyle(el).animationName), 'leave-down');
   assert.deepEqual((await moving()).filter(state => state.endsWith('*')).length <= 1, true);
   // The tint of the price follows the size of the move: slight, ordinary, large.
   // The clock is stepped finely so the tint is read while it is still on.
@@ -1167,6 +1170,17 @@ async function chart(browser, base) {
   // It lies across the bottom of the screen, edge to edge, held still while the board floats, below the price line wherever that floats.
   assert.ok(await page.evaluate(() => { const chart = document.getElementById('board-chart').getBoundingClientRect(); return chart.left <= 0 && chart.right >= innerWidth && chart.bottom >= innerHeight - 1; }), 'the chart lies across the lower screen');
   assert.ok(await page.evaluate(chartsHold), 'the chart holds still, below the price however it floats, its line from edge to edge');
+  // The live price has a point; when the price shown moves, the point sends out a ring in the move's colour, as wide as the move is large.
+  assert.equal(await page.locator('#board-chart .spark-point').count(), 1);
+  assert.equal(await page.locator('#board-chart .spark-ring').count(), 0, 'no ring before the price moves');
+  await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98600000 }));
+  await page.clock.runFor(3100);
+  await page.locator('#board-chart .spark-ring').waitFor({ state: 'attached' });
+  assert.deepEqual(await page.locator('#board-chart .spark-ring').evaluate(el => [el.className, el.dataset.strength, getComputedStyle(el).animationName]), ['spark-ring up', '3', 'spark-ring']);
+  await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98590000 }));
+  await page.clock.runFor(3100);
+  await until(page, () => document.querySelector('#board-chart .spark-ring')?.className === 'spark-ring down');
+  assert.equal(await page.locator('#board-chart .spark-ring').getAttribute('data-strength'), '1', 'a slight move, a small ring');
   // Another period asks for other candles; off takes the chart away.
   await open(page);
   assert.equal(await chosen(page, '#admin-chart'), '1d');
@@ -1181,7 +1195,8 @@ async function chart(browser, base) {
   // A grid has one per cell (here only Upbit's can be had).
   await choose(page, '#admin-chart', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
-  await page.clock.runFor(12000);
+  // The new coin's candles wait their turn behind Upbit's other requests: let the test clock run until they come.
+  for (let step = 0; step < 40 && await page.evaluate(() => document.querySelectorAll('#chart-grid .spark').length) < 2; step += 1) await page.clock.runFor(1000);
   await until(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
   assert.ok(await page.evaluate(chartsHold), 'cell charts hold still, below their prices and clear of the lines between cells however the grid floats');
   await page.keyboard.press('Escape');
@@ -1435,7 +1450,9 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // the others still run.
 const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
-const queue = [...scenarios];
+// E2E_ONLY=chart,board runs just those.
+const only = process.env.E2E_ONLY?.split(',');
+const queue = scenarios.filter(scenario => !only || only.includes(scenario.name));
 async function worker() {
   for (let scenario = queue.shift(); scenario; scenario = queue.shift()) {
     const { server, flags, base } = await serve();

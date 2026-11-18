@@ -182,8 +182,20 @@ body {
 .spark.down { color: var(--down); }
 .spark svg { display: block; width: 100%; height: 100%; }
 .spark-line { fill: none; stroke: currentColor; stroke-opacity: 0.55; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-/* The period, small in the chart's top right corner. */
-.spark .spark-label { position: absolute; top: 0; right: 16px; font-size: 15px; }
+/* The live price's point, and the ring it sends out when the price shown moves:
+   wider and longer the bigger the move (Spark.svelte). It fades to nothing. */
+.spark-point, .spark-ring { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; pointer-events: none; }
+.spark-point { background: currentColor; opacity: 0.7; }
+.spark-ring { border: 2px solid currentColor; box-sizing: border-box; opacity: 0; animation: spark-ring 1s cubic-bezier(0.2, 0.7, 0.3, 1); }
+.spark-ring.up { color: var(--up); }
+.spark-ring.down { color: var(--down); }
+.spark-ring[data-strength="1"] { --ring: 2.5; animation-duration: 0.9s; }
+.spark-ring[data-strength="2"] { --ring: 4; animation-duration: 1.2s; }
+.spark-ring[data-strength="3"] { --ring: 6; animation-duration: 1.6s; }
+@keyframes spark-ring { from { transform: scale(1); opacity: 0.9; } to { transform: scale(var(--ring, 4)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .spark-ring { display: none; } }
+/* The period, small in the chart's top left corner, away from the live price's point. */
+.spark .spark-label { position: absolute; top: 0; left: 16px; font-size: 15px; }
 .chart-box .spark-label { font-size: 13px; }
 .change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 #container.price-unavailable #price-main { opacity: 0.55; }
@@ -212,29 +224,31 @@ body {
 body[data-palette="red-blue"] {
   --up: #ff453a; --down: #4b8dff; --up-flash: #ff8f86; --down-flash: #8fb6ff;
 }
-/* A changed digit pushes the old one out of its window, like a counter wheel,
-   and the movement goes the way the price went: up when it rose, down when it
-   fell. Each digit has a window (.slot) that hides whatever is past its edges.
-   The old digit is drawn by ::before, one window-height ahead of the new one,
-   so a single movement carries both: the new digit in, the old one out. */
-.price-text .slot { display: inline-block; clip-path: inset(0); }
+/* A changed digit changes as numbers do in Apple's apps: the old one drifts
+   38% of its height away, blurring and fading out; the new one drifts in from
+   the other side, sharpening. Up when the price rose, down when it fell.
+   Nothing is clipped, so no edge cuts a digit in half. The old digit is a
+   copy laid over the new one in its slot (Price.svelte), removed when its
+   fade ends. */
+.price-text .slot { display: inline-block; position: relative; }
 /* Each digit keeps its own compositing layer for good. Otherwise Safari moves
    a digit onto a layer for its animation and back off when it ends, and the
    board being drawn at a fractional scale, the digit snaps a pixel at that
-   moment: a small jump at the end of every roll. */
-.price-text .digit { display: inline-block; position: relative; will-change: transform; }
-.price-text .digit[data-old]::before { content: attr(data-old); position: absolute; left: 0; }
-/* Price up: the new digit rises from below; the old one leaves by the top. */
-.price-text .digit.up::before { top: -100%; }
-.price-text .digit.up { animation: push-up 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
-/* Price down: the new digit descends from above; the old one leaves by the bottom. */
-.price-text .digit.down::before { top: 100%; }
-.price-text .digit.down { animation: push-down 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
-@keyframes push-up { from { transform: translateY(100%); } }
-@keyframes push-down { from { transform: translateY(-100%); } }
+   moment: a small jump at the end of every change. */
+.price-text .digit, .price-text .digit-old { display: inline-block; will-change: transform, opacity, filter; }
+.price-text .digit-old { position: absolute; left: 0; top: 0; pointer-events: none; animation-fill-mode: forwards; }
+.price-text .digit-old::before { content: attr(data-digit); }
+.price-text .digit.up { animation: arrive-up 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.price-text .digit.down { animation: arrive-down 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.price-text .digit-old.up { animation: leave-up 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+.price-text .digit-old.down { animation: leave-down 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+@keyframes arrive-up { from { transform: translateY(38%); opacity: 0; filter: blur(0.06em); } }
+@keyframes arrive-down { from { transform: translateY(-38%); opacity: 0; filter: blur(0.06em); } }
+@keyframes leave-up { to { transform: translateY(-38%); opacity: 0; filter: blur(0.06em); } }
+@keyframes leave-down { to { transform: translateY(38%); opacity: 0; filter: blur(0.06em); } }
 @media (prefers-reduced-motion: reduce) {
   .price-text .digit { animation: none; }
-  .price-text .digit[data-old]::before { content: none; }
+  .price-text .digit-old { display: none; }
 }
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */
