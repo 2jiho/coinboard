@@ -180,9 +180,9 @@ body {
 .spark.down { color: var(--down); }
 .spark svg { display: block; width: 100%; height: 100%; }
 .spark-line { fill: none; stroke: currentColor; stroke-opacity: 0.55; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-/* The period, small in the chart's top corner. */
-.spark .spark-label { position: absolute; top: 0; right: 4.5%; font-size: 15px; }
-.cell > .spark .spark-label { right: 14px; font-size: 13px; }
+/* The period, small at the chart's top, over the line's right end (Spark sets how far in). */
+.spark .spark-label { position: absolute; top: 0; font-size: 15px; }
+.cell > .spark .spark-label { font-size: 13px; }
 .change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 #container.price-unavailable #price-main { opacity: 0.55; }
 /* The grid: the whole screen divided into equal cells, as many per row as
