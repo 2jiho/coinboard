@@ -165,7 +165,7 @@ npm run test:e2e
 - [업비트 현재가](https://docs.upbit.com/kr/reference/websocket-ticker): `wss://api.upbit.com/websocket/v1`, ticker 구독.
 - [업비트 요청 제한](https://docs.upbit.com/kr/reference/rate-limits): 브라우저(Origin 포함) 연결 요청은 10초에 한 번입니다(앱은 11초 간격).
 - [업비트 연결 관리](https://docs.upbit.com/kr/docs/websocket-best-practice): 120초 idle 종료와 PING 유지.
-- [바이낸스 시장 스트림](https://developers.binance.com/en/docs/products/spot/web-socket-streams): `wss://stream.binance.com:443/ws/<심볼>@ticker`.
+- [바이낸스 시장 스트림](https://developers.binance.com/en/docs/products/spot/web-socket-streams): `wss://data-stream.binance.vision/ws/<심볼>@ticker`. 바이낸스가 시세 조회용으로 따로 운영하는 주소이고(코인 목록은 `https://data-api.binance.vision`), `stream.binance.com`과 같은 스트림을 보내며 binance.com이 막힌 지역에서도 열립니다. 선물에는 이런 주소가 없습니다.
 - [바이낸스 USDT 선물 스트림](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams): `wss://fstream.binance.com/market/ws/<심볼>@ticker`. 2026년 4월 23일부터 경로(`/market`) 없는 예전 주소로는 시세가 오지 않습니다.
 
 ## 라이선스와 고지

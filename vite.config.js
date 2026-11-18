@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { PRESETS } from './src/lib/presets.js';
 
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-const CSP = "default-src 'self'; connect-src 'self' wss://api.upbit.com wss://stream.binance.com:443 wss://fstream.binance.com https://api.upbit.com https://api.binance.com https://fapi.binance.com; " +
+const CSP = "default-src 'self'; connect-src 'self' wss://api.upbit.com wss://data-stream.binance.vision wss://fstream.binance.com https://api.upbit.com https://data-api.binance.vision https://fapi.binance.com; " +
   "script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self';";
 // Coin icons live in public/coins (CC0, from the cryptocurrency-icons project).
 // All of them are published with the app; only the preset coins' icons are
