@@ -124,6 +124,8 @@ async function until(page, predicate, arg) {
 const tapBoard = page => page.touchscreen.tap(Math.round(page.viewportSize().width / 2), Math.round(page.viewportSize().height / 2));
 const text = (page, selector) => page.locator(selector).textContent();
 const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('coinboard-settings')));
+// The brightness as the board shows it, through the black veil over it: brightness(50%) for a veil at 0.5.
+const shownBrightness = page => page.locator('#dim').evaluate(el => `brightness(${Math.round((1 - Number(getComputedStyle(el).opacity)) * 100)}%)`);
 async function open(page) {
   if (await page.locator('#admin-panel').isVisible()) return;
   // Shown, or on its way out (a fade): Tab brings it back for good.
@@ -389,7 +391,7 @@ async function board(browser, base, flags) {
   await brightnessThumb.focus();
   for (let step = 0; step < 10; step += 1) await page.keyboard.press('ArrowLeft');
   assert.equal(await brightnessThumb.getAttribute('aria-valuenow'), '50');
-  assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
+  assert.equal(await shownBrightness(page), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
   assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: '1d' });
   // Up and down colours: green and red, or the Korean red and blue.
@@ -420,11 +422,11 @@ async function board(browser, base, flags) {
   // A tap outside the panel closes it and keeps what was applied.
   await page.touchscreen.tap(20, 20);
   assert.equal(await page.locator('#admin-panel').count(), 0);
-  assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
+  assert.equal(await shownBrightness(page), 'brightness(50%)');
   // Settings survive a reload.
   await page.reload(); await page.clock.runFor(3000); await live(page);
   assert.equal(await text(page, '#price-source'), 'BINANCE · ETH/USDT');
-  assert.equal(await page.locator('#container').evaluate(el => el.style.filter), 'brightness(50%)');
+  assert.equal(await shownBrightness(page), 'brightness(50%)');
   await open(page); await page.locator('#admin-brightness [role="slider"]').focus(); await page.keyboard.press('End');
   await page.locator('#admin-close').click();
   // Focus stays on the button after closing; a tap elsewhere lets it hide again.
@@ -1259,21 +1261,21 @@ async function swipeBrightness(browser, base) {
     await touch('touchStart', [from]);
     for (let i = 1; i <= steps; i += 1) await touch('touchMove', [[from[0] + (to[0] - from[0]) * i / steps, from[1] + (to[1] - from[1]) * i / steps]]);
   };
-  const filter = () => page.locator('#container').evaluate(el => el.style.filter);
-  const hud = () => page.locator('#brightness-hud').evaluate(el => ({ shown: el.classList.contains('show'), value: el.querySelector('.hud-value').textContent, moved: el.querySelector('.hud-delta').textContent, filter: getComputedStyle(el).filter }));
+  const filter = () => shownBrightness(page);
+  const hud = () => page.locator('#brightness-hud').evaluate(el => ({ shown: el.classList.contains('show'), value: el.querySelector('.hud-value').textContent, filter: getComputedStyle(el).filter }));
   assert.equal(await filter(), 'brightness(100%)');
   assert.equal((await hud()).shown, false);
-  // Down by a quarter of the screen: 100% less a quarter of the 10-100 range, in steps of 5; shown over the veiled screen as it goes, with how far it moved, and kept on letting go.
+  // Down by a third of the swipe's span (60% of the screen): 100% less a third of the 10-100 range, in steps of 5; shown over the veiled screen as it goes, and kept on letting go.
   const height = await page.evaluate(() => innerHeight);
-  await drag([500, 300], [500, 300 + height / 4]);
+  await drag([500, 300], [500, 300 + height * 0.6 / 3]);
   // (The last move can reach the page a frame later.)
-  await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '80%', null, { timeout: 2000 }).catch(() => {});
-  assert.deepEqual(await hud(), { shown: true, value: '80%', moved: '−20', filter: 'none' }, 'the overlay is not dimmed with the board');
-  assert.equal(await filter(), 'brightness(80%)');
+  await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '70%', null, { timeout: 2000 }).catch(() => {});
+  assert.deepEqual(await hud(), { shown: true, value: '70%', filter: 'none' }, 'the overlay is not dimmed with the board');
+  assert.equal(await filter(), 'brightness(70%)');
   assert.deepEqual(await page.locator('#brightness-hud').boundingBox(), { x: 0, y: 0, width: 1024, height: await page.evaluate(() => innerHeight) }, 'the whole screen is veiled');
   await touch('touchEnd', []);
   await page.waitForFunction(() => !document.getElementById('brightness-hud').classList.contains('show'));
-  assert.equal((await saved(page)).brightness, 80);
+  assert.equal((await saved(page)).brightness, 70);
   // Up again past the top of the range: no brighter than 100%.
   await drag([500, 600], [500, 50]);
   await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '100%', null, { timeout: 2000 }).catch(() => {});

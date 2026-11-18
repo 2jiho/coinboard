@@ -1,13 +1,15 @@
 // Brightness by swiping: one finger drawn up the board brightens it, drawn
-// down dims it, the whole screen's height being the whole range. Like the
+// down dims it, a share of the screen's height (SWIPE_SPAN) being the whole range. Like the
 // brightness bar in the system's own control centre. A swipe is told from a
 // tap by moving more than a few pixels, and from a sideways drag by moving
 // more up or down than across; a second finger, or a swipe that starts on the
 // controls, lets it go and puts the brightness back. Knows nothing of the DOM
 // beyond the events it is given.
 
+// How much of the screen's height a finger travels for the whole range.
+export const SWIPE_SPAN = 0.6;
 // How far a finger moves before it counts as a swipe.
-export const SWIPE_START = 12;
+export const SWIPE_START = 8;
 
 export function createSwipeBrightness({ target, ignore = null, height, onStart, onChange, onEnd, onCancel }) {
   let start = null, swiping = false;
@@ -34,8 +36,8 @@ export function createSwipeBrightness({ target, ignore = null, height, onStart, 
       if (across > Math.abs(up)) { start = null; return; }
       swiping = true; onStart();
     }
-    // A share of the screen's height, up positive: +1 is the whole range brighter.
-    onChange(up / Math.max(1, height()));
+    // A share of the whole range, up positive: +1 is the whole range brighter.
+    onChange(up / Math.max(1, height() * SWIPE_SPAN));
   }
   function up(event) {
     touches.delete(event.pointerId);
