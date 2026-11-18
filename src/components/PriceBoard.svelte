@@ -1,6 +1,7 @@
 <script>
-  // The board itself. One asset: a large icon, coin and currency, price,
-  // change. Several: a grid of cells holding the same pieces, smaller.
+  // The board itself. One asset: a line naming the coin with its change, the
+  // price, and the chart across the lower screen. Several: a grid of cells
+  // holding the same pieces, smaller.
   // Every part has a zone of fixed size, and the whole is scaled to the screen,
   // so the board is the same size whatever the prices. A price too long for its
   // zone is drawn smaller inside that zone; nothing else moves. In the grid,
@@ -49,7 +50,7 @@
   // may be short; its cells stay under the columns above, and the places left
   // over stay empty, so every line runs straight.
   // The cell's pieces at design size (width fixed, height about this).
-  const PIECES = { width: 600, height: 320 };
+  const PIECES = { width: 600, height: 240 };
   let screen = $state({ width: view.innerWidth, height: view.innerHeight });
   function chooseColumns(count) {
     const landscape = screen.width >= screen.height;
@@ -78,6 +79,10 @@
   });
   // The scale of every cell's pieces (all cells are the same size).
   let cellScale = $state(1);
+  // With a chart under the lower part of each cell, the text moves up by this
+  // share of the cell, so the chart's line runs below the price, not through it.
+  const CHART_RISE = 0.09;
+  let cellRise = $state(0);
 
   // Icons ship with the app in public/coins. A coin without one shows no icon.
   const iconOf = asset => `./coins/${asset.ticker.toLowerCase()}.svg`;
@@ -110,8 +115,6 @@
   // The price line, not the whole block, is what sits in the middle of the
   // screen: lift is how far the block must move for that to be true.
   let lift = $state(0);
-  // In landscape the icon is level with the price line, not with the whole block.
-  let iconDrop = $state(0);
   let scale = $state(1);
   let room = { x: 0, y: 0 };
   let offset = $state({ x: 0, y: 0 });
@@ -122,7 +125,6 @@
   // Scale the board to the screen, and work out how far it may float.
   function fit() {
     if (!container) return;
-    const portrait = view.matchMedia('(orientation: portrait)').matches;
     const style = view.getComputedStyle(view.document.documentElement);
     const inset = side => parseFloat(style.getPropertyValue('--safe-' + side)) || 0;
     const width = view.innerWidth - inset('left') - inset('right');
@@ -136,9 +138,10 @@
       if (!inner) return;
       const cells = [...container.querySelectorAll('.cell')];
       const cellWidth = Math.min(...cells.map(cell => cell.clientWidth)), cellHeight = Math.min(...cells.map(cell => cell.clientHeight));
-      const next = Math.min(cellWidth * CELL_FILL.width / inner.offsetWidth, cellHeight * CELL_FILL.height / inner.offsetHeight);
+      const rise = settings.chart !== 'off' ? CHART_RISE : 0;
+      const next = Math.min(cellWidth * CELL_FILL.width / inner.offsetWidth, cellHeight * (1 - 2 * rise) * CELL_FILL.height / inner.offsetHeight);
       if (!Number.isFinite(next) || next <= 0) return;
-      cellScale = next; scale = 1; lift = 0; iconDrop = 0;
+      cellScale = next; cellRise = cellHeight * rise; scale = 1; lift = 0;
       // Half the single board's: cells reach the screen's edges, and their type is smaller anyway.
       room = { x: width * DRIFT / 2, y: height * DRIFT / 2 };
       gliding = false;
@@ -155,7 +158,6 @@
     if (!Number.isFinite(next) || next <= 0) return;
     scale = next;
     lift = (container.offsetHeight / 2 - middle) * next;
-    iconDrop = portrait ? 0 : middle - container.offsetHeight / 2;
     room = { x: Math.min(width * DRIFT, Math.max(0, (width - container.offsetWidth * next) / 2 - EDGE)),
       y: Math.min(height * DRIFT, Math.max(0, (height - reach * next) / 2 - EDGE)) };
     gliding = false;
@@ -171,7 +173,7 @@
     return () => { for (const element of watched) priceObserver.unobserve(element); };
   });
   // Another layout (one asset or a grid, or another count): measure once it is drawn.
-  $effect(() => { assets.length; grid; layout.rows; layout.columns; flushed().then(() => { fit(); fitPrice(); }); });
+  $effect(() => { assets.length; grid; layout.rows; layout.columns; settings.chart; flushed().then(() => { fit(); fitPrice(); }); });
   onMount(() => {
     const boardObserver = new ResizeObserver(fit);
     boardObserver.observe(container);
@@ -199,6 +201,12 @@
 </script>
 
 <div id="stage">
+  <!-- One asset: the chart lies across the lower part of the screen, floating with the board. -->
+  {#if !grid && settings.chart !== 'off'}
+    <div id="board-chart" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y}px)" style:filter="brightness({brightness}%)">
+      <Spark points={charts[0]} tick={ticks[0]} period={settings.chart} label={CHART_LABELS[settings.chart]} />
+    </div>
+  {/if}
   <div id="drift" class:is-grid={grid} style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
     <div id="container" bind:this={container} class:is-grid={grid} class:price-unavailable={!grid && statuses[0].unavailable}
       style:filter="brightness({brightness}%)" style:transform="scale({scale})">
@@ -206,21 +214,18 @@
         {@const asset = assets[0]}
         {@const market = markets[0]}
         {@const change = changeParts(ticks[0])}
-        <!-- Landscape: a large icon, then three lines. Portrait: the same, stacked. -->
-        {#if !failedIcons.has(iconOf(asset))}
-          <img id="icon" src={iconOf(asset)} alt="" style:transform="translateY({iconDrop}px)" onerror={() => iconFailed(iconOf(asset))} />
-        {/if}
+        <!-- One line above the price: icon, coin, currency and change, small; then the price, large. -->
         <div id="board-text">
-          <p id="board-head"><span id="coin">{asset.ticker}</span><span id="unit">{market.quote}</span>{#if market.tag}<span id="tag" class="tag">{market.tag}</span>{/if}</p>
+          <p id="board-head">
+            {#if !failedIcons.has(iconOf(asset))}<img id="icon" src={iconOf(asset)} alt="" onerror={() => iconFailed(iconOf(asset))} />{/if}
+            <span id="coin">{asset.ticker}</span><span id="unit">{market.quote}</span>{#if market.tag}<span id="tag" class="tag">{market.tag}</span>{/if}
+            <span id="change" class="change {change.tone}" aria-live="polite" aria-atomic="true">{#if change.arrow}<span class="arrow">{change.arrow}</span>{/if}{change.number}</span>
+            <span id="change-label" class="change-label">{market.changeLabel}</span>
+          </p>
           {#key keyOf(asset)}
             <Price tick={ticks[0]} scale={priceScale} id="price-main" textId="price-text" live bind:line={lines[0]} bind:text={texts[0]} />
           {/key}
           <p id="price-source" class="sr-only">{market.label} · {market.pair}</p>
-          <p id="board-foot">
-            <span id="change" class="change {change.tone}" aria-live="polite" aria-atomic="true">{#if change.arrow}<span class="arrow">{change.arrow}</span>{/if}{change.number}</span>
-            <span id="change-label" class="change-label">{market.changeLabel}</span>
-            {#if settings.chart !== 'off'}<Spark points={charts[0]} tick={ticks[0]} period={settings.chart} label={CHART_LABELS[settings.chart]} />{/if}
-          </p>
         </div>
       {:else}
         <!-- A cell per asset, placed by layout (above). -->
@@ -230,18 +235,17 @@
             {@const change = changeParts(ticks[index])}
             <div class="cell" class:price-unavailable={statuses[index]?.unavailable} class:line-right={layout.cells[index]?.lineRight} class:line-below={layout.cells[index]?.lineBelow}
               style:grid-row={layout.cells[index]?.row} style:grid-column={layout.cells[index]?.column}>
-              <div class="cell-inner" style:transform="scale({cellScale})">
+              <!-- The chart lies under the lower part of the cell, behind the text. -->
+              {#if settings.chart !== 'off'}<Spark points={charts[index]} tick={ticks[index]} period={settings.chart} label={CHART_LABELS[settings.chart]} />{/if}
+              <div class="cell-inner" style:transform="translateY({-cellRise}px) scale({cellScale})">
               <p class="cell-head">
                 {#if !failedIcons.has(iconOf(asset))}<img class="cell-icon" src={iconOf(asset)} alt="" onerror={() => iconFailed(iconOf(asset))} />{/if}
                 <span class="cell-coin">{asset.ticker}</span><span class="cell-unit">{market.quote}</span>{#if market.tag}<span class="tag">{market.tag}</span>{/if}{#if shared.has(market.symbol)}<span class="cell-venue">{market.label.split(' ')[0]}</span>{/if}
+                <span class="change {change.tone}">{#if change.arrow}<span class="arrow">{change.arrow}</span>{/if}{change.number}</span>
+                <span class="change-label">{market.changeLabel}</span>
               </p>
               <Price tick={ticks[index]} scale={priceScale} bind:line={lines[index]} bind:text={texts[index]} />
               <p class="sr-only">{market.label} · {market.pair}</p>
-              <p class="cell-foot">
-                <span class="change {change.tone}">{#if change.arrow}<span class="arrow">{change.arrow}</span>{/if}{change.number}</span>
-                <span class="change-label">{market.changeLabel}</span>
-                {#if settings.chart !== 'off'}<Spark points={charts[index]} tick={ticks[index]} period={settings.chart} label={CHART_LABELS[settings.chart]} />{/if}
-              </p>
               </div>
             </div>
           {/each}

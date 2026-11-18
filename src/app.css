@@ -128,30 +128,23 @@ body {
   font-variant-numeric: tabular-nums;
 }
 #container p { margin: 0; }
-/* Landscape: a large icon on the left and three left-aligned lines beside it.
-   One scale: head 56, price 200, change 72. The price is the only large
-   thing; everything else is there to explain it. */
-/* As tall as the price's digits (about three quarters of the 200px type), so
-   icon and number share a top and a bottom line. */
-#icon { width: 152px; height: 152px; flex: none; }
+/* One asset: a line naming the coin and its change, small, then the price,
+   large, both centred. One scale: head 52, price 220. The price is the only
+   large thing; everything else is there to explain it. */
+#icon { width: 52px; height: 52px; flex: none; margin-right: 2px; }
 /* Fixed zones: the text column is one width whatever it holds. */
-#board-text { display: flex; flex-direction: column; align-items: flex-start; width: 720px; }
-#board-head { display: flex; align-items: center; gap: 18px; font-size: 56px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
+#board-text { display: flex; flex-direction: column; align-items: center; width: 760px; }
+#board-head { display: flex; align-items: center; gap: 14px; font-size: 52px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
 #coin { color: #f2f2f7; }
 #unit { color: #8e8e93; font-weight: 500; }
 /* PERP and the like: a small outlined mark after the currency. */
 #tag, .tag { padding: 5px 11px 4px; border: 2px solid #48484a; border-radius: 10px; font-size: 0.58em; font-weight: 600; letter-spacing: 0.06em; color: #8e8e93; }
-/* Portrait: the same pieces stacked and centred, with the icon on top. */
-@media (orientation: portrait) {
-  #container { flex-direction: column; gap: 40px; }
-  #icon { width: 150px; height: 150px; }
-  #board-text { align-items: center; width: 780px; }
-}
 /* The price zone: full width of the column and one fixed height (the line
    height leaves room for the comma's tail above the change line). */
-#price-main { align-self: stretch; text-align: left; margin-top: 16px; font-size: 200px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; }
-/* The price itself; scaled down from its left edge when it is too long for the zone. */
-.price-text { display: inline-block; transform-origin: left center; }
+#price-main { display: flex; justify-content: center; align-self: stretch; text-align: center; margin-top: 12px; font-size: 220px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; }
+/* The price itself, centred in its zone (a flex row, so even a price too long
+   for it overflows both sides equally) and scaled down towards its centre. */
+.price-text { display: inline-block; transform-origin: center; }
 /* 억 and 만 are units, so they are smaller and quieter than the figures. */
 .price .mark { margin-left: 0.04em; font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: #a1a1a6; }
 /* A move tints the price with its colour and lets it fade back slowly. */
@@ -166,19 +159,30 @@ body {
 .price.down[data-strength="3"] { color: var(--down); }
 /* The exchange and market are not drawn. They stay in the page for screen readers. */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-#board-foot { display: flex; align-items: baseline; gap: 22px; margin-top: 26px; font-size: 72px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
 /* The change is plain coloured text with a small arrow: no badge around it. */
 .change { color: #d1d1d6; transition: color 0.4s; }
 .change.up { color: var(--up); }
 .change.down { color: var(--down); }
 .change .arrow { display: inline-block; margin-right: 0.22em; font-size: 0.62em; transform: translateY(-0.12em); }
-/* The line chart beside the change: the period's closing prices and the live
-   price, coloured by the move over the period. Its line keeps one width however the board is scaled. */
-.spark { display: inline-flex; align-self: center; margin-left: 0.15em; padding: 0.12em 0.16em; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 0.16em; }
-.spark svg { display: block; width: 2.4em; height: 0.72em; overflow: visible; }
-.spark path { fill: none; stroke: #8e8e93; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.spark.up path { stroke: var(--up); }
-.spark.down path { stroke: var(--down); }
+/* The change sits after the coin's name, set a little apart from it. */
+#board-head .change, .cell-head .change { margin-left: 0.3em; }
+/* The chart lies behind the board: across the lower screen for one asset
+   (#board-chart, a little larger than the screen below and to the sides, so floating never bares an
+   edge), across the lower part of each cell in the grid. Faint, so the type
+   on top reads first; its line keeps one width however it is stretched. */
+#board-chart { position: absolute; left: -4%; right: -4%; bottom: -4%; height: 40%; transition: transform 60s linear; pointer-events: none; }
+#board-chart .spark { position: absolute; inset: 0; }
+.cell { position: relative; }
+.cell > .spark { position: absolute; left: 0; right: 0; bottom: 0; height: 36%; pointer-events: none; }
+.cell-inner { position: relative; z-index: 1; }
+.spark { color: #8e8e93; }
+.spark.up { color: var(--up); }
+.spark.down { color: var(--down); }
+.spark svg { display: block; width: 100%; height: 100%; }
+.spark-line { fill: none; stroke: currentColor; stroke-opacity: 0.55; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+/* The period, small in the chart's top corner. */
+.spark .spark-label { position: absolute; top: 0; right: 4.5%; font-size: 15px; }
+.cell > .spark .spark-label { right: 14px; font-size: 13px; }
 .change-label { font-size: 0.56em; font-weight: 500; letter-spacing: 0.04em; color: #6e6e73; }
 #container.price-unavailable #price-main { opacity: 0.55; }
 /* The grid: the whole screen divided into equal cells, as many per row as
@@ -194,15 +198,13 @@ body {
 .cell.line-right { border-right: 1px solid #2c2c2e; }
 .cell.line-below { border-bottom: 1px solid #2c2c2e; }
 .cell-inner { flex: none; display: flex; flex-direction: column; align-items: center; width: 600px; transform-origin: center; }
-.cell .price-text { transform-origin: center; }
-.cell-head { display: flex; align-items: center; gap: 14px; font-size: 44px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
-.cell-icon { width: 52px; height: 52px; flex: none; margin-right: 4px; }
+.cell-head { display: flex; align-items: center; gap: 12px; font-size: 38px; font-weight: 600; line-height: 1; letter-spacing: 0.01em; }
+.cell-icon { width: 44px; height: 44px; flex: none; margin-right: 2px; }
 .cell-coin { color: #f2f2f7; }
 .cell-unit { color: #8e8e93; font-weight: 500; }
 /* The exchange, when the same coin and currency appear from two of them. */
 .cell-venue { color: #6e6e73; font-size: 0.62em; font-weight: 600; letter-spacing: 0.06em; }
-.cell .price { align-self: stretch; text-align: center; margin-top: 10px; font-size: 150px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; }
-.cell-foot { display: flex; align-items: baseline; gap: 16px; margin-top: 18px; font-size: 54px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
+.cell .price { display: flex; justify-content: center; align-self: stretch; text-align: center; margin-top: 8px; font-size: 160px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.16; }
 .cell.price-unavailable .price { opacity: 0.55; }
 /* The Korean convention: up is red, down is blue. */
 body[data-palette="red-blue"] {
@@ -234,10 +236,6 @@ body[data-palette="red-blue"] {
 }
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */
-@media (orientation: portrait) {
-  #price-main { text-align: center; }
-  #price-text { transform-origin: center; }
-}
 
 /* The status dot: a 10px light in the bottom-left corner inside a full-size
    touch target, with the detail in a small card on hover or tap. */
