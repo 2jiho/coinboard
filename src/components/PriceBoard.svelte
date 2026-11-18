@@ -223,11 +223,11 @@
        screen, or one in the lower part of each grid cell. -->
   {#if settings.chart !== 'off'}
     {#if !grid}
-      <div id="board-chart" style:top="{boardChartTop}px" style:filter="brightness({brightness}%)">
+      <div id="board-chart" style:top="{boardChartTop}px">
         <Spark points={charts[0]} tick={ticks[0]} period={settings.chart} label={CHART_LABELS[settings.chart]} />
       </div>
     {:else}
-      <div id="chart-grid" style:--cols={layout.columns} style:--rows={layout.rows} style:filter="brightness({brightness}%)">
+      <div id="chart-grid" style:--cols={layout.columns} style:--rows={layout.rows}>
         {#each assets as asset, index (keyOf(asset))}
           {@const place = layout.cells[index]}
           <div class="chart-cell" style:grid-row={place?.row} style:grid-column={place?.column}>
@@ -240,8 +240,7 @@
     {/if}
   {/if}
   <div id="drift" class:is-grid={grid} data-lift={lift} data-room-x={room.x} data-room-y={room.y} style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
-    <div id="container" bind:this={container} class:is-grid={grid} class:price-unavailable={!grid && statuses[0].unavailable}
-      style:filter="brightness({brightness}%)" style:transform="scale({scale})">
+    <div id="container" bind:this={container} class:is-grid={grid} class:price-unavailable={!grid && statuses[0].unavailable} style:transform="scale({scale})">
       {#if !grid}
         {@const asset = assets[0]}
         {@const market = markets[0]}
@@ -283,4 +282,10 @@
       {/if}
     </div>
   </div>
+  <!-- Brightness: a black veil over the whole board, charts and all. Only its
+       opacity changes, which the screen composes without redrawing the board,
+       so a brightness swipe follows the finger smoothly. Black over black stays
+       black, and every colour is darkened by the same share, as a brightness
+       filter would. -->
+  <div id="dim" style:opacity={(100 - brightness) / 100}></div>
 </div>

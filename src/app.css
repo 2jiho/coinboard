@@ -119,6 +119,8 @@ body {
    screen (see PriceBoard.svelte), so these are design pixels, not screen pixels. */
 /* Centred in the usable screen, inside any notch or system bar. */
 #stage { position: fixed; inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); display: flex; justify-content: center; align-items: center; overflow: hidden; }
+/* The brightness veil (PriceBoard.svelte): on top of the board, under the controls. */
+#dim { position: absolute; inset: 0; z-index: 10; background: #000; pointer-events: none; will-change: opacity; }
 /* Burn-in protection: the board floats slowly towards a new spot every minute. */
 #drift { transition: transform 60s linear; will-change: transform; }
 #container {
@@ -259,9 +261,8 @@ body[data-palette="red-blue"] {
    zone and shrinks towards its centre. */
 
 /* Brightness by swiping, shown as video players show it: the whole screen
-   veiled a little, and in the middle a sun whose rays grow with the level,
-   the level, how far it moved since the finger went down (+10, −5), and a
-   bar (src/lib/swipe-brightness.js). It is not dimmed with the board, so it
+   veiled, and in the middle a sun whose rays grow with the level, and the
+   level (src/lib/swipe-brightness.js). It is not dimmed with the board, so it
    reads at any brightness, and it comes and goes softly. */
 #brightness-hud {
   --level: 1;
@@ -280,11 +281,7 @@ body[data-palette="red-blue"] {
 .hud-rays { opacity: calc(0.35 + 0.65 * var(--level)); transform-origin: 12px 12px; transform: scale(calc(0.7 + 0.3 * var(--level))); }
 .hud-value { font-size: 64px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
 .hud-value small { font-size: 0.45em; font-weight: 500; margin-left: 2px; color: #c7c7cc; }
-.hud-delta { min-width: 3.4em; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-size: 17px; font-weight: 600; text-align: center; color: #c7c7cc; }
-.hud-delta.up, .hud-delta.down { color: #f2f2f7; }
-.hud-track { position: relative; width: 220px; height: 6px; margin-top: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
-.hud-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--level) * 100%); border-radius: 3px; background: #f2f2f7; transition: width 0.12s ease-out; }
-@media (prefers-reduced-motion: reduce) { .hud-body, #brightness-hud.show .hud-body { transition: none; transform: none; } .hud-fill { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .hud-body, #brightness-hud.show .hud-body { transition: none; transform: none; } }
 /* The status dot: a 10px light in the bottom-left corner inside a full-size
    touch target, with the detail in a small card on hover or tap. */
 #status-dot {

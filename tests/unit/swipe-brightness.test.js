@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSwipeBrightness } from '../../src/lib/swipe-brightness.js';
+import { createSwipeBrightness, SWIPE_SPAN } from '../../src/lib/swipe-brightness.js';
 
 function fixture(ignored = false) {
   const handlers = {}, log = [];
   const target = { addEventListener(name, handler) { handlers[name] = handler; }, removeEventListener(name) { delete handlers[name]; } };
-  const swipe = createSwipeBrightness({ target, ignore: '#controls', height: () => 800,
+  const swipe = createSwipeBrightness({ target, ignore: '#controls', height: () => 800 / SWIPE_SPAN,
     onStart: () => log.push('start'), onChange: share => log.push(Math.round(share * 100) / 100), onEnd: () => log.push('end'), onCancel: () => log.push('cancel') });
   const fire = (name, id, x, y, type = 'touch') => handlers[name]({ pointerId: id, pointerType: type, clientX: x, clientY: y, target: { closest: () => ignored } });
   return { fire, log, swipe, handlers };

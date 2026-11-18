@@ -44,11 +44,10 @@
   let controlsVisible = $state(false);
   // Brightness by swiping the board up or down: the level shown while the
   // finger moves, and whether the indicator is up.
-  let swipeLevel = $state(null), swipeFrom = $state(null), swipeShown = $state(false), swipeHideTimer;
+  let swipeLevel = $state(null), swipeShown = $state(false), swipeHideTimer;
   // In steps of 5, as video players do.
   const BRIGHTNESS_MIN = 10, BRIGHTNESS_MAX = 100, BRIGHTNESS_STEP = 5;
   const hudLevel = $derived(swipeLevel ?? settings.brightness);
-  const hudMoved = $derived(hudLevel - (swipeFrom ?? hudLevel));
   let panelOpen = $state(false);
   let toggleButton;
   // A new board says once how to reach settings, until the screen is first
@@ -359,7 +358,7 @@
     const swiper = createSwipeBrightness({
       target: document, ignore: '#settings-toggle, #admin-panel, #scrim, [data-sonner-toaster], #status-dot',
       height: () => window.innerHeight,
-      onStart() { clearTimeout(swipeHideTimer); swipeBase = settings.brightness; swipeFrom = swipeBase; swipeLevel = swipeBase; swipeShown = true; },
+      onStart() { clearTimeout(swipeHideTimer); swipeBase = settings.brightness; swipeLevel = swipeBase; swipeShown = true; },
       onChange(share) {
         const raw = swipeBase + share * (BRIGHTNESS_MAX - BRIGHTNESS_MIN);
         swipeLevel = Math.max(BRIGHTNESS_MIN, Math.min(BRIGHTNESS_MAX, Math.round(raw / BRIGHTNESS_STEP) * BRIGHTNESS_STEP));
@@ -406,7 +405,7 @@
 <Toaster position="bottom-center" />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
 <!-- The brightness while swiping, as video players show it: the screen veiled,
-     and in the middle a sun, the level, how far it moved, and a bar. Never dimmed with the board. -->
+     and in the middle a sun and the level. Never dimmed with the board. -->
 <div id="brightness-hud" class:show={swipeShown} aria-hidden="true" style:--level={hudLevel / 100}>
   <div class="hud-body">
     <svg class="hud-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -414,8 +413,6 @@
       <g class="hud-rays"><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" /></g>
     </svg>
     <span class="hud-value">{hudLevel}<small>%</small></span>
-    <span class="hud-delta" class:up={hudMoved > 0} class:down={hudMoved < 0}>{hudMoved > 0 ? `+${hudMoved}` : hudMoved < 0 ? `−${-hudMoved}` : '±0'}</span>
-    <span class="hud-track"><span class="hud-fill"></span></span>
   </div>
 </div>
 <div id="status-dot" data-level={level} class:show={tipShown} class:quiet={settings.burnIn && level === 'ok' && !tipShown && !controlsVisible && !panelOpen} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
