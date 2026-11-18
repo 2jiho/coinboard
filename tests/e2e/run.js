@@ -1114,16 +1114,32 @@ async function popOut(browser, base) {
   console.log('PASS pop-out: the board in a small window on top, following the tab (one asset, then a grid), closed by the same button; no button where the browser cannot');
 }
 
-// Run in the page: whether every line matched (its prices, not the level run-on
-// to the chart's edges) keeps clear of the screen's edges by a share of it (how far burn-in protection may float the board, plus
-// a little), measured where it would sit with the board unmoved.
-function lineClear([selector, floater, share]) {
-  const matrix = new DOMMatrix(getComputedStyle(document.querySelector(floater)).transform);
-  return [...document.querySelectorAll(selector)].every(line => {
-    // The line runs on, level, to the chart's edges; the period's prices lie inset from them.
-    const box = line.closest('svg').getBoundingClientRect(), inset = Number(line.closest('.spark').dataset.inset) * box.width;
-    const r = line.getBoundingClientRect(), left = box.left + inset - matrix.e, right = box.right - inset - matrix.e, bottom = r.bottom - matrix.f;
-    return left >= innerWidth * share - 1 && right <= innerWidth * (1 - share) + 1 && bottom <= innerHeight * (1 - share) + 1;
+// Run in the page: whether each chart (the single board's, or each cell's) is
+// held still, starts below its price line wherever burn-in protection floats
+// the board, and keeps clear of the lines between cells; and its line reaches
+// across the chart, with the lowest point inside it.
+function chartsHold() {
+  const drift = document.getElementById('drift'), matrix = new DOMMatrix(getComputedStyle(drift).transform);
+  const room = { x: Number(drift.dataset.roomX), y: Number(drift.dataset.roomY) };
+  // How far the board is floated now, down and right.
+  const now = { x: matrix.e, y: matrix.f - Number(drift.dataset.lift) };
+  const single = document.getElementById('board-chart');
+  const pairs = single ? [[single, document.getElementById('price-main'), null]]
+    : [...document.querySelectorAll('.chart-cell')].map((cell, index) => [cell.querySelector('.chart-box'), document.querySelectorAll('.cell .price')[index], document.querySelectorAll('.cell')[index]]);
+  return pairs.every(([box, price, cell]) => {
+    const chart = box.getBoundingClientRect(), line = box.querySelector('.spark-line').getBoundingClientRect();
+    const still = getComputedStyle(box).transform === 'none' && getComputedStyle(box.parentElement).transform === 'none';
+    const clearOfPrice = chart.top >= price.getBoundingClientRect().bottom - now.y + room.y - 1;
+    const across = line.left <= chart.left + 1 && line.right >= chart.right - 1 && line.bottom <= chart.bottom - 1;
+    let clearOfLines = true;
+    if (cell) {
+      // The cell as it would sit with the board unmoved; a line on its side may float room in.
+      const r = cell.getBoundingClientRect(), left = r.left - now.x, right = r.right - now.x, bottom = r.bottom - now.y;
+      if (cell.classList.contains('line-right')) clearOfLines &&= chart.right <= right - room.x;
+      if (left > 1) clearOfLines &&= chart.left >= left + room.x;
+      if (cell.classList.contains('line-below')) clearOfLines &&= chart.bottom <= bottom - room.y;
+    }
+    return still && clearOfPrice && across && clearOfLines;
   });
 }
 async function chart(browser, base) {
@@ -1146,15 +1162,9 @@ async function chart(browser, base) {
   assert.equal(await page.locator('#board-chart .spark').getAttribute('class'), 'spark up');
   assert.equal(await text(page, '#board-chart .spark-label'), '1D');
   assert.ok((await page.locator('#board-chart .spark-line').getAttribute('d')).split('L').length >= 90, 'one point per candle, and the live price');
-  // It lies across the bottom of the screen, starting below the price line, so it never reaches the digits.
-  assert.ok(await page.evaluate(() => {
-    const chart = document.getElementById('board-chart').getBoundingClientRect(), price = document.getElementById('price-main').getBoundingClientRect();
-    return chart.left <= 0 && chart.right >= innerWidth && chart.bottom >= innerHeight - 1 && chart.top >= price.bottom - 1;
-  }), 'the chart lies across the lower screen');
-  // Its line stays on the screen, with room to float down: the lowest point is not cut off at the bottom.
-  assert.ok(await page.evaluate(lineClear, ['#board-chart .spark-line', '#board-chart', 0.03]), 'the line clears the screen edges, however far the board floats');
-  // ...and the line itself reaches across the whole screen, level beyond the first and last prices.
-  assert.ok(await page.evaluate(() => { const r = document.querySelector('#board-chart .spark-line').getBoundingClientRect(); return r.left <= 0 && r.right >= innerWidth; }), 'the line reaches both screen edges');
+  // It lies across the bottom of the screen, edge to edge, held still while the board floats, below the price line wherever that floats.
+  assert.ok(await page.evaluate(() => { const chart = document.getElementById('board-chart').getBoundingClientRect(); return chart.left <= 0 && chart.right >= innerWidth && chart.bottom >= innerHeight - 1; }), 'the chart lies across the lower screen');
+  assert.ok(await page.evaluate(chartsHold), 'the chart holds still, below the price however it floats, its line from edge to edge');
   // Another period asks for other candles; off takes the chart away.
   await open(page);
   assert.equal(await chosen(page, '#admin-chart'), '1d');
@@ -1170,10 +1180,8 @@ async function chart(browser, base) {
   await choose(page, '#admin-chart', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   await page.clock.runFor(12000);
-  await until(page, () => document.querySelectorAll('.cell > .spark').length === 2);
-  assert.ok(await page.evaluate(lineClear, ['.cell > .spark .spark-line', '#drift', 0.015]), 'cell lines clear the screen edges, however far the grid floats');
-  // In a cell, the chart runs below the price's middle.
-  assert.ok(await page.evaluate(() => [...document.querySelectorAll('.cell')].every(cell => { const chart = cell.querySelector('.spark').getBoundingClientRect(), price = cell.querySelector('.price').getBoundingClientRect(); const line = cell.querySelector('.spark-line').getBoundingClientRect(), box = cell.getBoundingClientRect(); return chart.top >= price.bottom - 1 && line.bottom < box.bottom - 4; })), 'cell charts start below the price line, their lines clear of the cell edge');
+  await until(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
+  assert.ok(await page.evaluate(chartsHold), 'cell charts hold still, below their prices and clear of the lines between cells however the grid floats');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(evidence, 'chart.png') });
   assert.deepEqual(problems, []);

@@ -83,13 +83,16 @@
   // share of the cell, so the chart's line runs below the price, not through it.
   const CHART_RISE = 0.09;
   let cellRise = $state(0);
-  // Where the chart starts: just below the price line (its line box, which
-  // leaves room for the comma's tail), so the chart never reaches the digits.
-  // The single board's in screen pixels, with the share of its height kept
-  // free below the line; the grid's within a cell.
+  // The charts do not float with the board: what they draw changes all the
+  // time, so they need no burn-in protection, and held still they reach the
+  // screen's edges. They start just below the lowest the price line (its line
+  // box, which leaves room for the comma's tail) can float to, so they never
+  // reach the digits. In the grid they also keep clear of the floating lines
+  // between cells. In screen pixels: the single board's top; the grid's top
+  // within a cell, and the room kept beside and below where a line can come.
   const CHART_GAP = 8;
-  let boardChart = $state({ top: 0, floor: 0.26, inset: 0.074 });
-  let cellChart = $state({ top: 0, floor: 0.1, inset: 0 });
+  let boardChartTop = $state(0);
+  let cellChart = $state({ top: 0, side: 0, below: 0 });
 
   // Icons ship with the app in public/coins. A coin without one shows no icon.
   const iconOf = asset => `./coins/${asset.ticker.toLowerCase()}.svg`;
@@ -151,15 +154,12 @@
       cellScale = next; cellRise = cellHeight * rise; scale = 1; lift = 0;
       // The cell's pieces are centred in it, raised, and scaled about their centre.
       const price = inner.querySelector('.price');
-      // The whole grid floats up to half the single board's drift: a cell at
-      // the screen's edge may lose that much (and a little more) to it, so its
-      // line keeps clear of the cell's bottom and ends by as much.
-      if (price) {
-        const top = Math.min(cellHeight * 0.8, cellHeight / 2 - cellRise + (price.offsetTop + price.offsetHeight - inner.offsetHeight / 2) * next + CHART_GAP);
-        cellChart = { top, floor: Math.min(0.5, Math.max(0.1, (height * DRIFT / 2 + 6) / (cellHeight - top))), inset: Math.min(0.2, (width * DRIFT / 2 + 6) / cellWidth) };
-      }
       // Half the single board's: cells reach the screen's edges, and their type is smaller anyway.
       room = { x: width * DRIFT / 2, y: height * DRIFT / 2 };
+      if (price) {
+        const top = Math.min(cellHeight * 0.8, cellHeight / 2 - cellRise + (price.offsetTop + price.offsetHeight - inner.offsetHeight / 2) * next + room.y + CHART_GAP);
+        cellChart = { top, side: room.x + 4, below: room.y + 4 };
+      }
       gliding = false;
       offset = { x: within(offset.x, room.x), y: within(offset.y, room.y) };
       return;
@@ -174,15 +174,10 @@
     if (!Number.isFinite(next) || next <= 0) return;
     scale = next;
     lift = (container.offsetHeight / 2 - middle) * next;
-    // The price line is centred on the screen. The chart's box runs from just
-    // below it to 4% of the screen past the bottom edge, and the board floats
-    // up to 3% further: the line keeps that much, and a little more, free below it.
-    const top = Math.min(height * 0.75, height / 2 + anchor.offsetHeight * next / 2 + CHART_GAP);
-    // Sideways the box reaches 4% past each edge and floats up to 3%: the line's
-    // ends keep 8% of the screen's width in from the box's ends.
-    boardChart = { top, floor: Math.min(0.5, height * 0.09 / (height * 1.04 - top)), inset: 0.08 / 1.08 };
     room = { x: Math.min(width * DRIFT, Math.max(0, (width - container.offsetWidth * next) / 2 - EDGE)),
       y: Math.min(height * DRIFT, Math.max(0, (height - reach * next) / 2 - EDGE)) };
+    // The price line is centred on the screen and floats up to room.y below it.
+    boardChartTop = Math.min(height * 0.75, height / 2 + anchor.offsetHeight * next / 2 + room.y + CHART_GAP);
     gliding = false;
     offset = { x: within(offset.x, room.x), y: within(offset.y, room.y) };
   }
@@ -224,13 +219,27 @@
 </script>
 
 <div id="stage">
-  <!-- One asset: the chart lies across the lower part of the screen, floating with the board. -->
-  {#if !grid && settings.chart !== 'off'}
-    <div id="board-chart" style:top="{boardChart.top}px" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y}px)" style:filter="brightness({brightness}%)">
-      <Spark points={charts[0]} tick={ticks[0]} period={settings.chart} label={CHART_LABELS[settings.chart]} floor={boardChart.floor} inset={boardChart.inset} />
-    </div>
+  <!-- The charts, held still behind the floating board: one across the lower
+       screen, or one in the lower part of each grid cell. -->
+  {#if settings.chart !== 'off'}
+    {#if !grid}
+      <div id="board-chart" style:top="{boardChartTop}px" style:filter="brightness({brightness}%)">
+        <Spark points={charts[0]} tick={ticks[0]} period={settings.chart} label={CHART_LABELS[settings.chart]} />
+      </div>
+    {:else}
+      <div id="chart-grid" style:--cols={layout.columns} style:--rows={layout.rows} style:filter="brightness({brightness}%)">
+        {#each assets as asset, index (keyOf(asset))}
+          {@const place = layout.cells[index]}
+          <div class="chart-cell" style:grid-row={place?.row} style:grid-column={place?.column}>
+            <div class="chart-box" style:top="{cellChart.top}px" style:left="{place?.column > 1 ? cellChart.side : 0}px" style:right="{place?.lineRight ? cellChart.side : 0}px" style:bottom="{place?.lineBelow ? cellChart.below : 0}px">
+              <Spark points={charts[index]} tick={ticks[index]} period={settings.chart} label={CHART_LABELS[settings.chart]} />
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
   {/if}
-  <div id="drift" class:is-grid={grid} style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
+  <div id="drift" class:is-grid={grid} data-lift={lift} data-room-x={room.x} data-room-y={room.y} style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y + lift}px)">
     <div id="container" bind:this={container} class:is-grid={grid} class:price-unavailable={!grid && statuses[0].unavailable}
       style:filter="brightness({brightness}%)" style:transform="scale({scale})">
       {#if !grid}
@@ -252,14 +261,12 @@
         </div>
       {:else}
         <!-- A cell per asset, placed by layout (above). -->
-        <div id="grid" data-count={assets.length} style:--cols={layout.columns} style:--rows={layout.rows} style:--chart-top="{cellChart.top}px">
+        <div id="grid" data-count={assets.length} style:--cols={layout.columns} style:--rows={layout.rows}>
           {#each assets as asset, index (keyOf(asset))}
             {@const market = markets[index]}
             {@const change = changeParts(ticks[index])}
             <div class="cell" class:price-unavailable={statuses[index]?.unavailable} class:line-right={layout.cells[index]?.lineRight} class:line-below={layout.cells[index]?.lineBelow}
               style:grid-row={layout.cells[index]?.row} style:grid-column={layout.cells[index]?.column}>
-              <!-- The chart lies under the lower part of the cell, behind the text. -->
-              {#if settings.chart !== 'off'}<Spark points={charts[index]} tick={ticks[index]} period={settings.chart} label={CHART_LABELS[settings.chart]} floor={cellChart.floor} inset={cellChart.inset} />{/if}
               <div class="cell-inner" style:transform="translateY({-cellRise}px) scale({cellScale})">
               <p class="cell-head">
                 {#if !failedIcons.has(iconOf(asset))}<img class="cell-icon" src={iconOf(asset)} alt="" onerror={() => iconFailed(iconOf(asset))} />{/if}
