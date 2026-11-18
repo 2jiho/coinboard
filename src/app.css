@@ -258,30 +258,33 @@ body[data-palette="red-blue"] {
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */
 
-/* Brightness by swiping: a frosted capsule at the top centre while a finger
-   moves (src/lib/swipe-brightness.js). A sun whose rays grow with the level,
-   a bar, and the level in figures. It is not dimmed with the board, so it
+/* Brightness by swiping, shown as video players show it: the whole screen
+   veiled a little, and in the middle a sun whose rays grow with the level,
+   the level, how far it moved since the finger went down (+10, −5), and a
+   bar (src/lib/swipe-brightness.js). It is not dimmed with the board, so it
    reads at any brightness, and it comes and goes softly. */
 #brightness-hud {
   --level: 1;
-  position: fixed; z-index: 1500; left: 50%; top: calc(var(--safe-top) + 20px);
-  display: flex; align-items: center; gap: 12px;
-  width: 248px; height: 48px; padding: 0 16px 0 14px; box-sizing: border-box; border-radius: 24px;
-  background: rgba(44, 44, 46, 0.72); border: 1px solid rgba(255, 255, 255, 0.1);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  color: #f2f2f7; font: 600 15px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  position: fixed; inset: 0; z-index: 1500;
+  display: flex; align-items: center; justify-content: center;
+  /* Darker in the middle, so the figures read over the price beneath. */
+  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.88) 0, rgba(0, 0, 0, 0.8) 150px, rgba(0, 0, 0, 0.55) 340px);
+  color: #f2f2f7; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
   font-variant-numeric: tabular-nums;
-  pointer-events: none; opacity: 0; transform: translate(-50%, -8px) scale(0.96);
-  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none; opacity: 0; transition: opacity 0.35s ease;
 }
-#brightness-hud.show { opacity: 1; transform: translate(-50%, 0) scale(1); transition-duration: 0.15s; }
-.hud-sun { flex: none; width: 22px; height: 22px; }
+#brightness-hud.show { opacity: 1; transition-duration: 0.15s; }
+.hud-body { text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: scale(0.96); transition: transform 0.35s ease; }
+#brightness-hud.show .hud-body { transform: scale(1); transition-duration: 0.15s; }
+.hud-sun { width: 44px; height: 44px; }
 .hud-rays { opacity: calc(0.35 + 0.65 * var(--level)); transform-origin: 12px 12px; transform: scale(calc(0.7 + 0.3 * var(--level))); }
-.hud-track { position: relative; flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
-.hud-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--level) * 100%); border-radius: 3px; background: #f2f2f7; }
-.hud-value { flex: none; width: 3.2em; text-align: right; }
-@media (prefers-reduced-motion: reduce) { #brightness-hud, #brightness-hud.show { transition: opacity 0.2s; transform: translate(-50%, 0); } }
+.hud-value { font-size: 64px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+.hud-value small { font-size: 0.45em; font-weight: 500; margin-left: 2px; color: #c7c7cc; }
+.hud-delta { min-width: 3.4em; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); font-size: 17px; font-weight: 600; text-align: center; color: #c7c7cc; }
+.hud-delta.up, .hud-delta.down { color: #f2f2f7; }
+.hud-track { position: relative; width: 220px; height: 6px; margin-top: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.hud-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--level) * 100%); border-radius: 3px; background: #f2f2f7; transition: width 0.12s ease-out; }
+@media (prefers-reduced-motion: reduce) { .hud-body, #brightness-hud.show .hud-body { transition: none; transform: none; } .hud-fill { transition: none; } }
 /* The status dot: a 10px light in the bottom-left corner inside a full-size
    touch target, with the detail in a small card on hover or tap. */
 #status-dot {

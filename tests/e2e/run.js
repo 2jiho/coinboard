@@ -1260,19 +1260,20 @@ async function swipeBrightness(browser, base) {
     for (let i = 1; i <= steps; i += 1) await touch('touchMove', [[from[0] + (to[0] - from[0]) * i / steps, from[1] + (to[1] - from[1]) * i / steps]]);
   };
   const filter = () => page.locator('#container').evaluate(el => el.style.filter);
-  const hud = () => page.locator('#brightness-hud').evaluate(el => ({ shown: el.classList.contains('show'), value: el.querySelector('.hud-value').textContent, filter: getComputedStyle(el).filter }));
+  const hud = () => page.locator('#brightness-hud').evaluate(el => ({ shown: el.classList.contains('show'), value: el.querySelector('.hud-value').textContent, moved: el.querySelector('.hud-delta').textContent, filter: getComputedStyle(el).filter }));
   assert.equal(await filter(), 'brightness(100%)');
   assert.equal((await hud()).shown, false);
-  // Down by a quarter of the screen: 100% less a quarter of the 10-100 range, shown in the capsule as it goes and kept on letting go.
+  // Down by a quarter of the screen: 100% less a quarter of the 10-100 range, in steps of 5; shown over the veiled screen as it goes, with how far it moved, and kept on letting go.
   const height = await page.evaluate(() => innerHeight);
   await drag([500, 300], [500, 300 + height / 4]);
   // (The last move can reach the page a frame later.)
-  await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '78%', null, { timeout: 2000 }).catch(() => {});
-  assert.deepEqual(await hud(), { shown: true, value: '78%', filter: 'none' }, 'the capsule is not dimmed with the board');
-  assert.equal(await filter(), 'brightness(78%)');
+  await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '80%', null, { timeout: 2000 }).catch(() => {});
+  assert.deepEqual(await hud(), { shown: true, value: '80%', moved: '−20', filter: 'none' }, 'the overlay is not dimmed with the board');
+  assert.equal(await filter(), 'brightness(80%)');
+  assert.deepEqual(await page.locator('#brightness-hud').boundingBox(), { x: 0, y: 0, width: 1024, height: await page.evaluate(() => innerHeight) }, 'the whole screen is veiled');
   await touch('touchEnd', []);
   await page.waitForFunction(() => !document.getElementById('brightness-hud').classList.contains('show'));
-  assert.equal((await saved(page)).brightness, 78);
+  assert.equal((await saved(page)).brightness, 80);
   // Up again past the top of the range: no brighter than 100%.
   await drag([500, 600], [500, 50]);
   await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '100%', null, { timeout: 2000 }).catch(() => {});
@@ -1296,14 +1297,14 @@ async function swipeBrightness(browser, base) {
   assert.equal((await hud()).shown, false);
   assert.equal((await saved(page)).brightness, 100);
   await page.keyboard.press('Escape');
-  // A picture of the capsule part-way down.
+  // A picture of the overlay part-way down.
   await drag([500, 200], [500, 420]);
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(evidence, 'brightness-swipe.png') });
   await touch('touchEnd', []);
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS swipe brightness: no zoom; a finger drawn up or down sets the brightness, shown in a capsule and saved; a second finger, a sideways drag or a drag on the panel does not');
+  console.log('PASS swipe brightness: no zoom; a finger drawn up or down sets the brightness in steps of 5, shown over a veiled screen and saved; a second finger, a sideways drag or a drag on the panel does not');
 }
 
 async function statusTipOnTouch(browser, base) {
