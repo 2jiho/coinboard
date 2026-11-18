@@ -260,22 +260,23 @@ body[data-palette="red-blue"] {
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */
 
-/* Brightness by swiping, shown as video players show it: the whole screen
-   veiled, and in the middle a sun whose rays grow with the level, and the
-   level (src/lib/swipe-brightness.js). It is not dimmed with the board, so it
+/* Brightness by swiping, shown as video players show it: in the middle a sun
+   whose rays grow with the level, and the level, on a soft shade of their own
+   (src/lib/swipe-brightness.js). Nothing else covers the board, so it shows
+   the brightness it will keep. It is not dimmed with the board, so it
    reads at any brightness, and it comes and goes softly. */
 #brightness-hud {
   --level: 1;
   position: fixed; inset: 0; z-index: 1500;
   display: flex; align-items: center; justify-content: center;
-  /* Darker in the middle, so the figures read over the price beneath. */
-  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.88) 0, rgba(0, 0, 0, 0.8) 150px, rgba(0, 0, 0, 0.55) 340px);
+  /* No veil over the screen: what shows while the finger moves is the
+     brightness it will keep. Only the figures have a soft shade of their own. */
   color: #f2f2f7; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
   font-variant-numeric: tabular-nums;
   pointer-events: none; opacity: 0; transition: opacity 0.35s ease;
 }
 #brightness-hud.show { opacity: 1; transition-duration: 0.15s; }
-.hud-body { text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: scale(0.96); transition: transform 0.35s ease; }
+.hud-body { padding: 44px 64px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.5) 55%, transparent); text-shadow: 0 1px 12px rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: scale(0.96); transition: transform 0.35s ease; }
 #brightness-hud.show .hud-body { transform: scale(1); transition-duration: 0.15s; }
 .hud-sun { width: 44px; height: 44px; }
 .hud-rays { opacity: calc(0.35 + 0.65 * var(--level)); transform-origin: 12px 12px; transform: scale(calc(0.7 + 0.3 * var(--level))); }
