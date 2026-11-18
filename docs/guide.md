@@ -149,6 +149,8 @@ Switched off, the board looks as it always did.
 
 **Keep Screen On**: whether the app is keeping the screen on right now. **On** (green dot) while it is; **Off** (yellow) when it was released, with the reason and a button to try again below; **Waiting** while the app is in the background; **Not supported** where the browser cannot do it.
 
+**Pop Out** (desktop Chrome and Edge only): opens the board in a small window that stays on top of other windows, drawn to the window's size, with the same prices. Move and resize it as you like; press the button again (**Close Pop-out**) or close the window to end it. It closes with the tab. Other browsers do not offer such windows, so the button is not shown there.
+
 **Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 
 **At the bottom**: the app's icon, name and version, a question mark for **Help**, and a GitHub icon linking to the source code. Help is a short version of this guide inside the app (opening settings, the status dot, several assets, reading the board, keeping it on), with a link to this guide; the arrow at the top goes back to settings.

@@ -15,11 +15,11 @@
   import { NativeSelect, NativeSelectOption } from '$lib/components/ui/native-select/index.js';
   import { ToggleGroup, ToggleGroupItem } from '$lib/components/ui/toggle-group/index.js';
   import { HugeiconsIcon } from '@hugeicons/svelte';
-  import { Share03Icon, AddSquareIcon, Download04Icon } from '@hugeicons/core-free-icons';
+  import { Share03Icon, AddSquareIcon, Download04Icon, PictureInPictureOnIcon, PictureInPictureExitIcon } from '@hugeicons/core-free-icons';
   import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
   let { settings, canAdd, ticks, status, wake, versionLabel, updateReady, install = null, installDismissed = false,
-    onInstall = () => {}, onDismissInstall = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+    onInstall = () => {}, onDismissInstall = () => {}, pipSupported = false, pipOpen = false, onPip = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel;
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
@@ -399,6 +399,13 @@
         </ToggleGroup>
       </div>
     </div>
+    {#if pipSupported}
+      <!-- A small window on top of other windows; desktop Chrome and Edge only. -->
+      <Button id="pip-toggle" variant="secondary" size="lg" class="h-12 justify-start gap-3 rounded-2xl bg-card px-4 text-[15px] font-normal hover:bg-[color-mix(in_oklab,var(--card),white_6%)]" aria-describedby="pip-hint" onclick={onPip}>
+        <HugeiconsIcon icon={pipOpen ? PictureInPictureExitIcon : PictureInPictureOnIcon} strokeWidth={1.8} class="size-5 text-muted-foreground" />{pipOpen ? m.pip_close() : m.pip_open()}
+      </Button>
+      <p id="pip-hint" class="-mt-1 px-1 text-[13px] leading-snug text-muted-foreground">{m.pip_hint()}</p>
+    {/if}
     <p id="wake-lock-status" class="px-1 text-[13px] leading-normal text-muted-foreground" role="status" aria-live="polite" hidden={!wakeTrouble}>{wake.message}</p>
     <Button id="wake-lock-retry" variant="secondary" size="lg" class="h-11 rounded-xl" hidden={!wake.canRetry} onclick={onRetryWake}>{m.wake_retry()}</Button>
     <Button id="app-update" size="lg" class="h-11 rounded-xl font-semibold" hidden={!updateReady} onclick={onUpdate}>{m.update_now()}</Button>

@@ -11,7 +11,8 @@
   import { describeMarket } from '../lib/feed.js';
 
   // ticks and statuses: one per asset, in the order of settings.assets.
-  let { settings, ticks, statuses, brightness, active } = $props();
+  // view: the window the board is drawn in (this one, or the small window on top).
+  let { settings, ticks, statuses, brightness, active, view = window } = $props();
 
   // Burn-in protection moves the board only a little: far enough to rest the
   // pixels, not far enough to look off-centre. A share of each screen side.
@@ -42,7 +43,7 @@
   // over stay empty, so every line runs straight.
   // The cell's pieces at design size (width fixed, height about this).
   const PIECES = { width: 600, height: 320 };
-  let screen = $state({ width: window.innerWidth, height: window.innerHeight });
+  let screen = $state({ width: view.innerWidth, height: view.innerHeight });
   function chooseColumns(count) {
     const landscape = screen.width >= screen.height;
     let best = null;
@@ -114,11 +115,11 @@
   // Scale the board to the screen, and work out how far it may float.
   function fit() {
     if (!container) return;
-    const portrait = window.matchMedia('(orientation: portrait)').matches;
-    const style = getComputedStyle(document.documentElement);
+    const portrait = view.matchMedia('(orientation: portrait)').matches;
+    const style = view.getComputedStyle(view.document.documentElement);
     const inset = side => parseFloat(style.getPropertyValue('--safe-' + side)) || 0;
-    const width = window.innerWidth - inset('left') - inset('right');
-    const height = window.innerHeight - inset('top') - inset('bottom');
+    const width = view.innerWidth - inset('left') - inset('right');
+    const height = view.innerHeight - inset('top') - inset('bottom');
     if (width !== screen.width || height !== screen.height) screen = { width, height };
     if (grid) {
       // The board is the screen: fit the pieces to the smallest cell (all get
@@ -167,11 +168,11 @@
   onMount(() => {
     const boardObserver = new ResizeObserver(fit);
     boardObserver.observe(container);
-    window.addEventListener('resize', fit);
+    view.addEventListener('resize', fit);
     fit(); fitPrice();
     // The board's own font arrives a moment after the first paint; measure again then.
-    document.fonts?.ready.then(() => { fit(); fitPrice(); });
-    return () => { boardObserver.disconnect(); priceObserver.disconnect(); window.removeEventListener('resize', fit); };
+    view.document.fonts?.ready.then(() => { fit(); fitPrice(); });
+    return () => { boardObserver.disconnect(); priceObserver.disconnect(); view.removeEventListener('resize', fit); };
   });
 
   // Burn-in protection: once a minute pick a new spot close to the centre; the

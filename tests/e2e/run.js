@@ -1058,6 +1058,47 @@ async function oled(browser, base) {
   console.log('PASS oled: warm white price, status dot hidden while all is well, fully lit however long untouched; none of it when switched off');
 }
 
+async function popOut(browser, base) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.goto(base); await live(page);
+  const pip = () => page.evaluate(() => { const doc = window.documentPictureInPicture.window?.document; return doc && { price: doc.getElementById('price-main')?.textContent ?? null, head: doc.getElementById('board-head')?.textContent ?? null, cells: doc.querySelectorAll('.cell').length }; });
+  await open(page);
+  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창으로 띄우기');
+  assert.equal(await text(page, '#pip-hint'), '다른 창 위에 늘 떠 있는 작은 창으로 시세를 띄웁니다. 이 탭을 닫으면 함께 닫힙니다.');
+  // A press opens the small window, with the same price as the board.
+  await page.locator('#pip-toggle').click();
+  await page.waitForFunction(() => !!window.documentPictureInPicture.window?.document.getElementById('container'));
+  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창 닫기');
+  // The same board as the tab, drawn to the small window.
+  assert.deepEqual(await pip(), { price: '9800만', head: 'BTCKRW', cells: 0 });
+  assert.equal(await page.evaluate(() => window.documentPictureInPicture.window.document.title), 'Coinboard');
+  // It follows the board: a new price, and a second asset as a second row.
+  await page.evaluate(() => sockets.at(-1).quote({ trade_price: 99000000 }));
+  await page.waitForTimeout(3200);
+  assert.equal((await pip()).price, '9900만');
+  await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
+  await until(page, () => window.documentPictureInPicture.window.document.querySelectorAll('.cell').length === 2);
+  // The press again closes it.
+  await page.locator('#pip-toggle').click();
+  await until(page, () => !window.documentPictureInPicture.window);
+  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창으로 띄우기');
+  assert.deepEqual(problems, []);
+  await context.close();
+  // A browser without small windows (Safari, Firefox, phones and tablets): no button.
+  const other = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(other);
+  await other.addInitScript(() => { delete window.documentPictureInPicture; });
+  const otherPage = await other.newPage(); await otherPage.goto(base); await live(otherPage); await open(otherPage);
+  assert.equal(await otherPage.locator('#pip-toggle').count(), 0);
+  await other.close();
+  // In English.
+  const en = await browser.newContext({ locale: 'en-US', viewport: { width: 1024, height: 768 } }); await scripted(en);
+  const enPage = await en.newPage(); await enPage.goto(base); await live(enPage); await open(enPage);
+  assert.equal((await text(enPage, '#pip-toggle')).trim(), 'Pop Out');
+  await en.close();
+  console.log('PASS pop-out: the board in a small window on top, following the tab (one asset, then a grid), closed by the same button; no button where the browser cannot');
+}
+
 async function idleUpdate(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
@@ -1312,7 +1353,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH 
 const newContext = browser.newContext.bind(browser);
 browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options });
 try {
-  for (const scenario of [board, english, help, install, oled, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
+  for (const scenario of [board, english, help, install, oled, popOut, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
   if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
 } catch (error) {
   console.error(error); process.exitCode = 1;

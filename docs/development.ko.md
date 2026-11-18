@@ -32,6 +32,7 @@ Svelte 5 + Vite입니다. 페이지가 하나라 SvelteKit은 쓰지 않습니�
 |---|---|
 | `src/App.svelte` | 아래 모듈들을 화면에 연결하고 설정 버튼의 표시/숨김을 맡습니다 |
 | `src/components/PriceBoard.svelte` | 전광판: 자산 하나의 큰 화면과 여러 자산의 그리드, 배치와 크기 맞춤, 번인 방지 이동 |
+| `src/components/PriceBoard.svelte`(`view`) | 다른 창 위에 뜨는 작은 창(Document Picture-in-Picture)에도 그립니다. App이 그 창에 전광판을 하나 더 띄우고, `view`로 받은 그 창의 크기를 잽니다 |
 | `src/components/Price.svelte` | 가격 한 줄: 숫자 굴림과 움직임 크기에 따른 색 |
 | `src/components/SettingsPanel.svelte` | 설정 창 |
 | `src/lib/feed.js` | 거래소 WebSocket 연결(시장마다 하나, 여러 코인), 재연결, 생존 판정 |
