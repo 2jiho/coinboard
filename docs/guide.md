@@ -111,7 +111,7 @@ With two or more assets the whole screen is divided into cells of one size, with
 
 Tap the screen once and the settings button (a gear) appears in the bottom-right corner; it goes away again after five seconds untouched. The tap that brings the button up does not press it, so tap the button once it is showing. On a keyboard, Tab brings it up. The first time the app opens, a line at the bottom of the screen says so (*Tap the screen for settings*); it goes once the screen is touched and does not come back.
 
-**Brightness**: draw one finger up the board to brighten it, down to dim it; the screen's whole height is the whole range, 10% to 100%. While the finger moves, a capsule at the top shows a sun, a bar and the level; let go and the level is kept (it is the same as the brightness in settings). A second finger puts it back. With the lights off at night, one finger dims the board. The board does not zoom with a pinch or a double tap.
+**Brightness**: draw one finger up the board to brighten it, down to dim it; the screen's whole height is the whole range, 10% to 100%, in steps of 5. While the finger moves, the screen is veiled as in a video app, and the middle shows a sun, the level (`75%`), how far it moved since you began (`−25`) and a bar; let go and the level is kept (it is the same as the brightness in settings). A second finger puts it back. With the lights off at night, one finger dims the board. The board does not zoom with a pinch or a double tap.
 
 ![Settings](images/settings.en.png)
 
