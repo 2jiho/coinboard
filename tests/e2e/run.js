@@ -1245,8 +1245,8 @@ async function lockedStorage(browser, base) {
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');
 }
 
-async function pullToRefresh(browser, base) {
-  // A tablet: the board cannot be zoomed, and a finger drawn down it reloads the page.
+async function swipeBrightness(browser, base) {
+  // A tablet: the board cannot be zoomed, and a finger drawn up or down it sets the brightness.
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
@@ -1259,37 +1259,51 @@ async function pullToRefresh(browser, base) {
     await touch('touchStart', [from]);
     for (let i = 1; i <= steps; i += 1) await touch('touchMove', [[from[0] + (to[0] - from[0]) * i / steps, from[1] + (to[1] - from[1]) * i / steps]]);
   };
-  const mark = () => page.locator('#pull').evaluate(el => [...el.classList].filter(name => name !== '').sort().join(' '));
-  // A short pull shows the mark, not ready; let go, it goes back and nothing reloads.
-  let reloads = 0; page.on('load', () => { reloads += 1; });
-  await drag([500, 150], [505, 230]);
-  assert.equal(await mark(), 'pulling');
+  const filter = () => page.locator('#container').evaluate(el => el.style.filter);
+  const hud = () => page.locator('#brightness-hud').evaluate(el => ({ shown: el.classList.contains('show'), value: el.querySelector('.hud-value').textContent, filter: getComputedStyle(el).filter }));
+  assert.equal(await filter(), 'brightness(100%)');
+  assert.equal((await hud()).shown, false);
+  // Down by a quarter of the screen: 100% less a quarter of the 10-100 range, shown in the capsule as it goes and kept on letting go.
+  const height = await page.evaluate(() => innerHeight);
+  await drag([500, 300], [500, 300 + height / 4]);
+  // (The last move can reach the page a frame later.)
+  await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '78%', null, { timeout: 2000 }).catch(() => {});
+  assert.deepEqual(await hud(), { shown: true, value: '78%', filter: 'none' }, 'the capsule is not dimmed with the board');
+  assert.equal(await filter(), 'brightness(78%)');
   await touch('touchEnd', []);
-  assert.equal(await mark(), '');
-  // Two fingers are a pinch: the pull lets go.
-  await drag([500, 150], [500, 300]);
-  assert.equal(await mark(), 'pulling ready');
-  await touch('touchMove', [[500, 300], [700, 300]]);
-  assert.equal(await mark(), '', 'a second finger lets the pull go');
+  await page.waitForFunction(() => !document.getElementById('brightness-hud').classList.contains('show'));
+  assert.equal((await saved(page)).brightness, 78);
+  // Up again past the top of the range: no brighter than 100%.
+  await drag([500, 600], [500, 50]);
+  await page.waitForFunction(() => document.querySelector('#brightness-hud .hud-value').textContent === '100%', null, { timeout: 2000 }).catch(() => {});
+  assert.equal((await hud()).value, '100%');
   await touch('touchEnd', []);
-  assert.equal(reloads, 0);
-  // Far enough, and let go: the mark spins and the page reloads.
-  await drag([500, 150], [500, 320]);
-  assert.equal(await mark(), 'pulling ready');
-  const reloaded = page.waitForEvent('load');
+  assert.equal((await saved(page)).brightness, 100);
+  // A second finger puts it back as it was; a sideways drag and a tap are not swipes.
+  await drag([500, 200], [500, 500]);
+  assert.notEqual(await filter(), 'brightness(100%)');
+  await touch('touchMove', [[500, 500], [700, 500]]);
+  assert.equal(await filter(), 'brightness(100%)', 'a second finger lets the swipe go');
   await touch('touchEnd', []);
-  assert.equal(await mark(), 'refreshing');
-  await reloaded; await live(page);
-  // A drag that starts on the open settings panel scrolls it and reloads nothing.
+  await drag([300, 400], [800, 450]); await touch('touchEnd', []);
+  assert.equal((await saved(page)).brightness, 100, 'sideways is not a swipe');
+  // A drag that starts on the open settings panel scrolls it and leaves the brightness alone.
   await page.touchscreen.tap(500, 400); await page.locator('#settings-toggle').tap();
   assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('admin-panel')).touchAction), 'pan-y');
   const panel = await page.locator('#admin-panel').boundingBox();
-  await drag([panel.x + panel.width / 2, panel.y + 80], [panel.x + panel.width / 2, panel.y + 300]);
-  assert.equal(await mark(), '');
+  await drag([panel.x + panel.width / 2, panel.y + 300], [panel.x + panel.width / 2, panel.y + 80]);
+  await touch('touchEnd', []);
+  assert.equal((await hud()).shown, false);
+  assert.equal((await saved(page)).brightness, 100);
+  await page.keyboard.press('Escape');
+  // A picture of the capsule part-way down.
+  await drag([500, 200], [500, 420]);
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(evidence, 'brightness-swipe.png') });
   await touch('touchEnd', []);
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS pull to refresh: no zoom; a finger drawn down the board reloads it, a short pull, a pinch or a drag on the panel does not');
+  console.log('PASS swipe brightness: no zoom; a finger drawn up or down sets the brightness, shown in a capsule and saved; a second finger, a sideways drag or a drag on the panel does not');
 }
 
 async function statusTipOnTouch(browser, base) {
@@ -1498,7 +1512,7 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
 // against its own server. A failure is reported with the scenario's name;
 // the others still run.
-const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, pullToRefresh, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
 // E2E_ONLY=chart,board runs just those.
 const only = process.env.E2E_ONLY?.split(',');

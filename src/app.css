@@ -84,8 +84,8 @@ input {
 /* The board is a screen to look at, not a page to zoom: no pinch, no
    double-tap zoom (on iOS two quick taps, one to show the button and one to
    press it, would otherwise be taken as a zoom), and none of the browser's
-   own pulls or swipes, so a finger drawn down the board is ours to read as
-   pull to refresh (src/lib/pull.js). The settings panel scrolls up and down,
+   own pulls or swipes, so a finger drawn up or down the board is ours to
+   read as a brightness swipe (src/lib/swipe-brightness.js). The settings panel scrolls up and down,
    and only that. iOS also gets its pinch gesture refused (App.svelte). */
 html { touch-action: none; overscroll-behavior: none; }
 body { overscroll-behavior: none; }
@@ -258,22 +258,30 @@ body[data-palette="red-blue"] {
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */
 
-/* Pull to refresh: a small round mark that follows the finger down from the
-   top, turning as it goes, and spins once let go past the threshold. */
-#pull {
-  position: fixed; z-index: 1500; left: 50%; top: calc(var(--safe-top) - 44px);
-  width: 44px; height: 44px; margin-left: -22px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(44, 44, 46, 0.92); border: 1px solid rgba(255, 255, 255, 0.1); color: #8e8e93;
-  pointer-events: none; opacity: 0;
+/* Brightness by swiping: a frosted capsule at the top centre while a finger
+   moves (src/lib/swipe-brightness.js). A sun whose rays grow with the level,
+   a bar, and the level in figures. It is not dimmed with the board, so it
+   reads at any brightness, and it comes and goes softly. */
+#brightness-hud {
+  --level: 1;
+  position: fixed; z-index: 1500; left: 50%; top: calc(var(--safe-top) + 20px);
+  display: flex; align-items: center; gap: 12px;
+  width: 248px; height: 48px; padding: 0 16px 0 14px; box-sizing: border-box; border-radius: 24px;
+  background: rgba(44, 44, 46, 0.72); border: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: #f2f2f7; font: 600 15px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none; opacity: 0; transform: translate(-50%, -8px) scale(0.96);
+  transition: opacity 0.35s ease, transform 0.35s ease;
 }
-#pull.pulling, #pull.refreshing { opacity: 1; }
-#pull:not(.pulling) { transition: transform 0.25s ease-out, opacity 0.25s; }
-#pull.ready, #pull.refreshing { color: #f2f2f7; }
-#pull svg { width: 22px; height: 22px; }
-#pull.refreshing svg { animation: pull-spin 0.8s linear infinite; }
-@keyframes pull-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { #pull.refreshing svg { animation: none; } }
+#brightness-hud.show { opacity: 1; transform: translate(-50%, 0) scale(1); transition-duration: 0.15s; }
+.hud-sun { flex: none; width: 22px; height: 22px; }
+.hud-rays { opacity: calc(0.35 + 0.65 * var(--level)); transform-origin: 12px 12px; transform: scale(calc(0.7 + 0.3 * var(--level))); }
+.hud-track { position: relative; flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
+.hud-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--level) * 100%); border-radius: 3px; background: #f2f2f7; }
+.hud-value { flex: none; width: 3.2em; text-align: right; }
+@media (prefers-reduced-motion: reduce) { #brightness-hud, #brightness-hud.show { transition: opacity 0.2s; transform: translate(-50%, 0); } }
 /* The status dot: a 10px light in the bottom-left corner inside a full-size
    touch target, with the detail in a small card on hover or tap. */
 #status-dot {
