@@ -170,10 +170,10 @@ body {
    (#board-chart, a little larger than the screen below and to the sides, so floating never bares an
    edge), across the lower part of each cell in the grid. Faint, so the type
    on top reads first; its line keeps one width however it is stretched. */
-#board-chart { position: absolute; left: -4%; right: -4%; bottom: -4%; height: 40%; transition: transform 60s linear; pointer-events: none; }
+#board-chart { position: absolute; left: -4%; right: -4%; bottom: -4%; transition: transform 60s linear; pointer-events: none; }
 #board-chart .spark { position: absolute; inset: 0; }
 .cell { position: relative; }
-.cell > .spark { position: absolute; left: 0; right: 0; bottom: 0; height: 36%; pointer-events: none; }
+.cell > .spark { position: absolute; left: 0; right: 0; top: var(--chart-top, 64%); bottom: 0; pointer-events: none; }
 .cell-inner { position: relative; z-index: 1; }
 .spark { color: #8e8e93; }
 .spark.up { color: var(--up); }

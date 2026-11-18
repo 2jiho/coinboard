@@ -7,7 +7,10 @@
   // Coloured by the move over the period: up or down, in the board's own
   // colours. It fills whatever box its parent gives it (the lower part of a
   // cell, or of the screen), and its line keeps one width however it is stretched.
-  let { points = null, tick = null, period, label } = $props();
+  // floor: the share of the height kept free below the line's lowest point
+  // (the fill fades on into it), so a box reaching past the screen's edge, or
+  // floating, never cuts the line.
+  let { points = null, tick = null, period, label, floor = 0.1 } = $props();
   const W = 100, H = 30, PAD = 1;
   const fade = `spark-fade-${++made}`;
   const line = $derived.by(() => {
@@ -17,7 +20,7 @@
     let low = Infinity, high = -Infinity;
     for (const [, price] of all) { low = Math.min(low, price); high = Math.max(high, price); }
     const range = high - low || 1;
-    const path = all.map(([time, price], index) => `${index ? 'L' : 'M'}${((time - first) / span * W).toFixed(2)},${(PAD + (1 - (price - low) / range) * (H - 2 * PAD)).toFixed(2)}`).join('');
+    const path = all.map(([time, price], index) => `${index ? 'L' : 'M'}${((time - first) / span * W).toFixed(2)},${(PAD + (1 - (price - low) / range) * (H * (1 - floor) - PAD)).toFixed(2)}`).join('');
     const move = all.at(-1)[1] - all[0][1];
     return { path, area: `${path}L${W},${H}L0,${H}Z`, tone: move > 0 ? 'up' : move < 0 ? 'down' : 'flat' };
   });
