@@ -13,8 +13,11 @@ const evidence = path.join(root, 'evidence');
 const VERSION = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 const NEXT_VERSION = VERSION.replace(/\d+$/, n => Number(n) + 1);
 const TYPES = { '.js': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
-const flags = { nextWorker: false };
-const server = http.createServer((req, res) => {
+// Each scenario has a server of its own (and so an origin of its own), so that
+// scenarios can run side by side: flags.nextWorker makes it serve a later release.
+function serve() {
+  const flags = { nextWorker: false };
+  const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   if (!pathname.startsWith('/coinboard/')) { res.writeHead(404); res.end(); return; }
   const name = pathname.slice('/coinboard/'.length) || 'index.html';
@@ -26,7 +29,9 @@ const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', TYPES[path.extname(name)] || 'application/octet-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.end(content);
-});
+  });
+  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve({ server, flags, base: `http://localhost:${server.address().port}/coinboard/` })));
+}
 
 // Scripted exchanges and wake lock: no real network, no machine-dependent grants.
 // Most scenarios start from one Upbit asset (seed); a new board's own default
@@ -150,7 +155,7 @@ function watch(page) {
   return problems;
 }
 
-async function board(browser, base) {
+async function board(browser, base, flags) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true });
   await scripted(context);
   const page = await context.newPage(); const problems = watch(page); const requests = [];
@@ -275,8 +280,9 @@ async function board(browser, base) {
   assert.equal(await text(page, '#price-main'), '0.00001235');
   assert.equal(await boardSize(), steadySize, 'a very long price: same board size');
   await page.waitForFunction(() => document.getElementById('price-text').style.transform !== 'scale(1)');
-  const longText = await zoneOf('#price-text');
-  assert.ok(longText.left >= zoneBefore.left - 1 && longText.right <= zoneBefore.right + 1, 'the long price fits its zone');
+  // The zone and the text are measured at the same moment: the board floats (burn-in protection) in real time.
+  const [zoneNow, longText] = await page.evaluate(() => ['price-main', 'price-text'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height }; }));
+  assert.ok(longText.left >= zoneNow.left - 1 && longText.right <= zoneNow.right + 1, 'the long price fits its zone');
   assert.ok(longText.height < zoneBefore.height * 0.9, 'and is drawn smaller to do so');
   const same = (a, b) => Math.abs(a - b) < 0.5;
   assert.ok(same((await zoneOf('#price-main')).height, zoneBefore.height), 'price zone keeps its height');
@@ -1099,7 +1105,7 @@ async function popOut(browser, base) {
   console.log('PASS pop-out: the board in a small window on top, following the tab (one asset, then a grid), closed by the same button; no button where the browser cannot');
 }
 
-async function idleUpdate(browser, base) {
+async function idleUpdate(browser, base, flags) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 } }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
@@ -1345,18 +1351,27 @@ async function liveExchanges(browser, base) {
 }
 
 fs.mkdirSync(evidence, { recursive: true });
-await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const base = `http://localhost:${server.address().port}/coinboard/`;
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 // Most scenarios read the Korean settings, so a Korean device is the default;
 // the English scenario asks for its own language.
 const newContext = browser.newContext.bind(browser);
 browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options });
+// Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
+// against its own server. A failure is reported with the scenario's name;
+// the others still run.
+const scenarios = [board, english, help, install, oled, popOut, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
+const queue = [...scenarios];
+async function worker() {
+  for (let scenario = queue.shift(); scenario; scenario = queue.shift()) {
+    const { server, flags, base } = await serve();
+    try { await scenario(browser, base, flags); }
+    catch (error) { console.error(`FAIL ${scenario.name}:`, error); process.exitCode = 1; }
+    finally { server.close(); }
+  }
+}
 try {
-  for (const scenario of [board, english, help, install, oled, popOut, firstConnection, gridBoard, statusTipOnTouch, idleUpdate, lockedStorage, coinList, offlineShell, layouts]) await scenario(browser, base);
-  if (process.env.LIVE_NETWORK === '1') await liveExchanges(browser, base);
-} catch (error) {
-  console.error(error); process.exitCode = 1;
+  await Promise.all(Array.from({ length: Math.max(1, Number(process.env.E2E_JOBS) || 4) }, worker));
 } finally {
-  await browser.close(); server.close();
+  await browser.close();
 }

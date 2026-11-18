@@ -1,9 +1,16 @@
 name: ci
+# Tests run for pull requests and for main (which then deploys). A branch
+# push alone does not run them again: its pull request does. A newer push to
+# the same pull request cancels the run before it; main always runs to the end.
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     runs-on: ubuntu-latest
