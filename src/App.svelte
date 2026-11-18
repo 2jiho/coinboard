@@ -17,6 +17,7 @@
   import { createBeat } from './lib/steady.js';
   import { installOffer, isStandalone } from './lib/install.js';
   import { createHistory, extend } from './lib/history.js';
+  import { createPull, PULL_MAX } from './lib/pull.js';
   import { m } from './paraglide/messages.js';
   import { getLocale } from './paraglide/runtime.js';
   import { Toaster } from '$lib/components/ui/sonner/index.js';
@@ -41,6 +42,8 @@
   let cache = $state({ state: 'waiting', version: null });
   let updateReady = $state(false);
   let controlsVisible = $state(false);
+  // Pull to refresh: how far the mark has come down, and whether letting go reloads.
+  let pull = $state({ distance: 0, progress: 0, ready: false, refreshing: false });
   let panelOpen = $state(false);
   let toggleButton;
   // A new board says once how to reach settings, until the screen is first
@@ -343,7 +346,18 @@
       }],
     ];
     for (const [target, name, handler, capture] of listeners) target.addEventListener(name, handler, capture);
+    // iOS zooms on a pinch whatever touch-action says; refuse its gesture.
+    const noPinch = event => event.preventDefault();
+    for (const name of ['gesturestart', 'gesturechange']) document.addEventListener(name, noPinch, { passive: false });
+    // A finger drawn down the board reloads it (the controls and an open panel keep their own touches).
+    const puller = createPull({
+      target: document, ignore: '#settings-toggle, #admin-panel, #scrim, [data-sonner-toaster], #status-dot',
+      onChange(state) { pull = state; },
+      onRefresh() { setTimeout(() => location.reload(), 350); },
+    });
     return () => {
+      puller.dispose();
+      for (const name of ['gesturestart', 'gesturechange']) document.removeEventListener(name, noPinch);
       for (const [target, name, handler, capture] of listeners) target.removeEventListener(name, handler, capture);
       clearTimeout(cursorTimer); clearTimeout(tipTimer); clearTimeout(hintTimer);
       controls.dispose(); feed.dispose(); wakeLock.dispose(); beat.reset();
@@ -374,5 +388,9 @@
 </button>
 <Toaster position="bottom-center" />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
+<div id="pull" class:pulling={pull.distance > 0} class:ready={pull.ready} class:refreshing={pull.refreshing} aria-hidden="true"
+  style:transform="translateY({pull.refreshing ? PULL_MAX : pull.distance}px) rotate({pull.progress * 270}deg)">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66" /><path d="M20 4v5h-5" /></svg>
+</div>
 <div id="status-dot" data-level={level} class:show={tipShown} class:quiet={settings.burnIn && level === 'ok' && !tipShown && !controlsVisible && !panelOpen} role="img" aria-label={tip} onpointerdown={tapDot}><span id="status-tip">{tip}</span></div>
 <PriceBoard {settings} ticks={assetTicks} charts={assetCharts} {statuses} brightness={previewBrightness ?? settings.brightness} active={visible} />
