@@ -71,7 +71,7 @@ On a device set to Korean, won is written the Korean way, in `억` (100 million)
 
 **When a price changes**
 
-- Only the digits that changed roll over, like a counter: upwards when the price rose, downwards when it fell.
+- Only the digits that changed change: the old one drifts a little away and fades as the new one sharpens in from the other side, upwards when the price rose, downwards when it fell.
 - The whole price is tinted with the up or down color for a moment. The bigger the move since the last price shown, the deeper the tint: under 0.02% faint, under 0.1% normal, 0.1% or more the full color, held a little longer.
 - The board changes at most once every three seconds, and with several assets every place with a new price changes at the same moment, showing the latest price received.
 

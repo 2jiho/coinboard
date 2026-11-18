@@ -119,7 +119,7 @@
   "help_assets_title": "Several Assets",
   "help_assets_body": "Each asset added gets a card in the list. Drag the handle on the right to reorder, and tap the bin to delete (the message at the bottom can undo it). To show another coin, add it and delete the old one. With two or more assets, the screen is divided into cells of one size.",
   "help_reading_title": "Reading the Board",
-  "help_reading_body": "1D is against the previous day's close (Upbit), 24H the change over 24 hours (Binance), and PERP Binance USDT perpetual futures. When a price changes, only the digits that changed roll over, and the bigger the move, the deeper the color. The faint chart at the bottom is the price over the period chosen in settings.",
+  "help_reading_body": "1D is against the previous day's close (Upbit), 24H the change over 24 hours (Binance), and PERP Binance USDT perpetual futures. When a price changes, only the digits that changed move, and the bigger the move, the deeper the color. The faint chart at the bottom is the price over the period chosen in settings.",
   "help_keep_title": "Keeping It On",
   "help_keep_body": "Add it to the home screen and open it like an app: it runs full screen, and keeping the screen on works best that way (Safari's Share button, then Add to Home Screen). Keep it charging, and turn Low Power Mode off. On an OLED screen, keep Burn-in Protection on in settings.",
   "help_guide": "Full User Guide",

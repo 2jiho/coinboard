@@ -12,7 +12,7 @@ A crypto price board: live prices from exchange WebSockets, in large type, on a 
 
 - **Markets**: in Korean won, Upbit, Bithumb and Coinone; in USDT, Binance, OKX and Bybit, spot and perpetual futures (marked `PERP`); in US dollars, Coinbase and Kraken. It starts on BTC on Binance.
 - **Several assets**: one asset fills the screen; two or more share it in a grid, markets mixed as you like.
-- **A calm board**: digits roll only where they change, the tint deepens with the size of the move, and every place changes together on one three-second beat.
+- **A calm board**: only the digits that change move, softly, the tint deepens with the size of the move, and every place changes together on one three-second beat.
 - **Made to stay on**: keeps the screen awake, drifts slightly against burn-in, dims on request, runs offline and updates itself.
 - **In your language**: settings in English or Korean, following the device; won in millions (`89.96M`) in English, in 억 and 만 in Korean.
 - **Private**: no account, no server of its own, no tracking. Settings stay on your device.

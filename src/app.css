@@ -212,29 +212,31 @@ body {
 body[data-palette="red-blue"] {
   --up: #ff453a; --down: #4b8dff; --up-flash: #ff8f86; --down-flash: #8fb6ff;
 }
-/* A changed digit pushes the old one out of its window, like a counter wheel,
-   and the movement goes the way the price went: up when it rose, down when it
-   fell. Each digit has a window (.slot) that hides whatever is past its edges.
-   The old digit is drawn by ::before, one window-height ahead of the new one,
-   so a single movement carries both: the new digit in, the old one out. */
-.price-text .slot { display: inline-block; clip-path: inset(0); }
+/* A changed digit changes as numbers do in Apple's apps: the old one drifts
+   38% of its height away, blurring and fading out; the new one drifts in from
+   the other side, sharpening. Up when the price rose, down when it fell.
+   Nothing is clipped, so no edge cuts a digit in half. The old digit is a
+   copy laid over the new one in its slot (Price.svelte), removed when its
+   fade ends. */
+.price-text .slot { display: inline-block; position: relative; }
 /* Each digit keeps its own compositing layer for good. Otherwise Safari moves
    a digit onto a layer for its animation and back off when it ends, and the
    board being drawn at a fractional scale, the digit snaps a pixel at that
-   moment: a small jump at the end of every roll. */
-.price-text .digit { display: inline-block; position: relative; will-change: transform; }
-.price-text .digit[data-old]::before { content: attr(data-old); position: absolute; left: 0; }
-/* Price up: the new digit rises from below; the old one leaves by the top. */
-.price-text .digit.up::before { top: -100%; }
-.price-text .digit.up { animation: push-up 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
-/* Price down: the new digit descends from above; the old one leaves by the bottom. */
-.price-text .digit.down::before { top: 100%; }
-.price-text .digit.down { animation: push-down 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
-@keyframes push-up { from { transform: translateY(100%); } }
-@keyframes push-down { from { transform: translateY(-100%); } }
+   moment: a small jump at the end of every change. */
+.price-text .digit, .price-text .digit-old { display: inline-block; will-change: transform, opacity, filter; }
+.price-text .digit-old { position: absolute; left: 0; top: 0; pointer-events: none; animation-fill-mode: forwards; }
+.price-text .digit-old::before { content: attr(data-digit); }
+.price-text .digit.up { animation: arrive-up 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.price-text .digit.down { animation: arrive-down 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.price-text .digit-old.up { animation: leave-up 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+.price-text .digit-old.down { animation: leave-down 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+@keyframes arrive-up { from { transform: translateY(38%); opacity: 0; filter: blur(0.06em); } }
+@keyframes arrive-down { from { transform: translateY(-38%); opacity: 0; filter: blur(0.06em); } }
+@keyframes leave-up { to { transform: translateY(-38%); opacity: 0; filter: blur(0.06em); } }
+@keyframes leave-down { to { transform: translateY(38%); opacity: 0; filter: blur(0.06em); } }
 @media (prefers-reduced-motion: reduce) {
   .price-text .digit { animation: none; }
-  .price-text .digit[data-old]::before { content: none; }
+  .price-text .digit-old { display: none; }
 }
 /* Portrait again, after the rules it overrides: the price is centred in its
    zone and shrinks towards its centre. */

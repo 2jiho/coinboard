@@ -45,18 +45,34 @@
   });
   $effect(() => () => clearTimeout(flashTimer));
 
-  // A new digit pushes the old one out of its window, like a counter wheel, and
-  // moves the way the price did: up from below when it rose, down from above
-  // when it fell. So a digit learns two things once, when it appears, and keeps
-  // them: which way the price went, and which digit it replaces (drawn by CSS
-  // from data-old). If the direction followed the current trend instead, every
-  // digit would change class when the price turned round, and all would move at once.
+  // A changed digit changes the way Apple's apps change a number: the old
+  // digit drifts a little way off, blurring and fading, while the new one
+  // drifts in from the other side and sharpens. The movement goes the way the
+  // price did: up when it rose, down when it fell. So a digit learns two
+  // things once, when it appears, and keeps them: which way the price went,
+  // and which digit it replaces. If the direction followed the current trend
+  // instead, every digit would change class when the price turned round, and
+  // all would move at once. The old digit is a copy laid over the new one in
+  // its slot, gone when its fade ends; nothing is clipped.
   function roll(node, slot) {
     const direction = untrack(() => trend), old = lastShown.get(slot);
     lastShown.set(slot, node.textContent);
     if (!direction || old === undefined) return;
+    const way = direction > 0 ? 'up' : 'down';
     node.dataset.old = old;
-    node.classList.add(direction > 0 ? 'up' : 'down');
+    node.classList.add(way);
+    // The board may be drawn in another window (the pop-out): make the copy there.
+    const ghost = node.ownerDocument.createElement('span');
+    ghost.className = `digit-old ${way}`;
+    // Drawn by CSS from data-digit, so the price's text stays what is shown.
+    ghost.dataset.digit = old;
+    ghost.setAttribute('aria-hidden', 'true');
+    const done = () => ghost.remove();
+    ghost.addEventListener('animationend', done);
+    ghost.addEventListener('animationcancel', done);
+    node.parentElement?.appendChild(ghost);
+    // With reduced motion there is no animation to end it.
+    if (ghost.ownerDocument.defaultView?.matchMedia('(prefers-reduced-motion: reduce)').matches) done();
   }
 </script>
 
