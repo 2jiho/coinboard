@@ -36,8 +36,9 @@ function readAssets(list) {
 }
 export function createSettings(storage) {
   // columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
-  // chart: the period of the line chart beside the change ("off" for none).
-  const settings = { assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: "1d" };
+  // chart: the period of the chart behind the board ("off" for none).
+  // clock: the time, small, in the board's top-right corner.
+  const settings = { assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: "1d", clock: true };
   try {
     const saved = JSON.parse(storage.getItem(KEY));
     if (saved && typeof saved === "object") {
@@ -47,6 +48,7 @@ export function createSettings(storage) {
       if (Number.isInteger(saved.columns) && saved.columns >= 0 && saved.columns <= MAX_COLUMNS) settings.columns = saved.columns;
       // On unless it was explicitly switched off.
       settings.burnIn = saved.burnIn !== false;
+      settings.clock = saved.clock !== false;
       // Up/down colours: green and red, or the Korean red and blue.
       if (saved.palette === "red-blue") settings.palette = "red-blue";
       if (CHART_CHOICES.includes(saved.chart)) settings.chart = saved.chart;
@@ -55,12 +57,12 @@ export function createSettings(storage) {
     }
   } catch (error) { /* Unreadable storage: run on defaults. */ }
   function get() {
-    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette, chart: settings.chart };
+    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette, chart: settings.chart, clock: settings.clock };
   }
   // Callers pass validated values; a failed write still applies for this run.
   function update(patch) {
     if (patch.assets !== undefined) settings.assets = patch.assets.map((asset) => ({ currency: asset.currency, ticker: asset.ticker }));
-    ["columns", "brightness", "burnIn", "palette", "chart"].forEach((key) => {
+    ["columns", "brightness", "burnIn", "palette", "chart", "clock"].forEach((key) => {
       if (patch[key] !== undefined) settings[key] = patch[key];
     });
     try { storage.setItem(KEY, JSON.stringify(settings)); return { saved: true }; }

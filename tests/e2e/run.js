@@ -113,6 +113,15 @@ const live = page => page.waitForFunction(() => {
 });
 // waitForFunction treats an async predicate's Promise as truthy at once, so
 // async conditions are polled from here instead.
+// Like until, for a page on the test clock: the clock is run a second at a
+// time while waiting, for what waits its turn behind Upbit's other requests.
+async function untilTicking(page, predicate, arg) {
+  for (let step = 0; step < 60; step += 1) {
+    if (await page.evaluate(predicate, arg)) return;
+    await page.clock.runFor(1000);
+  }
+  throw new Error('Condition not met within 60 seconds of the test clock');
+}
 async function until(page, predicate, arg) {
   for (const deadline = Date.now() + 30000; Date.now() < deadline;) {
     if (await page.evaluate(predicate, arg)) return;
@@ -393,7 +402,7 @@ async function board(browser, base, flags) {
   assert.equal(await brightnessThumb.getAttribute('aria-valuenow'), '50');
   assert.equal(await shownBrightness(page), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: '1d' });
+  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
   // Up and down colours: green and red, or the Korean red and blue.
   const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
@@ -1164,9 +1173,8 @@ async function chart(browser, base) {
   const page = await context.newPage(); const problems = watch(page);
   // The test clock: Upbit's ten seconds between requests pass at once.
   await page.clock.install(); await page.goto(base); await live(page);
-  await page.clock.runFor(12000);
   // On by default, for a day: the chart behind the lower screen, coloured as the change, with its period.
-  await page.locator('#board-chart .spark').waitFor();
+  await untilTicking(page, () => !!document.querySelector('#board-chart .spark'));
   assert.match(asked[0], /candles\/minutes\/15\?market=KRW-BTC&count=97$/);
   // The day's candles rose, but the change shown is -2.50%: the chart takes the change's colour, so the two agree.
   assert.equal(await page.locator('#board-chart .spark').getAttribute('class'), 'spark down');
@@ -1180,20 +1188,17 @@ async function chart(browser, base) {
   assert.equal(await page.locator('#board-chart .spark-point').count(), 1);
   assert.equal(await page.locator('#board-chart .spark-ring').count(), 0, 'no ring before the price moves');
   await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98600000 }));
-  await page.clock.runFor(3100);
-  await page.locator('#board-chart .spark-ring').waitFor({ state: 'attached' });
+  await untilTicking(page, () => !!document.querySelector('#board-chart .spark-ring'));
   assert.deepEqual(await page.locator('#board-chart .spark-ring').evaluate(el => [el.className, el.dataset.strength, getComputedStyle(el).animationName]), ['spark-ring up', '3', 'spark-ring']);
   await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98590000 }));
-  await page.clock.runFor(3100);
-  await until(page, () => document.querySelector('#board-chart .spark-ring')?.className === 'spark-ring down');
+  await untilTicking(page, () => document.querySelector('#board-chart .spark-ring')?.className === 'spark-ring down');
   assert.equal(await page.locator('#board-chart .spark-ring').getAttribute('data-strength'), '1', 'a slight move, a small ring');
   // Another period asks for other candles; off takes the chart away.
   await open(page);
   assert.equal(await chosen(page, '#admin-chart'), '1d');
   assert.deepEqual(await page.locator('#admin-chart [data-value]').allTextContents(), ['끔', '15분', '1시간', '1일', '1주', '1달']);
   await choose(page, '#admin-chart', '1w');
-  await page.clock.runFor(12000);
-  await until(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
+  await untilTicking(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
   assert.match(asked.at(-1), /candles\/minutes\/60\?market=KRW-BTC&count=169$/);
   assert.equal((await saved(page)).chart, '1w');
   await choose(page, '#admin-chart', 'off');
@@ -1202,8 +1207,7 @@ async function chart(browser, base) {
   await choose(page, '#admin-chart', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   // The new coin's candles wait their turn behind Upbit's other requests: let the test clock run until they come.
-  for (let step = 0; step < 40 && await page.evaluate(() => document.querySelectorAll('#chart-grid .spark').length) < 2; step += 1) await page.clock.runFor(1000);
-  await until(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
+  await untilTicking(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
   assert.ok(await page.evaluate(chartsHold), 'cell charts hold still, below their prices and clear of the lines between cells however the grid floats');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(evidence, 'chart.png') });
@@ -1246,6 +1250,33 @@ async function lockedStorage(browser, base) {
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');
+}
+
+async function clockShown(browser, base) {
+  // The time in the top-right corner, from the device's own clock and time zone, renewed on the minute; switched off in settings.
+  const context = await browser.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'Asia/Seoul' }); await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.clock.install({ time: new Date('2026-11-19T14:32:50+09:00') });
+  await page.goto(base); await live(page);
+  assert.equal(await text(page, '#clock'), '14:32');
+  const box = await page.locator('#clock').boundingBox();
+  assert.ok(box.x + box.width > 1180 - 80 && box.y < 40, 'top-right corner');
+  const price = await page.locator('#price-main').boundingBox(), head = await page.locator('#board-head').boundingBox();
+  assert.ok(box.y + box.height < head.y && box.y + box.height < price.y, 'clear of the coin line and the price');
+  await page.clock.runFor(15000);
+  assert.equal(await text(page, '#clock'), '14:33', 'renewed on the minute');
+  // It floats with the board when burn-in protection is on.
+  assert.equal(await page.locator('#clock').evaluate(el => el.style.transform.startsWith('translate(')), true);
+  await open(page);
+  assert.equal(await page.locator('#admin-clock').getAttribute('aria-checked'), 'true');
+  await page.locator('#admin-clock').click();
+  assert.equal(await page.locator('#clock').count(), 0);
+  assert.equal((await saved(page)).clock, false);
+  await page.locator('#admin-clock').click();
+  assert.equal(await text(page, '#clock'), '14:33');
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS clock: the time in the top-right corner, from the device clock, renewed on the minute, floating with the board, switched off and on in settings');
 }
 
 async function swipeBrightness(browser, base) {
@@ -1517,7 +1548,7 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
 // against its own server. A failure is reported with the scenario's name;
 // the others still run.
-const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, clockShown, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
 // E2E_ONLY=chart,board runs just those.
 const only = process.env.E2E_ONLY?.split(',');

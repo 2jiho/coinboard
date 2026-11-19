@@ -394,6 +394,7 @@
     onBurnIn={burnIn => save({ burnIn })}
     onPalette={palette => save({ palette })}
     onChart={chart => save({ chart })}
+    onClock={clock => save({ clock })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}
     onUpdate={() => updater.reload()}

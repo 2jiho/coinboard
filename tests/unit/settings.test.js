@@ -7,7 +7,7 @@ function memory(initial = {}) {
     removeItem: key => { data.delete(key); } };
 }
 const one = (ticker, currency) => ({ assets: [{ currency, ticker }] });
-const defaults = { ...one('BTC', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red', chart: '1d' };
+const defaults = { ...one('BTC', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red', chart: '1d', clock: true };
 test('defaults when storage is empty, missing or throws: Bitcoin on Binance spot', () => {
   assert.deepEqual(createSettings(memory()).get(), defaults);
   assert.deepEqual(createSettings(null).get(), defaults);
@@ -16,15 +16,15 @@ test('defaults when storage is empty, missing or throws: Bitcoin on Binance spot
 });
 test('settings saved before the grid (one coin) are read as one asset; invalid fields are ignored', () => {
   const store = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'eth', currency: 'EUR', brightness: 5 }) });
-  assert.deepEqual(createSettings(store).get(), { ...one('ETH', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red', chart: '1d' });
+  assert.deepEqual(createSettings(store).get(), { ...one('ETH', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
   const full = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'XRP', currency: 'USDT', brightness: 55 }) });
-  assert.deepEqual(createSettings(full).get(), { ...one('XRP', 'USDT'), columns: 0, brightness: 55, burnIn: true, palette: 'green-red', chart: '1d' });
+  assert.deepEqual(createSettings(full).get(), { ...one('XRP', 'USDT'), columns: 0, brightness: 55, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
 });
 test('update persists the merged settings', () => {
   const store = memory(); const settings = createSettings(store);
   assert.deepEqual(settings.update({ assets: [{ currency: 'USDT', ticker: 'BTC' }], brightness: 40 }), { saved: true });
-  assert.deepEqual(JSON.parse(store.getItem('coinboard-settings')), { ...one('BTC', 'USDT'), columns: 0, brightness: 40, burnIn: true, palette: 'green-red', chart: '1d' });
-  assert.deepEqual(createSettings(store).get(), { ...one('BTC', 'USDT'), columns: 0, brightness: 40, burnIn: true, palette: 'green-red', chart: '1d' });
+  assert.deepEqual(JSON.parse(store.getItem('coinboard-settings')), { ...one('BTC', 'USDT'), columns: 0, brightness: 40, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
+  assert.deepEqual(createSettings(store).get(), { ...one('BTC', 'USDT'), columns: 0, brightness: 40, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
 });
 test('a failed write still applies for this run', () => {
   const settings = createSettings({ getItem: () => null, setItem() { throw new Error('quota'); }, removeItem() {} });

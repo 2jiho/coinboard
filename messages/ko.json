@@ -147,5 +147,6 @@
   "list_kraken_usd": "크라켄 달러",
   "exchange_coinone": "코인원",
   "market_coinone_krw": "원화 · 코인원",
-  "list_coinone_krw": "코인원 원화"
+  "list_coinone_krw": "코인원 원화",
+  "clock": "시계"
 }

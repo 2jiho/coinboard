@@ -177,5 +177,6 @@
   "list_kraken_usd": "Kraken USD",
   "exchange_coinone": "Coinone",
   "market_coinone_krw": "Coinone · KRW",
-  "list_coinone_krw": "Coinone KRW"
+  "list_coinone_krw": "Coinone KRW",
+  "clock": "Clock"
 }

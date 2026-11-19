@@ -19,7 +19,7 @@
   import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
   let { settings, canAdd, ticks, status, wake, versionLabel, updateReady, install = null, installDismissed = false,
-    onInstall = () => {}, onDismissInstall = () => {}, pipSupported = false, pipOpen = false, onPip = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+    onInstall = () => {}, onDismissInstall = () => {}, pipSupported = false, pipOpen = false, onPip = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onClock = () => {}, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel;
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
@@ -391,6 +391,10 @@
             <ToggleGroupItem {value} data-value={value} class="h-auto min-h-10 rounded-[10px] px-0.5 py-1.5 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm">{label()}</ToggleGroupItem>
           {/each}
         </ToggleGroup>
+      </div>
+      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
+        <label for="admin-clock">{m.clock()}</label>
+        <Switch id="admin-clock" size="lg" checked={settings.clock} onCheckedChange={value => onClock(value)} />
       </div>
       <div class="flex flex-col gap-2 px-4 pt-3 pb-3.5">
         <span id="admin-palette-label">{m.palette()}</span>

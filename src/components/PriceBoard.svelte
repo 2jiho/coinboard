@@ -205,6 +205,17 @@
     return () => { boardObserver.disconnect(); priceObserver.disconnect(); view.removeEventListener('resize', fit); view.removeEventListener('online', retryIcons); };
   });
 
+  // The time, as hours and minutes, renewed on the minute. The device's own clock and time zone.
+  const timeFormat = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  let now = $state(timeFormat.format(new Date()));
+  $effect(() => {
+    if (!settings.clock) return;
+    let timer;
+    const next = () => { now = timeFormat.format(new Date()); timer = setTimeout(next, 60000 - Date.now() % 60000 + 50); };
+    next();
+    return () => clearTimeout(timer);
+  });
+
   // Burn-in protection: once a minute pick a new spot close to the centre; the
   // CSS transition makes the move take the whole minute. Switched off, the
   // board sits exactly in the middle.
@@ -282,6 +293,11 @@
       {/if}
     </div>
   </div>
+  <!-- The time, small and quiet in the top-right corner. It floats with the
+       board against burn-in, and is dimmed with it. -->
+  {#if settings.clock}
+    <time id="clock" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y}px)">{now}</time>
+  {/if}
   <!-- Brightness: a black veil over the whole board, charts and all. Only its
        opacity changes, which the screen composes without redrawing the board,
        so a brightness swipe follows the finger smoothly. Black over black stays
