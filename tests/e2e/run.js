@@ -113,6 +113,15 @@ const live = page => page.waitForFunction(() => {
 });
 // waitForFunction treats an async predicate's Promise as truthy at once, so
 // async conditions are polled from here instead.
+// Like until, for a page on the test clock: the clock is run a second at a
+// time while waiting, for what waits its turn behind Upbit's other requests.
+async function untilTicking(page, predicate, arg) {
+  for (let step = 0; step < 60; step += 1) {
+    if (await page.evaluate(predicate, arg)) return;
+    await page.clock.runFor(1000);
+  }
+  throw new Error('Condition not met within 60 seconds of the test clock');
+}
 async function until(page, predicate, arg) {
   for (const deadline = Date.now() + 30000; Date.now() < deadline;) {
     if (await page.evaluate(predicate, arg)) return;
@@ -1164,9 +1173,8 @@ async function chart(browser, base) {
   const page = await context.newPage(); const problems = watch(page);
   // The test clock: Upbit's ten seconds between requests pass at once.
   await page.clock.install(); await page.goto(base); await live(page);
-  await page.clock.runFor(12000);
   // On by default, for a day: the chart behind the lower screen, coloured as the change, with its period.
-  await page.locator('#board-chart .spark').waitFor();
+  await untilTicking(page, () => !!document.querySelector('#board-chart .spark'));
   assert.match(asked[0], /candles\/minutes\/15\?market=KRW-BTC&count=97$/);
   // The day's candles rose, but the change shown is -2.50%: the chart takes the change's colour, so the two agree.
   assert.equal(await page.locator('#board-chart .spark').getAttribute('class'), 'spark down');
@@ -1180,20 +1188,17 @@ async function chart(browser, base) {
   assert.equal(await page.locator('#board-chart .spark-point').count(), 1);
   assert.equal(await page.locator('#board-chart .spark-ring').count(), 0, 'no ring before the price moves');
   await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98600000 }));
-  await page.clock.runFor(3100);
-  await page.locator('#board-chart .spark-ring').waitFor({ state: 'attached' });
+  await untilTicking(page, () => !!document.querySelector('#board-chart .spark-ring'));
   assert.deepEqual(await page.locator('#board-chart .spark-ring').evaluate(el => [el.className, el.dataset.strength, getComputedStyle(el).animationName]), ['spark-ring up', '3', 'spark-ring']);
   await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98590000 }));
-  await page.clock.runFor(3100);
-  await until(page, () => document.querySelector('#board-chart .spark-ring')?.className === 'spark-ring down');
+  await untilTicking(page, () => document.querySelector('#board-chart .spark-ring')?.className === 'spark-ring down');
   assert.equal(await page.locator('#board-chart .spark-ring').getAttribute('data-strength'), '1', 'a slight move, a small ring');
   // Another period asks for other candles; off takes the chart away.
   await open(page);
   assert.equal(await chosen(page, '#admin-chart'), '1d');
   assert.deepEqual(await page.locator('#admin-chart [data-value]').allTextContents(), ['끔', '15분', '1시간', '1일', '1주', '1달']);
   await choose(page, '#admin-chart', '1w');
-  await page.clock.runFor(12000);
-  await until(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
+  await untilTicking(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
   assert.match(asked.at(-1), /candles\/minutes\/60\?market=KRW-BTC&count=169$/);
   assert.equal((await saved(page)).chart, '1w');
   await choose(page, '#admin-chart', 'off');
@@ -1202,8 +1207,7 @@ async function chart(browser, base) {
   await choose(page, '#admin-chart', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   // The new coin's candles wait their turn behind Upbit's other requests: let the test clock run until they come.
-  for (let step = 0; step < 40 && await page.evaluate(() => document.querySelectorAll('#chart-grid .spark').length) < 2; step += 1) await page.clock.runFor(1000);
-  await until(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
+  await untilTicking(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
   assert.ok(await page.evaluate(chartsHold), 'cell charts hold still, below their prices and clear of the lines between cells however the grid floats');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(evidence, 'chart.png') });
