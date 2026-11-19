@@ -119,6 +119,14 @@ body {
    screen (see PriceBoard.svelte), so these are design pixels, not screen pixels. */
 /* Centred in the usable screen, inside any notch or system bar. */
 #stage { position: fixed; inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); display: flex; justify-content: center; align-items: center; overflow: hidden; }
+/* The clock: the top-right corner of the board, in a quiet grey that still
+   reads across a room. Its size follows the screen's short side. */
+#clock {
+  position: absolute; top: 1.4vmin; right: 2.2vmin; z-index: 2;
+  font-size: clamp(17px, 3.6vmin, 40px); font-weight: 600; line-height: 1; letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums; color: #aeaeb2;
+  transition: transform 60s linear; pointer-events: none;
+}
 /* The brightness veil (PriceBoard.svelte): on top of the board, under the controls. */
 #dim { position: absolute; inset: 0; z-index: 10; background: #000; pointer-events: none; will-change: opacity; }
 /* Burn-in protection: the board floats slowly towards a new spot every minute. */

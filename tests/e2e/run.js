@@ -393,7 +393,7 @@ async function board(browser, base, flags) {
   assert.equal(await brightnessThumb.getAttribute('aria-valuenow'), '50');
   assert.equal(await shownBrightness(page), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: '1d' });
+  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
   // Up and down colours: green and red, or the Korean red and blue.
   const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
@@ -1248,6 +1248,33 @@ async function lockedStorage(browser, base) {
   console.log('PASS locked storage: defaults, live price, unsaved change applies for the session');
 }
 
+async function clockShown(browser, base) {
+  // The time in the top-right corner, from the device's own clock and time zone, renewed on the minute; switched off in settings.
+  const context = await browser.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'Asia/Seoul' }); await scripted(context);
+  const page = await context.newPage(); const problems = watch(page);
+  await page.clock.install({ time: new Date('2026-11-19T14:32:50+09:00') });
+  await page.goto(base); await live(page);
+  assert.equal(await text(page, '#clock'), '14:32');
+  const box = await page.locator('#clock').boundingBox();
+  assert.ok(box.x + box.width > 1180 - 80 && box.y < 40, 'top-right corner');
+  const price = await page.locator('#price-main').boundingBox(), head = await page.locator('#board-head').boundingBox();
+  assert.ok(box.y + box.height < head.y && box.y + box.height < price.y, 'clear of the coin line and the price');
+  await page.clock.runFor(15000);
+  assert.equal(await text(page, '#clock'), '14:33', 'renewed on the minute');
+  // It floats with the board when burn-in protection is on.
+  assert.equal(await page.locator('#clock').evaluate(el => el.style.transform.startsWith('translate(')), true);
+  await open(page);
+  assert.equal(await page.locator('#admin-clock').getAttribute('aria-checked'), 'true');
+  await page.locator('#admin-clock').click();
+  assert.equal(await page.locator('#clock').count(), 0);
+  assert.equal((await saved(page)).clock, false);
+  await page.locator('#admin-clock').click();
+  assert.equal(await text(page, '#clock'), '14:33');
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log('PASS clock: the time in the top-right corner, from the device clock, renewed on the minute, floating with the board, switched off and on in settings');
+}
+
 async function swipeBrightness(browser, base) {
   // A tablet: the board cannot be zoomed, and a finger drawn up or down it sets the brightness.
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true }); await scripted(context);
@@ -1517,7 +1544,7 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
 // against its own server. A failure is reported with the scenario's name;
 // the others still run.
-const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, clockShown, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
 // E2E_ONLY=chart,board runs just those.
 const only = process.env.E2E_ONLY?.split(',');
