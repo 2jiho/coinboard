@@ -191,7 +191,7 @@
     return () => { for (const element of watched) priceObserver.unobserve(element); };
   });
   // Another layout (one asset or a grid, or another count): measure once it is drawn.
-  $effect(() => { assets.length; grid; layout.rows; layout.columns; settings.chart; flushed().then(() => { fit(); fitPrice(); }); });
+  $effect(() => { assets.length; grid; layout.rows; layout.columns; settings.chart; settings.clock; flushed().then(() => { fit(); fitPrice(); }); });
   onMount(() => {
     const boardObserver = new ResizeObserver(fit);
     boardObserver.observe(container);
@@ -229,7 +229,7 @@
   });
 </script>
 
-<div id="stage">
+<div id="stage" class:clock-band={grid && settings.clock}>
   <!-- The charts, held still behind the floating board: one across the lower
        screen, or one in the lower part of each grid cell. -->
   {#if settings.chart !== 'off'}

@@ -121,12 +121,19 @@ body {
 #stage { position: fixed; inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); display: flex; justify-content: center; align-items: center; overflow: hidden; }
 /* The clock: the top-right corner of the board, in a quiet grey that still
    reads across a room. Its size follows the screen's short side. */
+#stage { --clock-size: clamp(22px, 5.6vmin, 64px); --clock-top: 1.6vmin; }
 #clock {
-  position: absolute; top: 1.4vmin; right: 2.2vmin; z-index: 2;
-  font-size: clamp(17px, 3.6vmin, 40px); font-weight: 600; line-height: 1; letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums; color: #aeaeb2;
+  position: absolute; top: var(--clock-top); right: 2.4vmin; z-index: 2;
+  font-size: var(--clock-size); font-weight: 600; line-height: 1; letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums; color: #c7c7cc;
   transition: transform 60s linear; pointer-events: none;
 }
+/* In the grid the cells reach the top of the screen, so with the clock on
+   they start below a band as tall as the clock, and its top row's coin
+   line never meets it. (One asset has room enough above its coin line.) */
+#stage.clock-band { --clock-band: calc(var(--clock-top) * 2 + var(--clock-size)); }
+#stage.clock-band #container.is-grid { box-sizing: border-box; padding-top: var(--clock-band); }
+#stage.clock-band #chart-grid { top: var(--clock-band); }
 /* The brightness veil (PriceBoard.svelte): on top of the board, under the controls. */
 #dim { position: absolute; inset: 0; z-index: 10; background: #000; pointer-events: none; will-change: opacity; }
 /* Burn-in protection: the board floats slowly towards a new spot every minute. */
