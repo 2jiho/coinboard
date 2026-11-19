@@ -1274,9 +1274,20 @@ async function clockShown(browser, base) {
   assert.equal((await saved(page)).clock, false);
   await page.locator('#admin-clock').click();
   assert.equal(await text(page, '#clock'), '14:33');
+  await page.keyboard.press('Escape');
+  // In the grid the cells start below a band as tall as the clock: no coin line meets it, and the charts start with the cells.
+  const grid = await context.newPage(); const gridProblems = watch(grid);
+  await grid.addInitScript(() => localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT', ticker: 'BTC' }, { currency: 'USDT', ticker: 'ETH' }], clock: true })));
+  await grid.goto(base);
+  await grid.waitForFunction(() => document.querySelectorAll('.cell .price').length === 4 && [...document.querySelectorAll('.cell .price')].every(price => price.textContent !== '—'));
+  assert.ok(await grid.evaluate(() => {
+    const clock = document.getElementById('clock').getBoundingClientRect(), first = document.querySelector('.cell').getBoundingClientRect();
+    return first.top >= clock.bottom && [...document.querySelectorAll('.cell-head')].every(head => head.getBoundingClientRect().top > clock.bottom);
+  }), 'the grid starts below the clock');
+  assert.deepEqual(gridProblems, []);
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS clock: the time in the top-right corner, from the device clock, renewed on the minute, floating with the board, switched off and on in settings');
+  console.log('PASS clock: the time in the top-right corner, from the device clock, renewed on the minute, floating with the board, the grid starting below it, switched off and on in settings');
 }
 
 async function swipeBrightness(browser, base) {
