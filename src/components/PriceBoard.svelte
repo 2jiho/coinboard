@@ -293,7 +293,7 @@
       {/if}
     </div>
   </div>
-  <!-- The time, small and quiet in the top-right corner. It floats with the
+  <!-- The time, centred at the top. It floats with the
        board against burn-in, and is dimmed with it. -->
   {#if settings.clock}
     <time id="clock" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y}px)">{now}</time>

@@ -119,11 +119,11 @@ body {
    screen (see PriceBoard.svelte), so these are design pixels, not screen pixels. */
 /* Centred in the usable screen, inside any notch or system bar. */
 #stage { position: fixed; inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); display: flex; justify-content: center; align-items: center; overflow: hidden; }
-/* The clock: the top-right corner of the board, in a quiet grey that still
-   reads across a room. Its size follows the screen's short side. */
-#stage { --clock-size: clamp(22px, 5.6vmin, 64px); --clock-top: 1.6vmin; }
+/* The clock: centred at the top of the board, in a grey that reads across a
+   room. Its size follows the screen's short side. */
+#stage { --clock-size: clamp(26px, 7.2vmin, 84px); --clock-top: 1.6vmin; }
 #clock {
-  position: absolute; top: var(--clock-top); right: 2.4vmin; z-index: 2;
+  position: absolute; top: var(--clock-top); left: 0; right: 0; text-align: center; z-index: 2;
   font-size: var(--clock-size); font-weight: 600; line-height: 1; letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums; color: #c7c7cc;
   transition: transform 60s linear; pointer-events: none;

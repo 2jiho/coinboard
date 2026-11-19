@@ -37,7 +37,7 @@ function readAssets(list) {
 export function createSettings(storage) {
   // columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
   // chart: the period of the chart behind the board ("off" for none).
-  // clock: the time, small, in the board's top-right corner.
+  // clock: the time, centred at the top of the board.
   const settings = { assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: "1d", clock: true };
   try {
     const saved = JSON.parse(storage.getItem(KEY));
