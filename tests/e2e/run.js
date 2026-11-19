@@ -1253,14 +1253,15 @@ async function lockedStorage(browser, base) {
 }
 
 async function clockShown(browser, base) {
-  // The time in the top-right corner, from the device's own clock and time zone, renewed on the minute; switched off in settings.
+  // The time at the top centre, from the device's own clock and time zone, renewed on the minute; switched off in settings.
   const context = await browser.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'Asia/Seoul' }); await scripted(context);
   const page = await context.newPage(); const problems = watch(page);
   await page.clock.install({ time: new Date('2026-11-19T14:32:50+09:00') });
   await page.goto(base); await live(page);
   assert.equal(await text(page, '#clock'), '14:32');
-  const box = await page.locator('#clock').boundingBox();
-  assert.ok(box.x + box.width > 1180 - 80 && box.y < 40, 'top-right corner');
+  // Its figures, centred at the top.
+  const box = await page.locator('#clock').evaluate(el => { const range = document.createRange(); range.selectNodeContents(el); const r = range.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+  assert.ok(Math.abs(box.x + box.width / 2 - 1180 / 2) <= 1180 * 0.03 + 2 && box.y < 40, 'top centre');
   const price = await page.locator('#price-main').boundingBox(), head = await page.locator('#board-head').boundingBox();
   assert.ok(box.y + box.height < head.y && box.y + box.height < price.y, 'clear of the coin line and the price');
   await page.clock.runFor(15000);
@@ -1287,7 +1288,7 @@ async function clockShown(browser, base) {
   assert.deepEqual(gridProblems, []);
   assert.deepEqual(problems, []);
   await context.close();
-  console.log('PASS clock: the time in the top-right corner, from the device clock, renewed on the minute, floating with the board, the grid starting below it, switched off and on in settings');
+  console.log('PASS clock: the time at the top centre, from the device clock, renewed on the minute, floating with the board, the grid starting below it, switched off and on in settings');
 }
 
 async function swipeBrightness(browser, base) {
