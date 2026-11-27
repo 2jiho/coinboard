@@ -107,3 +107,23 @@ test('the chart period is kept when valid, and off is a choice', () => {
   store.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'USDT', ticker: 'BTC' }], chart: '2y' }));
   assert.equal(createSettings(store).get().chart, '1d');
 });
+test('reset brings back a new board: the defaults, and nothing saved', () => {
+  const store = memory({ 'coinboard-hint-seen': '1' }); const settings = createSettings(store);
+  settings.update({ assets: [{ currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT', ticker: 'SOL' }], columns: 2, brightness: 40, burnIn: false, palette: 'red-blue', chart: 'off', clock: false });
+  assert.deepEqual(settings.reset(), { saved: true });
+  assert.deepEqual(settings.get(), defaults);
+  assert.equal(store.getItem('coinboard-settings'), null);
+  assert.deepEqual(createSettings(store).get(), defaults);
+  // Only the settings: what else the board remembers stays.
+  assert.equal(store.getItem('coinboard-hint-seen'), '1');
+  // Changed again after a reset, it is saved as before.
+  settings.update({ clock: false });
+  assert.equal(createSettings(store).get().clock, false);
+});
+test('a reset that cannot be written still applies for this run', () => {
+  const settings = createSettings({ getItem: () => null, setItem() {}, removeItem() { throw new Error('denied'); } });
+  settings.update({ brightness: 30, chart: 'off' });
+  assert.deepEqual(settings.reset(), { saved: false });
+  assert.deepEqual(settings.get(), defaults);
+  assert.deepEqual(createSettings(null).reset(), { saved: false });
+});

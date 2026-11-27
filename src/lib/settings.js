@@ -34,11 +34,13 @@ function readAssets(list) {
   }
   return assets;
 }
+// A new board's settings.
+// columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
+// chart: the period of the chart behind the board ("off" for none).
+// clock: the time, centred at the top of the board.
+const defaults = () => ({ assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: "1d", clock: true });
 export function createSettings(storage) {
-  // columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
-  // chart: the period of the chart behind the board ("off" for none).
-  // clock: the time, centred at the top of the board.
-  const settings = { assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: "1d", clock: true };
+  const settings = defaults();
   try {
     const saved = JSON.parse(storage.getItem(KEY));
     if (saved && typeof saved === "object") {
@@ -68,5 +70,12 @@ export function createSettings(storage) {
     try { storage.setItem(KEY, JSON.stringify(settings)); return { saved: true }; }
     catch (error) { return { saved: false }; }
   }
-  return { get, update, normalizeTicker };
+  // Back to a new board: the defaults, and nothing saved, so the next start
+  // reads a new board's defaults too. A failed removal still applies for this run.
+  function reset() {
+    Object.assign(settings, defaults());
+    try { storage.removeItem(KEY); return { saved: true }; }
+    catch (error) { return { saved: false }; }
+  }
+  return { get, update, reset, normalizeTicker };
 }
