@@ -266,6 +266,16 @@
     feed.select(settings.assets);
   }
   function changeAssets(assets) { save({ assets }); applySelection(); }
+  // Back to a new board's settings, applied at once. Only the settings go:
+  // the hint and the install offer keep their own state.
+  function resetSettings() {
+    const { saved } = store.reset();
+    settings = store.get();
+    previewBrightness = null;
+    applySelection();
+    wakeLock.setEnabled(settings.keepAwake);
+    showToast(saved ? m.settings_reset_done() : m.toast_not_saved());
+  }
   const canAdd = $derived(settings.assets.length < MAX_ASSETS);
   // A new asset, chosen in the add form. '' when added, or why not.
   function addAsset(next) {
@@ -419,6 +429,7 @@
     onChart={chart => save({ chart })}
     onPeriod={period => save({ period })}
     onClock={clock => save({ clock })}
+    onReset={resetSettings}
     onRetryFeed={() => feed.retry()}
     loadTickers={currency => markets.load(currency)} />
 {/if}

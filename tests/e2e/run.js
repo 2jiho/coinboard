@@ -1397,6 +1397,61 @@ async function narrowPanel(browser, base) {
   console.log('PASS narrow panel: at 360 px, in Korean and English, nothing in settings is cut off');
 }
 
+async function resetSettings(browser, base) {
+  // Back to a new board's settings: one press only asks; a second, within a few seconds, does it.
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true }); await scripted(context);
+  await context.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1'); localStorage.setItem('coinboard-hint-seen', '1');
+    localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT', ticker: 'SOL' }],
+      columns: 1, brightness: 40, burnIn: false, palette: 'red-blue', chart: false, period: '1w', clock: false, keepAwake: false }));
+  });
+  const page = await context.newPage(); const problems = watch(page);
+  await page.clock.install(); await page.goto(base);
+  await page.waitForFunction(() => document.querySelectorAll('.cell').length === 3);
+  await open(page);
+  const reset = page.locator('#settings-reset');
+  assert.equal((await text(page, '#settings-reset')).trim(), '설정 초기화');
+  assert.equal(await page.locator('#settings-reset-hint').isVisible(), false);
+  await reset.click();
+  assert.equal((await text(page, '#settings-reset')).trim(), '한 번 더 누르면 초기화');
+  assert.equal(await text(page, '#settings-reset-hint'), '코인 목록과 모든 설정이 처음 상태로 돌아갑니다.');
+  assert.equal((await saved(page)).assets.length, 3, 'one press changes nothing');
+  // Left alone, it asks no more.
+  await page.clock.runFor(4100);
+  assert.equal((await text(page, '#settings-reset')).trim(), '설정 초기화');
+  assert.equal(await page.locator('#settings-reset-hint').isVisible(), false);
+  // While editing, two presses: a new board's settings at once, the panel still open on them.
+  await page.locator('#asset-edit').click();
+  await reset.click(); await reset.click();
+  assert.equal(await page.evaluate(() => localStorage.getItem('coinboard-settings')), null, 'nothing saved: the next start is a new board too');
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: '설정을 초기화했습니다' }).count(), 1);
+  assert.equal(await page.locator('#admin-panel').isVisible(), true);
+  assert.deepEqual(await page.locator('.asset-ticker').allTextContents(), ['BTC']);
+  assert.equal(await page.locator('#asset-edit, .asset-delete').count(), 0, 'one asset: nothing to edit');
+  assert.equal(await page.locator('#admin-chart').getAttribute('aria-checked'), 'true');
+  assert.equal(await chosen(page, '#admin-period'), '1d');
+  assert.equal(await page.locator('#admin-clock').getAttribute('aria-checked'), 'true');
+  assert.equal(await page.locator('#admin-burn-in').getAttribute('aria-checked'), 'true');
+  assert.equal(await chosen(page, '#admin-palette'), 'green-red');
+  assert.equal(await text(page, '#brightness-value'), '100%');
+  assert.equal((await text(page, '#settings-reset')).trim(), '설정 초기화');
+  // The board follows: Bitcoin on Binance spot, full brightness, the clock, the screen kept on.
+  await page.keyboard.press('Escape');
+  await page.clock.runFor(3000); await live(page);
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
+  assert.equal(await shownBrightness(page), 'brightness(100%)');
+  assert.equal(await page.locator('#clock').count(), 1);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('oled') && document.body.dataset.palette), 'green-red');
+  assert.equal(await page.locator('#wake-toggle').getAttribute('aria-pressed'), 'true');
+  await page.waitForFunction(() => document.getElementById('wake-toggle').dataset.kind === 'active');
+  // Only the settings go: what else the board remembers stays.
+  assert.equal(await page.evaluate(() => localStorage.getItem('coinboard-hint-seen')), '1');
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log("PASS reset: one press asks, two bring back a new board's settings at once (board, panel, screen kept on); the rest is kept");
+}
+
 async function swipeBrightness(browser, base) {
   // A tablet: the board cannot be zoomed, and a finger drawn up or down it sets the brightness.
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true }); await scripted(context);
@@ -1666,7 +1721,7 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
 // against its own server. A failure is reported with the scenario's name;
 // the others still run.
-const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, clockShown, narrowPanel, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, clockShown, narrowPanel, resetSettings, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
 // E2E_ONLY=chart,board runs just those.
 const only = process.env.E2E_ONLY?.split(',');

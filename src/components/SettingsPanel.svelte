@@ -19,11 +19,13 @@
   import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
   let { settings, canAdd, ticks, status, versionLabel, install = null, installDismissed = false,
-    onInstall = () => {}, onDismissInstall = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onPeriod = () => {}, onClock = () => {}, onRetryFeed, loadTickers } = $props();
+    onInstall = () => {}, onDismissInstall = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onPeriod = () => {}, onClock = () => {}, onReset = () => {}, onRetryFeed, loadTickers } = $props();
 
   let panel;
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
   let brightness = $state(untrack(() => settings.brightness));
+  // Follows the setting when it changes from elsewhere (a reset).
+  $effect(() => { brightness = settings.brightness; });
   // The new asset's coin is a one-line choice: the listed coins, and
   // "직접 입력…", which opens a field for any other ticker.
   const OTHER = '__other';
@@ -140,6 +142,17 @@
     { key: 'green-red', label: m.palette_green_red, up: 'text-[#30d158]', down: 'text-[#ff453a]' },
     { key: 'red-blue', label: m.palette_red_blue, up: 'text-[#ff453a]', down: 'text-[#4b8dff]' },
   ];
+  // ---- Reset ----
+  // Back to a new board's settings. One press only asks (for a few seconds);
+  // a second does it, and the panel stays open on the defaults.
+  const RESET_CONFIRM_MS = 4000;
+  let confirmingReset = $state(false), resetTimer;
+  function pressReset() {
+    clearTimeout(resetTimer);
+    if (!confirmingReset) { confirmingReset = true; resetTimer = setTimeout(() => { confirmingReset = false; }, RESET_CONFIRM_MS); return; }
+    confirmingReset = false; editing = false; adding = false;
+    onReset();
+  }
   // ---- Help ----
   // A short guide in place of the settings, and back. Focus goes to the way back
   // and returns to the help button, so a keyboard does not lose its place.
@@ -175,7 +188,7 @@
     // The close button is a component: find its element in the panel.
     panel.querySelector('#admin-close')?.focus();
     document.addEventListener('keydown', onKeydown);
-    return () => document.removeEventListener('keydown', onKeydown);
+    return () => { document.removeEventListener('keydown', onKeydown); clearTimeout(resetTimer); };
   });
 </script>
 
@@ -414,6 +427,13 @@
       </div>
     </div>
   </section>
+
+  <!-- A reset, apart from the settings it undoes. The line below says what goes while it asks. -->
+  <div class="flex flex-col gap-2">
+    <button id="settings-reset" type="button" class="flex min-h-12 w-full items-center justify-center rounded-2xl px-4 text-[15px] font-medium text-destructive outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring {confirmingReset ? 'bg-destructive/15' : 'bg-card hover:bg-[color-mix(in_oklab,var(--card),white_6%)]'}"
+      aria-describedby="settings-reset-hint" onclick={pressReset}>{confirmingReset ? m.settings_reset_confirm() : m.settings_reset()}</button>
+    <p id="settings-reset-hint" class="px-1 text-[13px] leading-snug text-muted-foreground empty:hidden" role="status">{confirmingReset ? m.settings_reset_hint() : ''}</p>
+  </div>
 
   <footer class="flex items-center justify-between px-1">
     <div class="flex items-center gap-2.5">
