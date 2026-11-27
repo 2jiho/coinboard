@@ -1,6 +1,6 @@
 <script>
   // Wires settings, the market feed, the wake lock and the updater to the
-  // board, and owns the one quiet control: the settings button.
+  // board, and owns the quiet controls: the settings button and those beside it.
   import { onMount, mount, unmount, untrack, tick as flushed } from 'svelte';
   import PriceBoard from './components/PriceBoard.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
@@ -231,9 +231,9 @@
 
   // Keeping the screen on, as its button beside the settings button says it:
   // on (and how it is going), switched off, or in trouble.
-  const WAKE_STATES = { active: m.wake_state_active, pending: m.wake_state_pending, waiting: m.wake_state_waiting, released: m.wake_state_off, failed: m.wake_state_off, unsupported: m.wake_state_unsupported, off: m.wake_state_disabled };
-  const wakeTrouble = $derived(settings.keepAwake && (wake.kind === 'released' || wake.kind === 'failed'));
-  const wakeName = $derived(wakeTrouble ? m.wake_retry() : `${m.wake_label()} · ${(WAKE_STATES[wake.kind] ?? m.wake_state_pending)()}`);
+  // Its name stays the same; how it is going is its description (and title).
+  const WAKE_STATES = { active: m.wake_state_active, pending: m.wake_state_pending, waiting: m.wake_state_waiting, released: m.wake_state_retry, failed: m.wake_state_retry, unsupported: m.wake_state_unsupported, off: m.wake_state_disabled };
+  const wakeState = $derived((WAKE_STATES[wake.kind] ?? m.wake_state_pending)());
   // A press switches it on or off. In trouble it tries again instead, and says
   // why it stopped; where the browser cannot keep the screen on, it says so.
   // The press's own pointerdown already asks again (wake-lock.js), so the
@@ -242,8 +242,9 @@
   function pressWake(event) {
     const before = event.detail > 0 && wakeAtPress ? wakeAtPress : { kind: wake.kind, message: wake.message };
     wakeAtPress = null;
-    if (before.kind === 'unsupported') { showToast(before.message); return; }
-    if (settings.keepAwake && (before.kind === 'released' || before.kind === 'failed')) { wakeLock.retry(); showToast(before.message); return; }
+    // A reason takes longer to read than a state.
+    if (before.kind === 'unsupported') { showToast(before.message, 5000); return; }
+    if (settings.keepAwake && (before.kind === 'released' || before.kind === 'failed')) { wakeLock.retry(); showToast(before.message, 5000); return; }
     const keepAwake = !settings.keepAwake;
     save({ keepAwake });
     wakeLock.setEnabled(keepAwake);
@@ -251,7 +252,7 @@
   }
 
   // A short message at the bottom of the screen (a toast).
-  function showToast(message) { toast(message, { duration: 2500 }); }
+  function showToast(message, duration = 2500) { toast(message, { duration }); }
   function save(patch) {
     const { saved } = store.update(patch);
     settings = store.get();
@@ -434,24 +435,28 @@
     loadTickers={currency => markets.load(currency)} />
 {/if}
 <!-- The quiet controls, shown together on a tap: what is not a setting sits beside the settings button. -->
+<!-- Settings first: it sits in the corner (the row runs right to left) and is
+     the one a Tab reaches first; the others follow outwards from the corner.
+     Icons are keyed: the icon component draws once and does not follow a change. -->
 <div id="board-controls">
+  <button id="settings-toggle" class="board-button" bind:this={toggleButton} type="button" aria-label={m.settings_open()} title={m.settings_open()} aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
+  </button>
+  <button id="wake-toggle" class="board-button" type="button" data-kind={wake.kind} aria-pressed={settings.keepAwake} aria-label={m.wake_label()} aria-describedby="wake-toggle-state" title="{m.wake_label()} · {wakeState}"
+    onpointerdown={() => { wakeAtPress = { kind: wake.kind, message: wake.message }; }} onclick={pressWake}>
+    {#key settings.keepAwake}<HugeiconsIcon icon={settings.keepAwake ? MonitorIcon : MonitorOffIcon} strokeWidth={1.8} />{/key}
+  </button>
+  <span id="wake-toggle-state" hidden>{wakeState}</span>
+  {#if pipSupported}
+    <button id="pip-toggle" class="board-button" type="button" aria-label={pipWindow ? m.pip_close() : m.pip_open()} title={pipWindow ? m.pip_close() : m.pip_open()} onclick={togglePip}>
+      {#key !!pipWindow}<HugeiconsIcon icon={pipWindow ? PictureInPictureExitIcon : PictureInPictureOnIcon} strokeWidth={1.8} />{/key}
+    </button>
+  {/if}
   {#if updateReady}
     <button id="app-update" class="board-button" type="button" aria-label={m.update_now()} title={m.update_now()} onclick={() => updater.reload()}>
       <HugeiconsIcon icon={RefreshIcon} strokeWidth={1.8} />
     </button>
   {/if}
-  {#if pipSupported}
-    <button id="pip-toggle" class="board-button" type="button" aria-label={pipWindow ? m.pip_close() : m.pip_open()} title={pipWindow ? m.pip_close() : m.pip_open()} aria-pressed={!!pipWindow} onclick={togglePip}>
-      <HugeiconsIcon icon={pipWindow ? PictureInPictureExitIcon : PictureInPictureOnIcon} strokeWidth={1.8} />
-    </button>
-  {/if}
-  <button id="wake-toggle" class="board-button" type="button" data-kind={wake.kind} aria-pressed={settings.keepAwake} aria-label={wakeName} title={wakeName}
-    onpointerdown={() => { wakeAtPress = { kind: wake.kind, message: wake.message }; }} onclick={pressWake}>
-    <HugeiconsIcon icon={settings.keepAwake ? MonitorIcon : MonitorOffIcon} strokeWidth={1.8} />
-  </button>
-  <button id="settings-toggle" class="board-button" bind:this={toggleButton} type="button" aria-label={m.settings_open()} title={m.settings_open()} aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
-  </button>
 </div>
 <!-- Messages sit above the row of buttons in the corner (48 px, 16 px in), never over them. -->
 <Toaster position="bottom-center" offset={{ bottom: 'calc(80px + var(--safe-bottom))' }} mobileOffset={{ bottom: 'calc(80px + var(--safe-bottom))' }} />

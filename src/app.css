@@ -343,13 +343,14 @@ body.settings-open #status-dot { visibility: hidden; }
 .toaster { --normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border); }
 
 /* The quiet controls on the board: a row of round buttons in the bottom-right
-   corner, settings last (in the corner itself). The row takes no taps of its
-   own, so the gaps between the buttons are still the board. */
+   corner, settings in the corner itself and the rest to its left (the row runs
+   right to left, as does focus). The row takes no taps of its own, so the gaps
+   between the buttons are still the board. */
 #board-controls {
   position: fixed;
   bottom: calc(16px + var(--safe-bottom));
   right: calc(16px + var(--safe-right));
-  display: flex; gap: 10px;
+  display: flex; flex-direction: row-reverse; gap: 10px;
   z-index: 1500; pointer-events: none;
 }
 .board-button {

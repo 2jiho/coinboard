@@ -213,12 +213,13 @@ async function board(browser, base, flags) {
   assert.doesNotMatch((await text(page, '#container')).replace(/[억만]/g, ''), /[가-힣]/);
   await page.screenshot({ path: path.join(evidence, 'board.png') });
 
-  // Keyboard: Tab reveals the buttons in the corner and focuses the first; settings is the last of them. Enter opens, focus is kept inside.
+  // Keyboard: Tab reveals the buttons in the corner and focuses settings, the one in the corner itself; Enter opens it, and focus is kept inside.
+  // The others follow from the corner outwards.
   await page.keyboard.press('Tab');
-  assert.deepEqual(await page.locator('#board-controls button').evaluateAll(els => els.map(el => el.id)), ['pip-toggle', 'wake-toggle', 'settings-toggle']);
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'pip-toggle');
-  await page.keyboard.press('Tab'); await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'settings-toggle');
+  const order = await page.locator('#board-controls button').evaluateAll(els => els.map(el => [el.id, Math.round(el.getBoundingClientRect().x)]));
+  assert.deepEqual(order.map(([id]) => id), ['settings-toggle', 'wake-toggle', 'pip-toggle']);
+  assert.ok(order[0][1] > order[1][1] && order[1][1] > order[2][1], 'settings in the corner, the others to its left in focus order');
   await page.clock.fastForward(6000);
   assert.equal(await page.locator('#settings-toggle').isVisible(), true);
   await page.keyboard.press('Enter');
@@ -257,8 +258,12 @@ async function board(browser, base, flags) {
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.getElementById('wake-toggle')?.dataset.kind === 'active');
   const wakeButton = page.locator('#wake-toggle');
+  // One name, pressed or not; how it is going is its description (and its title, on hover).
+  assert.equal(await wakeButton.getAttribute('aria-label'), '화면 켜짐 유지');
   assert.equal(await wakeButton.getAttribute('aria-pressed'), 'true');
-  assert.equal(await wakeButton.getAttribute('aria-label'), '화면 켜짐 유지 · 작동 중');
+  const wakeState = () => wakeButton.evaluate(el => [el.title, document.getElementById(el.getAttribute('aria-describedby')).textContent]);
+  assert.deepEqual(await wakeState(), ['화면 켜짐 유지 · 작동 중', '작동 중']);
+  const iconOn = await wakeButton.locator('svg').innerHTML();
   await page.evaluate(() => { window.realWakeRequest = navigator.wakeLock.request; });
   await page.clock.runFor(10000);
   await page.evaluate(() => testSentinel.release());
@@ -270,19 +275,22 @@ async function board(browser, base, flags) {
   await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'warn');
   assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE\nSCREEN MAY SLEEP');
   assert.equal(await wakeButton.getAttribute('data-kind'), 'failed');
-  assert.equal(await wakeButton.getAttribute('aria-label'), '화면 켜짐 유지 다시 시도');
+  assert.deepEqual(await wakeState(), ['화면 켜짐 유지 · 꺼짐 · 누르면 다시 시도', '꺼짐 · 누르면 다시 시도']);
   await page.evaluate(() => { navigator.wakeLock.request = window.realWakeRequest; });
   await page.keyboard.press('Tab');
   await wakeButton.click();
   await page.waitForFunction(() => wakeRequests === 3 && document.getElementById('wake-toggle').dataset.kind === 'active');
   assert.equal(await page.locator('[data-sonner-toast]', { hasText: 'NotAllowedError' }).count(), 1, 'the press says why');
+  await page.clock.runFor(3500);
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: 'NotAllowedError' }).count(), 1, 'long enough to read the reason');
   assert.equal(await level(), 'ok');
   assert.notEqual((await saved(page)).keepAwake, false, 'trying again is not switching off');
   // Switched off: the lock is let go and not asked for again, not even on a tap; the dot does not warn, since that was chosen.
   await wakeButton.click();
   assert.equal(await wakeButton.getAttribute('aria-pressed'), 'false');
   assert.equal(await wakeButton.getAttribute('data-kind'), 'off');
-  assert.equal(await wakeButton.getAttribute('aria-label'), '화면 켜짐 유지 · 꺼 둠');
+  assert.deepEqual(await wakeState(), ['화면 켜짐 유지 · 꺼 둠', '꺼 둠']);
+  assert.notEqual(await wakeButton.locator('svg').innerHTML(), iconOn, 'the screen is crossed out');
   assert.equal(await page.evaluate(() => testSentinel.released), true);
   assert.equal(await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 꺼짐' }).count(), 1);
   assert.equal((await saved(page)).keepAwake, false);
@@ -304,6 +312,10 @@ async function board(browser, base, flags) {
   await page.waitForFunction(n => wakeRequests === n + 1 && document.getElementById('wake-toggle').dataset.kind === 'active', askedWhileOn);
   assert.equal(await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 켬' }).count(), 1);
   assert.equal((await saved(page)).keepAwake, true);
+  assert.equal(await wakeButton.locator('svg').innerHTML(), iconOn);
+  // A press leaves no hold on the buttons: untouched, they go after five seconds.
+  await page.clock.runFor(6000);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('controls-visible')), false, 'the buttons go after a press too');
 
   // Currency applies at once and the old amount is cleared first.
   // The board is one fixed size: a shorter or longer price, or none yet, does not resize it.
@@ -963,7 +975,8 @@ async function english(browser, base) {
   assert.doesNotMatch(await words(), hangul);
   assert.equal(await text(page, '#admin-title'), 'Settings');
   assert.equal(await page.locator('#settings-toggle').getAttribute('aria-label'), 'Open settings');
-  assert.equal(await page.locator('#wake-toggle').getAttribute('aria-label'), 'Keep Screen On · On');
+  assert.equal(await page.locator('#wake-toggle').getAttribute('aria-label'), 'Keep Screen On');
+  assert.equal(await page.locator('#wake-toggle').getAttribute('title'), 'Keep Screen On · On');
   // The add form, the columns row and a refusal, in English too.
   await page.locator('#asset-add').click();
   assert.deepEqual(await page.locator('#new-currency option').allTextContents(), ['Upbit · KRW', 'Bithumb · KRW', 'Coinone · KRW', 'Binance · USDT', 'Binance · USDT Perpetual', 'OKX · USDT', 'OKX · USDT Perpetual', 'Bybit · USDT', 'Bybit · USDT Perpetual', 'Coinbase · USD', 'Kraken · USD']);
@@ -1163,9 +1176,13 @@ async function popOut(browser, base) {
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
   const pip = () => page.evaluate(() => { const doc = window.documentPictureInPicture.window?.document; return doc && { price: doc.getElementById('price-main')?.textContent ?? null, head: doc.getElementById('board-head') ? doc.getElementById('coin').textContent + doc.getElementById('unit').textContent : null, cells: doc.querySelectorAll('.cell').length }; });
-  // A button beside the settings button; settings themselves have none.
-  await page.keyboard.press('Tab');
+  // A button beside the settings button; settings themselves have none. The click that reveals it does not press it.
   const pipButton = page.locator('#pip-toggle');
+  const pipAt = await pipButton.boundingBox();
+  await page.mouse.click(pipAt.x + 24, pipAt.y + 24);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('controls-visible')), true);
+  assert.equal(await page.evaluate(() => !!window.documentPictureInPicture.window), false, 'the revealing click opens nothing');
+  const pipIcon = await pipButton.locator('svg').innerHTML();
   assert.equal(await page.locator('#board-controls #pip-toggle').count(), 1);
   assert.equal(await pipButton.getAttribute('aria-label'), '작은 창으로 띄우기');
   assert.equal(await pipButton.getAttribute('title'), '작은 창으로 띄우기', 'named on hover too');
@@ -1173,6 +1190,7 @@ async function popOut(browser, base) {
   await pipButton.click();
   await page.waitForFunction(() => !!window.documentPictureInPicture.window?.document.getElementById('container'));
   assert.equal(await pipButton.getAttribute('aria-label'), '작은 창 닫기');
+  assert.notEqual(await pipButton.locator('svg').innerHTML(), pipIcon, 'its icon says it closes');
   // The same board as the tab, drawn to the small window.
   assert.deepEqual(await pip(), { price: '9800만', head: 'BTCKRW', cells: 0 });
   assert.equal(await page.evaluate(() => window.documentPictureInPicture.window.document.title), 'Coinboard');
@@ -1410,9 +1428,14 @@ async function narrowPanel(browser, base) {
     assert.deepEqual(rows, ['admin-columns', 'admin-brightness', 'admin-chart', 'admin-period', 'admin-clock', 'admin-palette', 'admin-burn-in'], locale + ' order');
     const choices = await page.locator('#admin-columns [data-value], #admin-period [data-value], #admin-palette [data-value]').evaluateAll(els => els.map(el => ({ value: el.dataset.value, height: Math.round(el.getBoundingClientRect().height), cut: el.scrollWidth > el.clientWidth + 1 })));
     assert.equal(choices.length, 7 + 5 + 2);
-    assert.deepEqual(choices.filter(choice => choice.height !== 40 || choice.cut), [], locale + ' every choice 40 px tall and whole');
+    assert.deepEqual(choices.filter(choice => choice.height !== 44 || choice.cut), [], locale + ' every choice 44 px tall (a full touch target) and whole');
     // The burn-in note is one line.
     assert.ok(await page.locator('#burn-in-hint').evaluate(el => el.getClientRects().length === 1 && el.getBoundingClientRect().height < 24), locale + ' one-line note');
+    // Deleting by keyboard keeps focus in the list: on the next delete button, then, with one asset left and editing over, on adding one.
+    await page.locator('.asset-delete').last().focus(); await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement.classList.contains('asset-delete')), true, locale + ' focus on the next delete button');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'asset-add', locale + ' focus on adding');
     assert.deepEqual(problems, []);
     await context.close();
   }
@@ -1443,9 +1466,11 @@ async function resetSettings(browser, base) {
   await page.clock.runFor(4100);
   assert.equal((await text(page, '#settings-reset')).trim(), '설정 초기화');
   assert.equal(await page.locator('#settings-reset-hint').isVisible(), false);
-  // While editing, two presses: a new board's settings at once, the panel still open on them.
+  // While editing, with the add form open, two presses: a new board's settings at once, the panel still open on them.
   await page.locator('#asset-edit').click();
+  await page.locator('#asset-add').click();
   await reset.click(); await reset.click();
+  assert.equal(await page.locator('#asset-new').count(), 0, 'the add form is closed');
   assert.equal(await page.evaluate(() => localStorage.getItem('coinboard-settings')), null, 'nothing saved: the next start is a new board too');
   assert.equal(await page.locator('[data-sonner-toast]', { hasText: '설정을 초기화했습니다' }).count(), 1);
   assert.equal(await page.locator('#admin-panel').isVisible(), true);

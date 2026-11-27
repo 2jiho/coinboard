@@ -80,6 +80,15 @@
   let rows = $state([]);
   let draggingId = $state(null);
   $effect(() => { const next = settings.assets.map(item => ({ id: keyOf(item), asset: item })); if (untrack(() => draggingId) === null) rows = next; });
+  // Deleting takes the focused button with its row: focus moves on to the next
+  // delete button, or, with one asset left and editing over, to adding one.
+  async function remove(index) {
+    onRemove(index);
+    await tick(); await tick();
+    if (panel.contains(document.activeElement)) return;
+    const deletes = panel.querySelectorAll('.asset-delete');
+    (deletes[Math.min(index, deletes.length - 1)] ?? panel.querySelector('#asset-add'))?.focus();
+  }
   function commitOrder() {
     const order = rows.map(row => row.asset);
     if (order.map(keyOf).join() !== settings.assets.map(keyOf).join()) onReorder(order);
@@ -134,9 +143,9 @@
   const PERIODS = [['15m', m.chart_15m], ['1h', m.chart_1h], ['1d', m.chart_1d], ['1w', m.chart_1w], ['1M', m.chart_1M]];
   let periodChoice = $state('1d');
   $effect(() => { periodChoice = settings.period; });
-  // Every button group looks alike: 40 px buttons in a dark track.
+  // Every button group looks alike: 44 px buttons (a full touch target) in a dark track.
   const SEGMENTS = 'grid w-full gap-1 rounded-[14px] bg-black/25 p-1';
-  const SEGMENT = 'h-10 rounded-[10px] px-1 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm';
+  const SEGMENT = 'h-11 rounded-[10px] px-1 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm';
   // The two colour pairs, as samples of themselves.
   const PALETTES = [
     { key: 'green-red', label: m.palette_green_red, up: 'text-[#30d158]', down: 'text-[#ff453a]' },
@@ -270,8 +279,8 @@
       {/if}
     </div>
     <!-- What the board shows: one asset large, or several in a grid. A card
-         per asset with its live price; drag the handle to reorder, swipe left
-         to remove, tap to edit. -->
+         per asset with its live price; in edit mode, a delete button and a
+         handle to drag in its place. -->
     <div class="overflow-hidden rounded-2xl bg-card" id="asset-list" role="group" aria-label={m.asset_list()}>
       <div class="relative">
         {#each rows as row (row.id)}
@@ -300,7 +309,7 @@
               </div>
               {#if editing}
                 <!-- Deleting is one tap; the toast that follows can undo it. The last asset stays. -->
-                <button type="button" class="asset-delete flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring" aria-label={m.asset_remove({ name: assetName(item) })} onclick={() => onRemove(index)}>
+                <button type="button" class="asset-delete flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring" aria-label={m.asset_remove({ name: assetName(item) })} onclick={() => remove(index)}>
                   <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} class="size-5" />
                 </button>
                 <span class="asset-handle flex size-11 shrink-0 cursor-grab items-center justify-center rounded-full text-muted-foreground outline-none [touch-action:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing" role="button" tabindex="0" data-drag-handle use:grab={row.id} aria-label={m.asset_reorder({ name: assetName(item) })}>
