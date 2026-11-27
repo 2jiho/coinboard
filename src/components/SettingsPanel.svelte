@@ -19,7 +19,7 @@
   import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
   let { settings, canAdd, ticks, status, wake, versionLabel, updateReady, install = null, installDismissed = false,
-    onInstall = () => {}, onDismissInstall = () => {}, pipSupported = false, pipOpen = false, onPip = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onClock = () => {}, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+    onInstall = () => {}, onDismissInstall = () => {}, pipSupported = false, pipOpen = false, onPip = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onPeriod = () => {}, onClock = () => {}, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
 
   let panel;
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
@@ -135,10 +135,10 @@
   $effect(() => { columnsChoice = String(settings.columns); });
   let paletteChoice = $state('green-red');
   $effect(() => { paletteChoice = settings.palette; });
-  // The line chart beside the change: off, or its period.
-  const CHARTS = [['off', m.chart_off], ['15m', m.chart_15m], ['1h', m.chart_1h], ['1d', m.chart_1d], ['1w', m.chart_1w], ['1M', m.chart_1M]];
-  let chartChoice = $state('1d');
-  $effect(() => { chartChoice = settings.chart; });
+  // The line chart behind the board: on or off, and the time it covers, kept while it is off.
+  const PERIODS = [['15m', m.chart_15m], ['1h', m.chart_1h], ['1d', m.chart_1d], ['1w', m.chart_1w], ['1M', m.chart_1M]];
+  let periodChoice = $state('1d');
+  $effect(() => { periodChoice = settings.period; });
   // The two colour pairs, as samples of themselves.
   const PALETTES = [
     { key: 'green-red', label: m.palette_green_red, up: 'text-[#30d158]', down: 'text-[#ff453a]' },
@@ -383,14 +383,19 @@
           <span class="size-2 shrink-0 rounded-full {WAKE[wake.kind]?.color ?? 'bg-muted-foreground'}" aria-hidden="true"></span>{(WAKE[wake.kind]?.label ?? m.wake_state_pending)()}
         </span>
       </div>
-      <div class="flex flex-col gap-2 border-b border-border px-4 pt-3 pb-3.5">
-        <span id="admin-chart-label">{m.chart()}</span>
-        <ToggleGroup type="single" spacing={1} id="admin-chart" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-6" bind:value={chartChoice} aria-labelledby="admin-chart-label"
-          onValueChange={value => { if (value) onChart(value); else tick().then(() => { chartChoice = settings.chart; }); }}>
-          {#each CHARTS as [value, label]}
-            <ToggleGroupItem {value} data-value={value} class="h-auto min-h-10 rounded-[10px] px-0.5 py-1.5 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm">{label()}</ToggleGroupItem>
-          {/each}
-        </ToggleGroup>
+      <div class="flex flex-col border-b border-border px-4">
+        <div class="flex min-h-14 items-center justify-between gap-3">
+          <label for="admin-chart">{m.chart()}</label>
+          <Switch id="admin-chart" size="lg" checked={settings.chart} onCheckedChange={value => onChart(value)} />
+        </div>
+        {#if settings.chart}
+          <ToggleGroup type="single" spacing={1} id="admin-period" class="mb-3.5 grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-5" bind:value={periodChoice} aria-label={m.chart_period()}
+            onValueChange={value => { if (value) onPeriod(value); else tick().then(() => { periodChoice = settings.period; }); }}>
+            {#each PERIODS as [value, label]}
+              <ToggleGroupItem {value} data-value={value} class="h-auto min-h-10 rounded-[10px] px-0.5 py-1.5 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm">{label()}</ToggleGroupItem>
+            {/each}
+          </ToggleGroup>
+        {/if}
       </div>
       <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
         <label for="admin-clock">{m.clock()}</label>

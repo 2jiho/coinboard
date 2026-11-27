@@ -148,7 +148,7 @@
       if (!inner) return;
       const cells = [...container.querySelectorAll('.cell')];
       const cellWidth = Math.min(...cells.map(cell => cell.clientWidth)), cellHeight = Math.min(...cells.map(cell => cell.clientHeight));
-      const rise = settings.chart !== 'off' ? CHART_RISE : 0;
+      const rise = settings.chart ? CHART_RISE : 0;
       const next = Math.min(cellWidth * CELL_FILL.width / inner.offsetWidth, cellHeight * (1 - 2 * rise) * CELL_FILL.height / inner.offsetHeight);
       if (!Number.isFinite(next) || next <= 0) return;
       cellScale = next; cellRise = cellHeight * rise; scale = 1; lift = 0;
@@ -232,10 +232,10 @@
 <div id="stage" class:clock-band={grid && settings.clock}>
   <!-- The charts, held still behind the floating board: one across the lower
        screen, or one in the lower part of each grid cell. -->
-  {#if settings.chart !== 'off'}
+  {#if settings.chart}
     {#if !grid}
       <div id="board-chart" style:top="{boardChartTop}px">
-        <Spark points={charts[0]} tick={ticks[0]} period={settings.chart} label={CHART_LABELS[settings.chart]} />
+        <Spark points={charts[0]} tick={ticks[0]} period={settings.period} label={CHART_LABELS[settings.period]} />
       </div>
     {:else}
       <div id="chart-grid" style:--cols={layout.columns} style:--rows={layout.rows}>
@@ -243,7 +243,7 @@
           {@const place = layout.cells[index]}
           <div class="chart-cell" style:grid-row={place?.row} style:grid-column={place?.column}>
             <div class="chart-box" style:top="{cellChart.top}px" style:left="{place?.column > 1 ? cellChart.side : 0}px" style:right="{place?.lineRight ? cellChart.side : 0}px" style:bottom="{place?.lineBelow ? cellChart.below : 0}px">
-              <Spark points={charts[index]} tick={ticks[index]} period={settings.chart} label={CHART_LABELS[settings.chart]} />
+              <Spark points={charts[index]} tick={ticks[index]} period={settings.period} label={CHART_LABELS[settings.period]} />
             </div>
           </div>
         {/each}

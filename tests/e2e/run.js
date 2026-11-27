@@ -402,7 +402,7 @@ async function board(browser, base, flags) {
   assert.equal(await brightnessThumb.getAttribute('aria-valuenow'), '50');
   assert.equal(await shownBrightness(page), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
+  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true });
   // Up and down colours: green and red, or the Korean red and blue.
   const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
@@ -1193,18 +1193,26 @@ async function chart(browser, base) {
   await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98590000 }));
   await untilTicking(page, () => document.querySelector('#board-chart .spark-ring')?.className === 'spark-ring down');
   assert.equal(await page.locator('#board-chart .spark-ring').getAttribute('data-strength'), '1', 'a slight move, a small ring');
-  // Another period asks for other candles; off takes the chart away.
+  // A switch turns it off and on; while on, its period is chosen below the switch. Another period asks for other candles.
   await open(page);
-  assert.equal(await chosen(page, '#admin-chart'), '1d');
-  assert.deepEqual(await page.locator('#admin-chart [data-value]').allTextContents(), ['끔', '15분', '1시간', '1일', '1주', '1달']);
-  await choose(page, '#admin-chart', '1w');
+  assert.equal(await page.locator('#admin-chart').getAttribute('aria-checked'), 'true');
+  assert.equal(await chosen(page, '#admin-period'), '1d');
+  assert.deepEqual(await page.locator('#admin-period [data-value]').allTextContents(), ['15분', '1시간', '1일', '1주', '1달']);
+  await choose(page, '#admin-period', '1w');
   await untilTicking(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
   assert.match(asked.at(-1), /candles\/minutes\/60\?market=KRW-BTC&count=169$/);
-  assert.equal((await saved(page)).chart, '1w');
-  await choose(page, '#admin-chart', 'off');
+  const chartSaved = async () => { const { chart, period } = await saved(page); return [chart, period]; };
+  assert.deepEqual(await chartSaved(), [true, '1w']);
+  // Off takes the chart away, and its period with it until it is on again.
+  await page.locator('#admin-chart').click();
   assert.equal(await page.locator('.spark').count(), 0);
+  assert.equal(await page.locator('#admin-period').count(), 0, 'no period to choose while off');
+  assert.deepEqual(await chartSaved(), [false, '1w']);
+  await page.locator('#admin-chart').click();
+  assert.equal(await chosen(page, '#admin-period'), '1w', 'on again: the same period');
+  await untilTicking(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
   // A grid has one per cell (here only Upbit's can be had).
-  await choose(page, '#admin-chart', '1d');
+  await choose(page, '#admin-period', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   // The new coin's candles wait their turn behind Upbit's other requests: let the test clock run until they come.
   await untilTicking(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
@@ -1212,8 +1220,18 @@ async function chart(browser, base) {
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(evidence, 'chart.png') });
   assert.deepEqual(problems, []);
+  // A board saved before the switch with the chart off ("off" was a period): off, and 1일 once switched on.
+  const older = await context.newPage(); const olderProblems = watch(older);
+  await older.addInitScript(() => localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }], chart: 'off' })));
+  await older.goto(base); await live(older);
+  assert.equal(await older.locator('.spark').count(), 0);
+  await open(older);
+  assert.equal(await older.locator('#admin-chart').getAttribute('aria-checked'), 'false');
+  await older.locator('#admin-chart').click();
+  assert.equal(await chosen(older, '#admin-period'), '1d');
+  assert.deepEqual(olderProblems, []);
   await context.close();
-  console.log('PASS chart: past prices behind the board, coloured by the move, a period to choose or none, one per grid cell');
+  console.log('PASS chart: past prices behind the board, coloured by the move, switched on and off with its period kept, one per grid cell');
 }
 
 async function idleUpdate(browser, base, flags) {

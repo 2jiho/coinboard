@@ -136,13 +136,13 @@
   const history = createHistory({ fetch: (url, init) => window.fetch(url, init), pacer });
   let charts = $state.raw({});
   let chartsReady = $state(false);
-  const assetCharts = $derived(settings.assets.map(asset => charts[`${assetKey(asset)}:${settings.chart}`] ?? null));
+  const assetCharts = $derived(settings.assets.map(asset => charts[`${assetKey(asset)}:${settings.period}`] ?? null));
   // The candles each chart was last drawn from: a newer answer replaces the chart; the same one leaves it be.
   const drawnFrom = new Map();
   $effect(() => {
-    const period = settings.chart, assets = settings.assets;
+    const period = settings.period, assets = settings.assets;
     // The pop-out window keeps its chart current while this tab is behind others.
-    if (period === 'off' || !chartsReady || !(visible || pipWindow)) return;
+    if (!settings.chart || !chartsReady || !(visible || pipWindow)) return;
     const refresh = () => {
       for (const asset of assets) {
         const key = `${assetKey(asset)}:${period}`;
@@ -160,8 +160,8 @@
   });
   // Each price drawn moves its chart's latest candle (or starts the next).
   $effect(() => {
-    const period = settings.chart;
-    if (period === 'off') return;
+    const period = settings.period;
+    if (!settings.chart) return;
     // Read without tracking: this effect follows the prices, not the charts it writes.
     const current = untrack(() => charts);
     let next = current;
@@ -394,6 +394,7 @@
     onBurnIn={burnIn => save({ burnIn })}
     onPalette={palette => save({ palette })}
     onChart={chart => save({ chart })}
+    onPeriod={period => save({ period })}
     onClock={clock => save({ clock })}
     onRetryFeed={() => feed.retry()}
     onRetryWake={() => wakeLock.retry()}
