@@ -156,7 +156,9 @@ async function addAsset(page, currency, ticker) {
   else { await page.locator('#new-coin').selectOption('__other'); await page.locator('#new-symbol').fill(ticker); }
   await page.locator('#asset-new-confirm').click();
 }
-const deleteAsset = (page, index) => page.locator('.asset-delete').nth(index).click();  // index -1: the last
+// Deleting and reordering are in edit mode (편집); index -1: the last.
+async function editAssets(page) { if (!await page.locator('.asset-delete').count()) await page.locator('#asset-edit').click(); }
+async function deleteAsset(page, index) { await editAssets(page); await page.locator('.asset-delete').nth(index).click(); }
 // The one asset on the board becomes another.
 async function replaceAsset(page, currency, ticker) {
   await addAsset(page, currency, ticker);
@@ -711,11 +713,19 @@ async function gridBoard(browser, base) {
   assert.equal(await text(page, '#asset-new-error'), '이미 표시 중인 자산입니다');
   assert.deepEqual(await assets(), ['BTC:KRW']);
   await page.locator('#asset-new-cancel').click();
-  // Adding takes the first listed coin not yet shown, in the same market. Every card then has a delete button.
+  // Adding takes the first listed coin not yet shown, in the same market. Cards show prices; 편집 gives each a delete button and a handle instead.
   assert.equal(await page.locator('#admin-columns').count(), 0, 'no columns to choose for one asset');
+  assert.equal(await page.locator('#asset-edit').count(), 0, 'nothing to edit with one asset');
   await addNext();
   assert.deepEqual(await assets(), ['BTC:KRW', 'ETH:KRW']);
+  assert.equal(await page.locator('.asset-delete, .asset-handle').count(), 0, 'no delete or handle until 편집');
+  assert.equal(await page.locator('.asset-price').count(), 2);
+  assert.equal((await text(page, '#asset-edit')).trim(), '편집');
+  await page.locator('#asset-edit').click();
+  assert.equal((await text(page, '#asset-edit')).trim(), '완료');
   assert.equal(await page.locator('.asset-delete').count(), 2);
+  assert.equal(await page.locator('.asset-handle').count(), 2);
+  assert.equal(await page.locator('.asset-price').count(), 0, 'editing: the controls take the price\'s place');
   assert.deepEqual(await page.locator('.asset-delete').evaluateAll(els => els.map(el => el.getAttribute('aria-label'))), ['BTC 원화 · 업비트 삭제', 'ETH 원화 · 업비트 삭제']);
   assert.equal(await page.locator('#grid').getAttribute('data-count'), '2');
   // Upbit carries both coins on the same connection: the new coin is subscribed
@@ -772,7 +782,9 @@ async function gridBoard(browser, base) {
   await handles.nth(2).focus(); await page.keyboard.press('ArrowUp');
   await until(page, () => JSON.parse(localStorage.getItem('coinboard-settings')).assets.map(asset => asset.ticker).join() === 'BTC,SOL,BTC');
   assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP']);
-  // Each card shows its asset's live price and change, as on the board.
+  // Done editing, each card shows its asset's live price and change, as on the board.
+  await page.locator('#asset-edit').click();
+  assert.equal(await page.locator('.asset-delete').count(), 0);
   assert.deepEqual(await page.locator('.asset-price').allTextContents(), ['9800만', '180.3', '70,000']);
   // Landscape, three: one row; every cell drawn at one size; the grid inside the screen.
   await page.keyboard.press('Escape');
@@ -853,7 +865,7 @@ async function gridBoard(browser, base) {
   await open(page);
   const countBefore = (await assets()).length;
   const lastName = (await assets()).at(-1);
-  await page.locator('.asset-delete').last().click();
+  await deleteAsset(page, -1);
   assert.equal((await assets()).length, countBefore - 1);
   assert.ok(!(await assets()).includes(lastName));
   await page.keyboard.press('Escape');
@@ -861,8 +873,14 @@ async function gridBoard(browser, base) {
   // Removing down to one goes back to the single board, which picks up where it was.
   await page.setViewportSize({ width: 1024, height: 768 });
   await open(page);
-  while (await page.locator('.asset-delete').count() > 0) await deleteAsset(page, -1);
+  while ((await assets()).length > 1) await deleteAsset(page, -1);
   assert.deepEqual(await assets(), ['BTC:KRW']);
+  // Down to one, editing ends: nothing is left to delete or reorder, and a new asset comes with its price, not a delete button.
+  assert.equal(await page.locator('#asset-edit, .asset-delete').count(), 0);
+  await addNext();
+  assert.equal(await page.locator('.asset-delete').count(), 0);
+  assert.equal((await text(page, '#asset-edit')).trim(), '편집');
+  await deleteAsset(page, -1);
   assert.equal(await page.locator('#grid').count(), 0);
   await page.keyboard.press('Escape');
   await page.clock.runFor(11100); await live(page);
@@ -948,6 +966,9 @@ async function english(browser, base) {
   assert.equal(await text(page, '#asset-new-error'), 'This asset is already on the board.');
   await choose(page, '#new-currency', 'USDT-PERP'); await page.locator('#new-coin').selectOption('BTC'); await page.locator('#asset-new-confirm').click();
   assert.equal(await page.locator('#admin-columns').count(), 1);
+  assert.equal((await text(page, '#asset-edit')).trim(), 'Edit');
+  await editAssets(page);
+  assert.equal((await text(page, '#asset-edit')).trim(), 'Done');
   assert.equal(await page.locator('.asset-delete').first().getAttribute('aria-label'), 'Delete BTC Upbit · KRW');
   assert.doesNotMatch(await words(), hangul);
   // English is longer: every choice is still readable in its row.
@@ -1348,6 +1369,25 @@ async function clockShown(browser, base) {
   console.log('PASS clock: the time at the top centre, from the device clock, renewed on the minute, floating with the board, the grid starting below it, switched off and on in settings');
 }
 
+async function narrowPanel(browser, base) {
+  // A small phone (360 px), Korean and English: nothing in settings is cut off.
+  for (const locale of ['ko-KR', 'en-US']) {
+    const context = await browser.newContext({ locale, viewport: { width: 360, height: 780 }, hasTouch: true }); await scripted(context);
+    await context.addInitScript(() => localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT-PERP', ticker: 'SOL' }, { currency: 'USDT-PERP', ticker: 'ETH' }] })));
+    const page = await context.newPage(); const problems = watch(page);
+    await page.goto(base); await page.waitForFunction(() => document.querySelectorAll('.cell').length === 3); await open(page);
+    // Market names whole, with prices and while editing.
+    assert.equal(await page.locator('.asset-market').count(), 3);
+    const whole = () => page.locator('.asset-market').evaluateAll(els => els.filter(el => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1).map(el => el.textContent));
+    assert.deepEqual(await whole(), [], locale + ' market names with prices');
+    await editAssets(page);
+    assert.deepEqual(await whole(), [], locale + ' market names while editing');
+    assert.deepEqual(problems, []);
+    await context.close();
+  }
+  console.log('PASS narrow panel: at 360 px, in Korean and English, nothing in settings is cut off');
+}
+
 async function swipeBrightness(browser, base) {
   // A tablet: the board cannot be zoomed, and a finger drawn up or down it sets the brightness.
   const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true }); await scripted(context);
@@ -1617,7 +1657,7 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
 // against its own server. A failure is reported with the scenario's name;
 // the others still run.
-const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, clockShown, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, clockShown, narrowPanel, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
 // E2E_ONLY=chart,board runs just those.
 const only = process.env.E2E_ONLY?.split(',');

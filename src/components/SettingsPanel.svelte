@@ -56,6 +56,10 @@
   }
 
   // ---- The asset list: a card per asset, with its icon and live price ----
+  // Deleting and reordering are in edit mode (편집), where the delete button and
+  // the handle take the price's place; with one asset there is nothing to edit.
+  let editing = $state(false);
+  $effect(() => { if (settings.assets.length < 2) editing = false; });
   const keyOf = item => `${item.currency}:${item.ticker}`;
   // Each asset's latest price, as on the board.
   const tickOf = $derived(new Map(settings.assets.map((item, index) => [keyOf(item), ticks?.[index] ?? null])));
@@ -243,7 +247,12 @@
     </section>
   {/if}
   <section class="flex flex-col gap-2.5" aria-labelledby="section-prices">
-    <h3 id="section-prices" class="px-1 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">{m.section_prices()}</h3>
+    <div class="flex min-h-5 items-center justify-between px-1">
+      <h3 id="section-prices" class="text-[13px] font-medium tracking-wide text-muted-foreground uppercase">{m.section_prices()}</h3>
+      {#if settings.assets.length > 1}
+        <button id="asset-edit" type="button" class="-my-3 -mr-3 flex min-h-11 items-center rounded-full px-3 text-[15px] font-medium text-primary outline-none transition-colors hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-ring" aria-controls="asset-list" onclick={() => { editing = !editing; }}>{editing ? m.asset_edit_done() : m.asset_edit()}</button>
+      {/if}
+    </div>
     <!-- What the board shows: one asset large, or several in a grid. A card
          per asset with its live price; drag the handle to reorder, swipe left
          to remove, tap to edit. -->
@@ -263,14 +272,17 @@
                 {/if}
                 <span class="flex min-w-0 flex-col">
                   <span class="asset-ticker text-base font-semibold tracking-wide">{item.ticker}</span>
-                  <span class="truncate text-[13px] text-muted-foreground">{EXCHANGES[item.currency].choice}</span>
+                  <!-- The whole market name, on two lines if need be: never cut off. -->
+                  <span class="asset-market text-[13px] leading-snug break-keep text-muted-foreground">{EXCHANGES[item.currency].choice}</span>
                 </span>
-                <span class="ml-auto flex shrink-0 flex-col items-end tabular-nums">
-                  <span class="asset-price text-[15px] font-semibold">{priceOf(item) || '—'}</span>
-                  {#if moved}<span class="text-[13px] font-medium {moved.tone > 0 ? 'text-[var(--up)]' : moved.tone < 0 ? 'text-[var(--down)]' : 'text-muted-foreground'}">{moved.text}</span>{:else}<span class="text-[13px] text-muted-foreground">{m.no_price_yet()}</span>{/if}
-                </span>
+                {#if !editing}
+                  <span class="ml-auto flex shrink-0 flex-col items-end pl-1 tabular-nums">
+                    <span class="asset-price text-[15px] font-semibold">{priceOf(item) || '—'}</span>
+                    {#if moved}<span class="text-[13px] font-medium {moved.tone > 0 ? 'text-[var(--up)]' : moved.tone < 0 ? 'text-[var(--down)]' : 'text-muted-foreground'}">{moved.text}</span>{:else}<span class="text-[13px] text-muted-foreground">{m.no_price_yet()}</span>{/if}
+                  </span>
+                {/if}
               </div>
-              {#if settings.assets.length > 1}
+              {#if editing}
                 <!-- Deleting is one tap; the toast that follows can undo it. The last asset stays. -->
                 <button type="button" class="asset-delete flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring" aria-label={m.asset_remove({ name: assetName(item) })} onclick={() => onRemove(index)}>
                   <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} class="size-5" />
