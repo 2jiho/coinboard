@@ -103,6 +103,7 @@
   "wake_released": "Keeping the screen on stopped. Try again.",
   "wake_active": "Keeping the screen on. The system can still turn it off.",
   "wake_failed": "Couldn't keep the screen on ({name}). Check Low Power Mode, battery and permissions.",
+  "wake_off": "Keep Screen On is off · the screen sleeps as the device decides",
   "asset_reorder": "Reorder {name}",
   "no_price_yet": "No price yet",
   "help_open": "Help",

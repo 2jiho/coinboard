@@ -73,6 +73,7 @@
   "wake_released": "화면 켜짐 유지 해제됨 · 다시 시도하세요",
   "wake_active": "화면 켜짐 유지 활성 · 시스템에서 해제할 수 있습니다",
   "wake_failed": "화면 켜짐 유지 실패 ({name}) · 저전력 모드·배터리·권한을 확인하세요",
+  "wake_off": "화면 켜짐 유지 꺼짐 · 기기 설정에 따라 화면이 꺼집니다",
   "asset_reorder": "{name} 순서 바꾸기",
   "no_price_yet": "시세 대기",
   "help_open": "사용법",

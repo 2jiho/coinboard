@@ -39,7 +39,8 @@ function readAssets(list) {
 // chart: whether the chart is drawn behind the board; period: the time it
 // covers, kept while the chart is off.
 // clock: the time, centred at the top of the board.
-const defaults = () => ({ assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: true, period: "1d", clock: true });
+// keepAwake: whether the board keeps the screen on (the wake lock).
+const defaults = () => ({ assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: true, period: "1d", clock: true, keepAwake: true });
 export function createSettings(storage) {
   const settings = defaults();
   try {
@@ -52,6 +53,7 @@ export function createSettings(storage) {
       // On unless it was explicitly switched off.
       settings.burnIn = saved.burnIn !== false;
       settings.clock = saved.clock !== false;
+      settings.keepAwake = saved.keepAwake !== false;
       // Up/down colours: green and red, or the Korean red and blue.
       if (saved.palette === "red-blue") settings.palette = "red-blue";
       // Before the switch, "chart" held the period, or "off" for none.
@@ -63,12 +65,12 @@ export function createSettings(storage) {
     }
   } catch (error) { /* Unreadable storage: run on defaults. */ }
   function get() {
-    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette, chart: settings.chart, period: settings.period, clock: settings.clock };
+    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette, chart: settings.chart, period: settings.period, clock: settings.clock, keepAwake: settings.keepAwake };
   }
   // Callers pass validated values; a failed write still applies for this run.
   function update(patch) {
     if (patch.assets !== undefined) settings.assets = patch.assets.map((asset) => ({ currency: asset.currency, ticker: asset.ticker }));
-    ["columns", "brightness", "burnIn", "palette", "chart", "period", "clock"].forEach((key) => {
+    ["columns", "brightness", "burnIn", "palette", "chart", "period", "clock", "keepAwake"].forEach((key) => {
       if (patch[key] !== undefined) settings[key] = patch[key];
     });
     try { storage.setItem(KEY, JSON.stringify(settings)); return { saved: true }; }
