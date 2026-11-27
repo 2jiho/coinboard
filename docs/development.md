@@ -34,23 +34,23 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `src/components/PriceBoard.svelte` | The board: one asset large, or a grid of several; layout and sizing; burn-in drift |
 | `src/components/PriceBoard.svelte` (`view`) | Also drawn in the small window on top (Document Picture-in-Picture): App mounts a second board there, `view` being that window, which it measures instead of this one |
 | `src/components/Price.svelte` | One price line: digits that change as in Apple's apps, and a tint by the size of the move |
-| `src/components/SettingsPanel.svelte` | The settings panel |
+| `src/components/SettingsPanel.svelte` | The settings panel (settings only): the asset list and its edit mode, the display card (one row style, every button group 44 px tall), the reset that takes two presses |
 | `src/lib/feed.js` | Exchange WebSocket connections (one per market, carrying several coins), reconnection, liveness |
 | `src/lib/exchanges/` | Per exchange: addresses (with fallbacks, `hosts`), subscription messages, keep-alive, reading messages (Upbit, Bithumb, Coinone; Binance, OKX and Bybit spot and perpetuals; Coinbase, Kraken). `index.js` lists them and groups them by currency for settings |
 | `src/lib/status.js` | Turns the connection state into the words shown |
-| `src/lib/quiet-controls.js` | Showing and hiding the settings button, first-tap protection, closing a panel left open |
+| `src/lib/quiet-controls.js` | Showing and hiding the row of buttons in the corner (`#board-controls`: update, pop-out, keep screen on, settings), first-tap protection, closing a panel left open |
 | `src/lib/presets.js` | The coins offered in settings |
 | `src/lib/markets.js` | The coins an exchange lists (for ticker completion and checking) |
 | `src/lib/pace.js` | Spacing of requests to an exchange (shared by price connections and coin lists) |
 | `src/lib/steady.js` | One three-second beat for the whole board |
 | `src/lib/history.js` | Past prices for the line chart: the period's candle size, asking each exchange (`candles` in its definition) in turn with its price connection (the pacer: Upbit refuses a browser's second request within 10 seconds, candles included), at most every 10 minutes; `extend` carries a chart along with the live price in between |
-| Clock (`#clock` in `PriceBoard.svelte`) | The time, centred at the top: the device's clock and time zone, 24-hour, renewed on the minute. It takes the board's float and sits under the brightness veil. Its size is 7.2% of the screen's short side (26-84px). In the grid, cells and the chart layer start below a band as tall as the clock (`--clock-band`). Setting `clock` (on by default) |
+| Clock (`#clock` in `PriceBoard.svelte`) | The time, centred at the top: the device's clock and time zone, 24-hour, renewed on the minute. It takes the board's float, but rises no further than the gap above it, so it never leaves the screen; it sits under the brightness veil. Its size is 7.2% of the screen's short side (26-84px). In the grid, cells and the chart layer start below a band as tall as the clock (`--clock-band`). Setting `clock` (on by default) |
 | `src/lib/swipe-brightness.js` | Brightness by swiping: one finger drawn up brightens, down dims (60% of the screen's height is the whole 10-100% range, in steps of 5), shown as a sun and the level on a soft shade in the middle (`#brightness-hud`, not dimmed with the board, and covering nothing else, so the board shows the brightness it will keep). It starts after 8px, and not for a mostly sideways drag; a second finger or a cancelled touch puts the brightness back; a drag that starts on the controls or the panel is not one. Zoom is refused with `touch-action: none` (the panel `pan-y`), a `user-scalable=no` viewport, and iOS's `gesturestart` refused. Brightness itself is the opacity of a black veil over the board (`#dim`), not a filter, so changing it redraws nothing |
 | `src/components/Spark.svelte` | The line chart behind the lower board |
 | `src/lib/move.js` | The size of a price move (faint, normal, full tint) |
 | `src/lib/format.js` | Price and change strings |
-| `src/lib/settings.js` | Loading, checking and saving settings |
-| `src/lib/wake-lock.js` | Keeping the screen on |
+| `src/lib/settings.js` | Loading, checking, saving and resetting settings (`reset`: back to the defaults, with the saved entry removed). The chart is saved as `chart` (on or off) and `period` (kept while off); the older form (`chart: "off"` or a period) is read too. `keepAwake` (keep the screen on, on by default) |
+| `src/lib/wake-lock.js` | Keeping the screen on. Switched off with `setEnabled(false)`, it lets the lock go, reports `off` and asks for nothing (tap, retry, coming back) until switched on |
 | `src/lib/install.js` | Whether and how to offer adding to the home screen (steps on iOS, the browser's install prompt elsewhere) |
 | `src/lib/updater.js` | Service worker registration, version checks, applying updates |
 | `src/sw.js` | Source of the offline service worker |
@@ -90,10 +90,10 @@ The modules in `src/lib` are plain JavaScript that knows nothing of Svelte or th
   | Under 100 | `12.34` | Under 1 | `0.6234` |
 
   On a device in English, won from a million up is written as `89.96M` or `1.235B`, with four significant digits (`Intl.NumberFormat`'s compact notation).
-- **Keeping the screen on**: when the system releases the wake lock, it is asked for once more. If that one is released again within 5 seconds, the app stops and the dot shows `SCREEN MAY SLEEP`; a tap, or coming back to the app, asks again. A device without the feature is reported in settings only.
+- **Keeping the screen on**: when the system releases the wake lock, it is asked for once more. If that one is released again within 5 seconds, the app stops and the dot shows `SCREEN MAY SLEEP`; a tap, or coming back to the app, asks again. A device without the feature is told by the keep-screen-on button beside the settings button (a yellow mark; a press says why), not by the dot. Switched off by the owner (`keepAwake: false`), the lock is let go and nothing warns.
 - **Updates**: checked every 30 seconds while the screen is visible (each check asks only whether the small worker file changed, bypassing the browser cache: `updateViaCache: "none"`), and on coming back to the app or getting the network back. A new version reloads the page at once, or, if the settings panel is open, once it is closed. With the same version the page reloads itself once per browser session; after that only the `Update Now` (`새 버전 적용`) button is offered.
 - **Burn-in protection** (for OLED; `body.oled` while on): every minute the board glides to a new spot near the centre (within 3% of each side; half that for a grid, whose cells reach the screen's edges). The price is off-white (`--price-white`), the status dot hides while all is well (`.quiet`), and a price that is not current is dimmed further. Switched off, none of this applies and the board sits in the middle.
-- **Settings button and touch**: a tap or Tab shows the button; after 5 seconds untouched it fades out over 0.6 seconds. The tap that shows it does not press it, but a press while it fades goes through (`src/lib/quiet-controls.js`). `touch-action: manipulation` keeps iOS from taking two quick taps as a double-tap zoom, and text selection and the long-press callout are off everywhere except the ticker fields. The settings panel hangs from the top, so a status line appearing or going below does not move the row under the finger.
+- **Settings button and touch**: a tap or Tab shows the settings button and the buttons beside it together; after 5 seconds untouched they fade out over 0.6 seconds. The tap that shows them presses none of them, but a press while it fades goes through (`src/lib/quiet-controls.js`). `touch-action: manipulation` keeps iOS from taking two quick taps as a double-tap zoom, and text selection and the long-press callout are off everywhere except the ticker fields. The settings panel hangs from the top, so a status line appearing or going below does not move the row under the finger.
 - **Offline and start-up**: every built file is stored as one set on installation, and the page opens from that copy at once. A new release is downloaded in the background and applied as above. Prices are never stored.
 - **Font**: [Pretendard](https://github.com/orioncactus/pretendard) (SIL Open Font License) ships with the app so it looks the same on every device: subset files with Latin, digits and the 2,350 common Hangul syllables, three weights (about 800 KB), installed with the other files and available offline.
 - **Coin icons**: icons for 483 coins are in `public/coins/`, so no outside server is needed ([cryptocurrency-icons](https://github.com/spothq/cryptocurrency-icons), CC0). The six coins offered in settings are installed with the app; the rest are fetched and stored the first time they are shown. A coin with no icon is shown without one.
@@ -144,7 +144,11 @@ npm run test:e2e
 
 - `npm test`: unit tests for the modules in `src/lib`.
 - `npm run test:e2e`: builds, then checks the real page in Chromium. Exchanges and the wake lock are scripted; screenshots are left in `evidence/` (not in git). The scenarios run four at a time, each against its own local server (`E2E_JOBS` sets how many; `E2E_JOBS=1` runs them one by one); about 40 seconds on a laptop.
-  - The board and settings panel, keyboard use, delayed, failing and offline prices
+  - The board and settings panel, keyboard use (Tab reaches settings first), delayed, failing and offline prices
+  - The buttons beside the settings button: keeping the screen on (switched off and on, retried in trouble, its icon and name), the pop-out, messages above the row, the row fading after a press
+  - Settings at 360 px in Korean and English: nothing cut off, the display card's order, every choice a 44 px target, keyboard deleting keeps focus
+  - Reset: one press asks, two bring back a new board's settings, with editing or the add form open
+  - The chart: switched off and on with its period kept, and a board saved before the switch
   - The grid: adding, cancelling and refusing duplicates, reordering by drag handle and by keyboard, deleting and undoing, live prices in the list, one connection per market, cell and type size, a coin that never answers, layouts by orientation, cells per row, back to one asset, reading settings saved before the grid
   - The first connection is kept when the page loads; a page shown again reconnects
   - An English device: no Korean left in settings, no choice cut off, won in millions, the page's language

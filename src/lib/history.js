@@ -17,7 +17,7 @@ export const PERIODS = {
   "1w": { ms: 7 * 24 * 60 * 60e3, bar: 60 },
   "1M": { ms: 30 * 24 * 60 * 60e3, bar: 240 },
 };
-export const CHART_CHOICES = ["off", ...Object.keys(PERIODS)];
+export const CHART_PERIODS = Object.keys(PERIODS);
 const MIN_REFRESH = 10 * 60e3, FAILED_RETRY = 60e3, TIMEOUT = 10e3;
 
 // A live price into a chart: the latest candle's close follows it, and a new

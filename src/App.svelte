@@ -1,6 +1,6 @@
 <script>
   // Wires settings, the market feed, the wake lock and the updater to the
-  // board, and owns the one quiet control: the settings button.
+  // board, and owns the quiet controls: the settings button and those beside it.
   import { onMount, mount, unmount, untrack, tick as flushed } from 'svelte';
   import PriceBoard from './components/PriceBoard.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
@@ -22,6 +22,8 @@
   import { getLocale } from './paraglide/runtime.js';
   import { Toaster } from '$lib/components/ui/sonner/index.js';
   import { toast } from 'svelte-sonner';
+  import { HugeiconsIcon } from '@hugeicons/svelte';
+  import { PictureInPictureOnIcon, PictureInPictureExitIcon, MonitorIcon, MonitorOffIcon, RefreshIcon } from '@hugeicons/core-free-icons';
 
   const version = __APP_VERSION__;
   // Storage can throw on access (private mode): run on defaults without it.
@@ -136,13 +138,13 @@
   const history = createHistory({ fetch: (url, init) => window.fetch(url, init), pacer });
   let charts = $state.raw({});
   let chartsReady = $state(false);
-  const assetCharts = $derived(settings.assets.map(asset => charts[`${assetKey(asset)}:${settings.chart}`] ?? null));
+  const assetCharts = $derived(settings.assets.map(asset => charts[`${assetKey(asset)}:${settings.period}`] ?? null));
   // The candles each chart was last drawn from: a newer answer replaces the chart; the same one leaves it be.
   const drawnFrom = new Map();
   $effect(() => {
-    const period = settings.chart, assets = settings.assets;
+    const period = settings.period, assets = settings.assets;
     // The pop-out window keeps its chart current while this tab is behind others.
-    if (period === 'off' || !chartsReady || !(visible || pipWindow)) return;
+    if (!settings.chart || !chartsReady || !(visible || pipWindow)) return;
     const refresh = () => {
       for (const asset of assets) {
         const key = `${assetKey(asset)}:${period}`;
@@ -160,8 +162,8 @@
   });
   // Each price drawn moves its chart's latest candle (or starts the next).
   $effect(() => {
-    const period = settings.chart;
-    if (period === 'off') return;
+    const period = settings.period;
+    if (!settings.chart) return;
     // Read without tracking: this effect follows the prices, not the charts it writes.
     const current = untrack(() => charts);
     let next = current;
@@ -186,8 +188,8 @@
     : m.version({ version }));
   // The status dot in the corner: one colour for how things are, and the detail
   // on hover or tap. English, like everything else on the board.
-  // Only a lost or refused wake lock counts; a device without the feature is
-  // reported in the settings panel alone.
+  // Only a lost or refused wake lock counts; a device without the feature, or
+  // keeping the screen on switched off, is told by its own button.
   const wakeLost = $derived(wake.kind === 'released' || wake.kind === 'failed');
   const level = $derived(worst === 'ok' && wakeLost ? 'warn' : worst);
   // One asset: where it comes from and how it is. Several: a line each.
@@ -227,8 +229,30 @@
     return () => clearInterval(timer);
   });
 
+  // Keeping the screen on, as its button beside the settings button says it:
+  // on (and how it is going), switched off, or in trouble.
+  // Its name stays the same; how it is going is its description (and title).
+  const WAKE_STATES = { active: m.wake_state_active, pending: m.wake_state_pending, waiting: m.wake_state_waiting, released: m.wake_state_retry, failed: m.wake_state_retry, unsupported: m.wake_state_unsupported, off: m.wake_state_disabled };
+  const wakeState = $derived((WAKE_STATES[wake.kind] ?? m.wake_state_pending)());
+  // A press switches it on or off. In trouble it tries again instead, and says
+  // why it stopped; where the browser cannot keep the screen on, it says so.
+  // The press's own pointerdown already asks again (wake-lock.js), so the
+  // state is read as it was when the finger came down.
+  let wakeAtPress = null;
+  function pressWake(event) {
+    const before = event.detail > 0 && wakeAtPress ? wakeAtPress : { kind: wake.kind, message: wake.message };
+    wakeAtPress = null;
+    // A reason takes longer to read than a state.
+    if (before.kind === 'unsupported') { showToast(before.message, 5000); return; }
+    if (settings.keepAwake && (before.kind === 'released' || before.kind === 'failed')) { wakeLock.retry(); showToast(before.message, 5000); return; }
+    const keepAwake = !settings.keepAwake;
+    save({ keepAwake });
+    wakeLock.setEnabled(keepAwake);
+    showToast(keepAwake ? m.wake_on() : m.wake_off());
+  }
+
   // A short message at the bottom of the screen (a toast).
-  function showToast(message) { toast(message, { duration: 2500 }); }
+  function showToast(message, duration = 2500) { toast(message, { duration }); }
   function save(patch) {
     const { saved } = store.update(patch);
     settings = store.get();
@@ -243,6 +267,16 @@
     feed.select(settings.assets);
   }
   function changeAssets(assets) { save({ assets }); applySelection(); }
+  // Back to a new board's settings, applied at once. Only the settings go:
+  // the hint and the install offer keep their own state.
+  function resetSettings() {
+    const { saved } = store.reset();
+    settings = store.get();
+    previewBrightness = null;
+    applySelection();
+    wakeLock.setEnabled(settings.keepAwake);
+    showToast(saved ? m.settings_reset_done() : m.toast_not_saved());
+  }
   const canAdd = $derived(settings.assets.length < MAX_ASSETS);
   // A new asset, chosen in the add form. '' when added, or why not.
   function addAsset(next) {
@@ -298,7 +332,7 @@
     applySelection();
     // The price connections have taken their first turn: charts may ask now.
     chartsReady = true;
-    wakeLock = createWakeLock({ navigator, document, window, onChange(next) { wake = next; } });
+    wakeLock = createWakeLock({ navigator, document, window, enabled: settings.keepAwake, onChange(next) { wake = next; } });
     updater = createUpdater({
       navigator, location: window.location, document, version, workerUrl: './sw.js',
       storage: storage('sessionStorage'), clock: { setInterval: window.setInterval.bind(window) }, window,
@@ -310,7 +344,7 @@
     // When the settings button shows, and what a tap outside the panel does.
     controls = createQuietControls({
       // The toasts count as part of the panel: undoing a delete there leaves it open.
-      document, controls: '#settings-toggle, #admin-panel, [data-sonner-toaster]', panel: '#admin-panel, [data-sonner-toaster]',
+      document, controls: '#board-controls, #admin-panel, [data-sonner-toaster]', panel: '#admin-panel, [data-sonner-toaster]',
       isPanelOpen: () => panelOpen,
       onVisible(value) { controlsVisible = value; },
       onOutsideTap() { closePanel(false); },
@@ -356,7 +390,7 @@
     // A finger drawn up the board brightens it, down dims it (the controls and an open panel keep their own touches).
     let swipeBase = settings.brightness;
     const swiper = createSwipeBrightness({
-      target: document, ignore: '#settings-toggle, #admin-panel, #scrim, [data-sonner-toaster], #status-dot',
+      target: document, ignore: '#board-controls, #admin-panel, #scrim, [data-sonner-toaster], #status-dot',
       height: () => window.innerHeight,
       onStart() { clearTimeout(swipeHideTimer); swipeBase = settings.brightness; swipeLevel = swipeBase; swipeShown = true; },
       onChange(share) {
@@ -383,7 +417,7 @@
 
 {#if panelOpen}
   <div id="scrim"></div>
-  <SettingsPanel {settings} {canAdd} {install} {installDismissed} {pipSupported} pipOpen={!!pipWindow} onPip={togglePip} onInstall={runInstall} onDismissInstall={dismissInstall} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
+  <SettingsPanel {settings} {canAdd} {install} {installDismissed} onInstall={runInstall} onDismissInstall={dismissInstall} ticks={assetTicks} {status} {versionLabel}
     onClose={closePanel}
     onAdd={addAsset}
     onColumns={columns => save({ columns })}
@@ -394,16 +428,38 @@
     onBurnIn={burnIn => save({ burnIn })}
     onPalette={palette => save({ palette })}
     onChart={chart => save({ chart })}
+    onPeriod={period => save({ period })}
     onClock={clock => save({ clock })}
+    onReset={resetSettings}
     onRetryFeed={() => feed.retry()}
-    onRetryWake={() => wakeLock.retry()}
-    onUpdate={() => updater.reload()}
     loadTickers={currency => markets.load(currency)} />
 {/if}
-<button id="settings-toggle" bind:this={toggleButton} type="button" aria-label={m.settings_open()} aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
-</button>
-<Toaster position="bottom-center" />
+<!-- The quiet controls, shown together on a tap: what is not a setting sits beside the settings button. -->
+<!-- Settings first: it sits in the corner (the row runs right to left) and is
+     the one a Tab reaches first; the others follow outwards from the corner.
+     Icons are keyed: the icon component draws once and does not follow a change. -->
+<div id="board-controls">
+  <button id="settings-toggle" class="board-button" bind:this={toggleButton} type="button" aria-label={m.settings_open()} title={m.settings_open()} aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
+  </button>
+  <button id="wake-toggle" class="board-button" type="button" data-kind={wake.kind} aria-pressed={settings.keepAwake} aria-label={m.wake_label()} aria-describedby="wake-toggle-state" title="{m.wake_label()} · {wakeState}"
+    onpointerdown={() => { wakeAtPress = { kind: wake.kind, message: wake.message }; }} onclick={pressWake}>
+    {#key settings.keepAwake}<HugeiconsIcon icon={settings.keepAwake ? MonitorIcon : MonitorOffIcon} strokeWidth={1.8} />{/key}
+  </button>
+  <span id="wake-toggle-state" hidden>{wakeState}</span>
+  {#if pipSupported}
+    <button id="pip-toggle" class="board-button" type="button" aria-label={pipWindow ? m.pip_close() : m.pip_open()} title={pipWindow ? m.pip_close() : m.pip_open()} onclick={togglePip}>
+      {#key !!pipWindow}<HugeiconsIcon icon={pipWindow ? PictureInPictureExitIcon : PictureInPictureOnIcon} strokeWidth={1.8} />{/key}
+    </button>
+  {/if}
+  {#if updateReady}
+    <button id="app-update" class="board-button" type="button" aria-label={m.update_now()} title={m.update_now()} onclick={() => updater.reload()}>
+      <HugeiconsIcon icon={RefreshIcon} strokeWidth={1.8} />
+    </button>
+  {/if}
+</div>
+<!-- Messages sit above the row of buttons in the corner (48 px, 16 px in), never over them. -->
+<Toaster position="bottom-center" offset={{ bottom: 'calc(80px + var(--safe-bottom))' }} mobileOffset={{ bottom: 'calc(80px + var(--safe-bottom))' }} />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
 <!-- The brightness while swiping, as video players show it: a sun and the level
      in the middle, on a soft shade of their own, so the board shows the brightness

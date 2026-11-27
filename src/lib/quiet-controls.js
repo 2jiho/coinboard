@@ -1,6 +1,6 @@
-// The board has one control, and it stays out of sight. This decides when the
-// settings button is shown, keeps the tap that reveals it from pressing it,
-// and closes a settings panel that has been left open.
+// The board's controls (the settings button and the buttons beside it) stay out
+// of sight. This decides when they are shown, keeps the tap that reveals them
+// from pressing one, and closes a settings panel that has been left open.
 export function createQuietControls(options) {
   const { document, isPanelOpen, onVisible, onOutsideTap, onPanelIdle } = options;
   // CSS selectors: everything that counts as a control, and the panel alone.
@@ -17,8 +17,12 @@ export function createQuietControls(options) {
   const PANEL_IDLE_MS = 120000;
   let visible = false, hideTimer = null, idleTimer = null, revealOnlyClick = false, hiddenAt = -Infinity;
 
+  // In use: the panel is open, or a control has the keyboard's focus. The focus
+  // a press leaves on a button (Chrome does) holds nothing, or the buttons would
+  // stay lit on an untouched board after every press.
   function inUse() {
-    return isPanelOpen() || !!(document.activeElement && document.activeElement.closest(controls));
+    const active = document.activeElement;
+    return isPanelOpen() || !!(active && active.closest(controls) && active.matches(":focus-visible"));
   }
   function setVisible(value) {
     if (value === visible) return;

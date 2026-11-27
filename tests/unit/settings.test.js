@@ -7,7 +7,7 @@ function memory(initial = {}) {
     removeItem: key => { data.delete(key); } };
 }
 const one = (ticker, currency) => ({ assets: [{ currency, ticker }] });
-const defaults = { ...one('BTC', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red', chart: '1d', clock: true };
+const defaults = { ...one('BTC', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true, keepAwake: true };
 test('defaults when storage is empty, missing or throws: Bitcoin on Binance spot', () => {
   assert.deepEqual(createSettings(memory()).get(), defaults);
   assert.deepEqual(createSettings(null).get(), defaults);
@@ -16,15 +16,15 @@ test('defaults when storage is empty, missing or throws: Bitcoin on Binance spot
 });
 test('settings saved before the grid (one coin) are read as one asset; invalid fields are ignored', () => {
   const store = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'eth', currency: 'EUR', brightness: 5 }) });
-  assert.deepEqual(createSettings(store).get(), { ...one('ETH', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
+  assert.deepEqual(createSettings(store).get(), { ...one('ETH', 'USDT'), columns: 0, brightness: 100, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true, keepAwake: true });
   const full = memory({ 'coinboard-settings': JSON.stringify({ ticker: 'XRP', currency: 'USDT', brightness: 55 }) });
-  assert.deepEqual(createSettings(full).get(), { ...one('XRP', 'USDT'), columns: 0, brightness: 55, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
+  assert.deepEqual(createSettings(full).get(), { ...one('XRP', 'USDT'), columns: 0, brightness: 55, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true, keepAwake: true });
 });
 test('update persists the merged settings', () => {
   const store = memory(); const settings = createSettings(store);
   assert.deepEqual(settings.update({ assets: [{ currency: 'USDT', ticker: 'BTC' }], brightness: 40 }), { saved: true });
-  assert.deepEqual(JSON.parse(store.getItem('coinboard-settings')), { ...one('BTC', 'USDT'), columns: 0, brightness: 40, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
-  assert.deepEqual(createSettings(store).get(), { ...one('BTC', 'USDT'), columns: 0, brightness: 40, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
+  assert.deepEqual(JSON.parse(store.getItem('coinboard-settings')), { ...one('BTC', 'USDT'), columns: 0, brightness: 40, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true, keepAwake: true });
+  assert.deepEqual(createSettings(store).get(), { ...one('BTC', 'USDT'), columns: 0, brightness: 40, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true, keepAwake: true });
 });
 test('a failed write still applies for this run', () => {
   const settings = createSettings({ getItem: () => null, setItem() { throw new Error('quota'); }, removeItem() {} });
@@ -96,14 +96,52 @@ test('cells per row: 0 lets the board choose; 1 to 6 by hand; anything else is 0
   const store = memory(); createSettings(store).update({ columns: 2 });
   assert.equal(createSettings(store).get().columns, 2);
 });
-test('the chart period is kept when valid, and off is a choice', () => {
+test('the chart is on unless switched off, and keeps its period while off', () => {
   const store = memory();
   const settings = createSettings(store);
-  assert.equal(settings.get().chart, '1d');
-  settings.update({ chart: '1w' });
-  assert.equal(createSettings(store).get().chart, '1w');
-  settings.update({ chart: 'off' });
-  assert.equal(createSettings(store).get().chart, 'off');
-  store.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'USDT', ticker: 'BTC' }], chart: '2y' }));
-  assert.equal(createSettings(store).get().chart, '1d');
+  assert.equal(settings.get().chart, true);
+  assert.equal(settings.get().period, '1d');
+  settings.update({ period: '1w' });
+  assert.deepEqual([createSettings(store).get().chart, createSettings(store).get().period], [true, '1w']);
+  settings.update({ chart: false });
+  assert.deepEqual([createSettings(store).get().chart, createSettings(store).get().period], [false, '1w']);
+  settings.update({ chart: true });
+  assert.equal(createSettings(store).get().period, '1w', 'switched on again: the same period');
+  const read = saved => { const { chart, period } = createSettings(memory({ 'coinboard-settings': JSON.stringify(saved) })).get(); return [chart, period]; };
+  // Saved before the switch: the period, or "off" for none.
+  assert.deepEqual(read({ chart: 'off' }), [false, '1d']);
+  assert.deepEqual(read({ chart: '1h' }), [true, '1h']);
+  assert.deepEqual(read({ chart: '2y' }), [true, '1d']);
+  assert.deepEqual(read({ chart: false, period: '15m' }), [false, '15m']);
+  for (const odd of [null, 0, 'false']) assert.deepEqual(read({ chart: odd }), [true, '1d'], String(odd));
+  for (const odd of ['off', '2y', 1, null]) assert.equal(read({ period: odd })[1], '1d', String(odd));
+});
+test('reset brings back a new board: the defaults, and nothing saved', () => {
+  const store = memory({ 'coinboard-hint-seen': '1' }); const settings = createSettings(store);
+  settings.update({ assets: [{ currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT', ticker: 'SOL' }], columns: 2, brightness: 40, burnIn: false, palette: 'red-blue', chart: false, period: '1h', clock: false, keepAwake: false });
+  assert.deepEqual(settings.reset(), { saved: true });
+  assert.deepEqual(settings.get(), defaults);
+  assert.equal(store.getItem('coinboard-settings'), null);
+  assert.deepEqual(createSettings(store).get(), defaults);
+  // Only the settings: what else the board remembers stays.
+  assert.equal(store.getItem('coinboard-hint-seen'), '1');
+  // Changed again after a reset, it is saved as before.
+  settings.update({ clock: false });
+  assert.equal(createSettings(store).get().clock, false);
+});
+test('a reset that cannot be written still applies for this run', () => {
+  const settings = createSettings({ getItem: () => null, setItem() {}, removeItem() { throw new Error('denied'); } });
+  settings.update({ brightness: 30, chart: false, period: '1h' });
+  assert.deepEqual(settings.reset(), { saved: false });
+  assert.deepEqual(settings.get(), defaults);
+  assert.deepEqual(createSettings(null).reset(), { saved: false });
+});
+test('the screen is kept on unless that was switched off', () => {
+  assert.equal(createSettings(memory()).get().keepAwake, true);
+  const store = memory(); const settings = createSettings(store);
+  assert.deepEqual(settings.update({ keepAwake: false }), { saved: true });
+  assert.equal(createSettings(store).get().keepAwake, false);
+  for (const odd of [0, 'false', null]) {
+    assert.equal(createSettings(memory({ 'coinboard-settings': JSON.stringify({ keepAwake: odd }) })).get().keepAwake, true, String(odd));
+  }
 });

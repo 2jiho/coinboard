@@ -1,6 +1,6 @@
 // Load, validate and persist kiosk settings. Knows nothing about the DOM.
 import { EXCHANGES } from "./exchanges/index.js";
-import { CHART_CHOICES } from "./history.js";
+import { CHART_PERIODS } from "./history.js";
 
 const KEY = "coinboard-settings";
 const TICKER = /^[A-Z0-9]{1,20}$/;
@@ -34,11 +34,15 @@ function readAssets(list) {
   }
   return assets;
 }
+// A new board's settings.
+// columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
+// chart: whether the chart is drawn behind the board; period: the time it
+// covers, kept while the chart is off.
+// clock: the time, centred at the top of the board.
+// keepAwake: whether the board keeps the screen on (the wake lock).
+const defaults = () => ({ assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: true, period: "1d", clock: true, keepAwake: true });
 export function createSettings(storage) {
-  // columns: cells per row in the grid; 0 lets the board choose (see PriceBoard).
-  // chart: the period of the chart behind the board ("off" for none).
-  // clock: the time, centred at the top of the board.
-  const settings = { assets: [{ ...DEFAULT_ASSET }], columns: 0, brightness: 100, burnIn: true, palette: "green-red", chart: "1d", clock: true };
+  const settings = defaults();
   try {
     const saved = JSON.parse(storage.getItem(KEY));
     if (saved && typeof saved === "object") {
@@ -49,24 +53,35 @@ export function createSettings(storage) {
       // On unless it was explicitly switched off.
       settings.burnIn = saved.burnIn !== false;
       settings.clock = saved.clock !== false;
+      settings.keepAwake = saved.keepAwake !== false;
       // Up/down colours: green and red, or the Korean red and blue.
       if (saved.palette === "red-blue") settings.palette = "red-blue";
-      if (CHART_CHOICES.includes(saved.chart)) settings.chart = saved.chart;
+      // Before the switch, "chart" held the period, or "off" for none.
+      settings.chart = saved.chart !== false && saved.chart !== "off";
+      if (CHART_PERIODS.includes(saved.chart)) settings.period = saved.chart;
+      if (CHART_PERIODS.includes(saved.period)) settings.period = saved.period;
       const brightness = Number(saved.brightness);
       if (Number.isFinite(brightness) && brightness >= 10 && brightness <= 100) settings.brightness = brightness;
     }
   } catch (error) { /* Unreadable storage: run on defaults. */ }
   function get() {
-    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette, chart: settings.chart, clock: settings.clock };
+    return { assets: settings.assets.map((asset) => ({ ...asset })), columns: settings.columns, brightness: settings.brightness, burnIn: settings.burnIn, palette: settings.palette, chart: settings.chart, period: settings.period, clock: settings.clock, keepAwake: settings.keepAwake };
   }
   // Callers pass validated values; a failed write still applies for this run.
   function update(patch) {
     if (patch.assets !== undefined) settings.assets = patch.assets.map((asset) => ({ currency: asset.currency, ticker: asset.ticker }));
-    ["columns", "brightness", "burnIn", "palette", "chart", "clock"].forEach((key) => {
+    ["columns", "brightness", "burnIn", "palette", "chart", "period", "clock", "keepAwake"].forEach((key) => {
       if (patch[key] !== undefined) settings[key] = patch[key];
     });
     try { storage.setItem(KEY, JSON.stringify(settings)); return { saved: true }; }
     catch (error) { return { saved: false }; }
   }
-  return { get, update, normalizeTicker };
+  // Back to a new board: the defaults, and nothing saved, so the next start
+  // reads a new board's defaults too. A failed removal still applies for this run.
+  function reset() {
+    Object.assign(settings, defaults());
+    try { storage.removeItem(KEY); return { saved: true }; }
+    catch (error) { return { saved: false }; }
+  }
+  return { get, update, reset, normalizeTicker };
 }

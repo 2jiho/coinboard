@@ -12,8 +12,10 @@ function fixture() {
     addEventListener: (name, cb) => { handlers[name] = cb; }, removeEventListener: name => { removed.push(name); },
   };
   // Where a tap or focus lands: on the board, on the settings button, or inside the panel.
-  const place = matches => ({ closest: selector => matches.includes(selector) ? {} : null, blur() { state.blurs++; document.activeElement = null; } });
-  const board = place([]), button = place([CONTROLS]), inPanel = place([CONTROLS, PANEL]);
+  // focusVisible: focus the browser shows (from the keyboard), not left by a press.
+  const place = (matches, focusVisible = true) => ({ closest: selector => matches.includes(selector) ? {} : null,
+    matches: selector => selector === ':focus-visible' && focusVisible, blur() { state.blurs++; document.activeElement = null; } });
+  const board = place([]), button = place([CONTROLS]), inPanel = place([CONTROLS, PANEL]), pressed = place([CONTROLS], false);
   const controls = createQuietControls({
     document, controls: CONTROLS, panel: PANEL,
     timers: { setTimeout: (cb, ms) => { timers.set(++id, { cb, at: time + ms }); return id; }, clearTimeout: key => { timers.delete(key); } },
@@ -41,7 +43,7 @@ function fixture() {
     return { downPrevented: down.prevented, clickSwallowed: click.prevented && click.stopped };
   }
   const key = name => handlers.keydown({ key: name });
-  return { controls, state, document, handlers, removed, board, button, inPanel, advance, tap, key };
+  return { controls, state, document, handlers, removed, board, button, inPanel, pressed, advance, tap, key };
 }
 
 test('the tap that reveals the button does not press it; the next tap does', () => {
@@ -69,6 +71,12 @@ test('it stays while it has focus, and a tap elsewhere lets go of it', () => {
   f.advance(60000); assert.equal(f.state.visible, true);
   f.tap(f.board); assert.equal(f.state.blurs, 1);
   f.advance(5000); assert.equal(f.state.visible, false);
+});
+test('focus a press left on a button does not hold it: it hides after five idle seconds', () => {
+  const f = fixture(); f.tap(f.board);
+  f.document.activeElement = f.pressed; f.handlers.focusin({ target: f.pressed });
+  f.advance(4999); assert.equal(f.state.visible, true);
+  f.advance(1); assert.equal(f.state.visible, false);
 });
 test('it stays while the panel is open; a tap outside the panel asks to close it, a tap inside does not', () => {
   const f = fixture(); f.tap(f.board); f.state.panelOpen = true; f.controls.reveal();

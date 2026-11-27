@@ -156,7 +156,9 @@ async function addAsset(page, currency, ticker) {
   else { await page.locator('#new-coin').selectOption('__other'); await page.locator('#new-symbol').fill(ticker); }
   await page.locator('#asset-new-confirm').click();
 }
-const deleteAsset = (page, index) => page.locator('.asset-delete').nth(index).click();  // index -1: the last
+// Deleting and reordering are in edit mode (편집); index -1: the last.
+async function editAssets(page) { if (!await page.locator('.asset-delete').count()) await page.locator('#asset-edit').click(); }
+async function deleteAsset(page, index) { await editAssets(page); await page.locator('.asset-delete').nth(index).click(); }
 // The one asset on the board becomes another.
 async function replaceAsset(page, currency, ticker) {
   await addAsset(page, currency, ticker);
@@ -211,9 +213,13 @@ async function board(browser, base, flags) {
   assert.doesNotMatch((await text(page, '#container')).replace(/[억만]/g, ''), /[가-힣]/);
   await page.screenshot({ path: path.join(evidence, 'board.png') });
 
-  // Keyboard: Tab reveals and focuses the button, Enter opens, focus is kept inside.
+  // Keyboard: Tab reveals the buttons in the corner and focuses settings, the one in the corner itself; Enter opens it, and focus is kept inside.
+  // The others follow from the corner outwards.
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'settings-toggle');
+  const order = await page.locator('#board-controls button').evaluateAll(els => els.map(el => [el.id, Math.round(el.getBoundingClientRect().x)]));
+  assert.deepEqual(order.map(([id]) => id), ['settings-toggle', 'wake-toggle', 'pip-toggle']);
+  assert.ok(order[0][1] > order[1][1] && order[1][1] > order[2][1], 'settings in the corner, the others to its left in focus order');
   await page.clock.fastForward(6000);
   assert.equal(await page.locator('#settings-toggle').isVisible(), true);
   await page.keyboard.press('Enter');
@@ -236,7 +242,7 @@ async function board(browser, base, flags) {
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
   // Two small section titles, and a healthy board has nothing to report: no status lines, no extra input.
   assert.deepEqual(await page.locator('#admin-panel h3').allTextContents(), ['시세', '화면']);
-  for (const quiet of ['#status-indicator', '#overlay-msg', '#wake-lock-status', '#new-symbol', '#market-retry', '#wake-lock-retry', '#app-update']) {
+  for (const quiet of ['#status-indicator', '#overlay-msg', '#new-symbol', '#market-retry', '#app-update']) {
     assert.equal(await page.locator(quiet).isVisible(), false, quiet + ' is hidden while all is well');
   }
   assert.equal(await page.locator('#admin-debug').count(), 0);
@@ -246,25 +252,70 @@ async function board(browser, base, flags) {
   await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION}`);
   assert.equal(await page.locator('#app-update').isVisible(), false);
 
-  // Wake lock: a system release is recovered; a failed recovery shows under the price.
-  await page.waitForFunction(() => document.getElementById('wake-lock-status').textContent.includes('활성'));
-  // Whether the screen is kept on is always shown in settings, in a word.
-  assert.equal((await text(page, '#wake-state')).trim(), '작동 중');
-  assert.equal(await page.locator('#wake-state').getAttribute('data-kind'), 'active');
+  // Settings hold settings only: the small window and keeping the screen on are buttons beside the settings button.
+  assert.equal(await page.locator('#admin-panel #pip-toggle, #admin-panel #wake-toggle, #wake-state, #wake-lock-status, #wake-lock-retry').count(), 0);
+  // Keeping the screen on: the button says how it is; a system release is recovered.
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.getElementById('wake-toggle')?.dataset.kind === 'active');
+  const wakeButton = page.locator('#wake-toggle');
+  // One name, pressed or not; how it is going is its description (and its title, on hover).
+  assert.equal(await wakeButton.getAttribute('aria-label'), '화면 켜짐 유지');
+  assert.equal(await wakeButton.getAttribute('aria-pressed'), 'true');
+  const wakeState = () => wakeButton.evaluate(el => [el.title, document.getElementById(el.getAttribute('aria-describedby')).textContent]);
+  assert.deepEqual(await wakeState(), ['화면 켜짐 유지 · 작동 중', '작동 중']);
+  const iconOn = await wakeButton.locator('svg').innerHTML();
   await page.evaluate(() => { window.realWakeRequest = navigator.wakeLock.request; });
   await page.clock.runFor(10000);
   await page.evaluate(() => testSentinel.release());
-  await page.waitForFunction(() => wakeRequests === 2 && document.getElementById('wake-lock-status').textContent.includes('활성'));
+  await page.waitForFunction(() => wakeRequests === 2 && document.getElementById('wake-toggle').dataset.kind === 'active');
   assert.equal(await level(), 'ok');
+  // Refused: the dot warns and the button is marked; a press on it tries again (it does not switch it off) and says why.
   await page.clock.runFor(10000);
   await page.evaluate(() => { navigator.wakeLock.request = () => Promise.reject(Object.assign(new Error('Denied'), { name: 'NotAllowedError' })); return testSentinel.release(); });
   await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'warn');
   assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE\nSCREEN MAY SLEEP');
-  assert.equal((await text(page, '#wake-state')).trim(), '꺼짐');
+  assert.equal(await wakeButton.getAttribute('data-kind'), 'failed');
+  assert.deepEqual(await wakeState(), ['화면 켜짐 유지 · 꺼짐 · 누르면 다시 시도', '꺼짐 · 누르면 다시 시도']);
   await page.evaluate(() => { navigator.wakeLock.request = window.realWakeRequest; });
-  await page.getByRole('button', { name: '화면 켜짐 유지 다시 시도' }).click();
-  await page.waitForFunction(() => wakeRequests === 3 && document.getElementById('wake-lock-status').textContent.includes('활성'));
+  await page.keyboard.press('Tab');
+  await wakeButton.click();
+  await page.waitForFunction(() => wakeRequests === 3 && document.getElementById('wake-toggle').dataset.kind === 'active');
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: 'NotAllowedError' }).count(), 1, 'the press says why');
+  await page.clock.runFor(3500);
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: 'NotAllowedError' }).count(), 1, 'long enough to read the reason');
   assert.equal(await level(), 'ok');
+  assert.notEqual((await saved(page)).keepAwake, false, 'trying again is not switching off');
+  // Switched off: the lock is let go and not asked for again, not even on a tap; the dot does not warn, since that was chosen.
+  await wakeButton.click();
+  assert.equal(await wakeButton.getAttribute('aria-pressed'), 'false');
+  assert.equal(await wakeButton.getAttribute('data-kind'), 'off');
+  assert.deepEqual(await wakeState(), ['화면 켜짐 유지 · 꺼 둠', '꺼 둠']);
+  assert.notEqual(await wakeButton.locator('svg').innerHTML(), iconOn, 'the screen is crossed out');
+  assert.equal(await page.evaluate(() => testSentinel.released), true);
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 꺼짐' }).count(), 1);
+  assert.equal((await saved(page)).keepAwake, false);
+  // A message sits above the buttons in the corner, never over them, so the same button can be pressed again at once.
+  await page.waitForTimeout(600);
+  const toastBox = await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 꺼짐' }).boundingBox();
+  assert.ok(toastBox.y + toastBox.height <= (await wakeButton.boundingBox()).y, 'the message clears the buttons');
+  assert.equal(await level(), 'ok');
+  const askedWhileOn = await page.evaluate(() => wakeRequests);
+  await tapBoard(page);
+  assert.equal(await page.evaluate(() => wakeRequests), askedWhileOn, 'nothing asked for while off');
+  // A press shows at once: the button gives under the finger.
+  const pressAt = await wakeButton.boundingBox();
+  await page.mouse.move(pressAt.x + 24, pressAt.y + 24); await page.mouse.down(); await page.waitForTimeout(200);
+  assert.notEqual(await wakeButton.evaluate(el => getComputedStyle(el).transform), 'none', 'pressed, it gives');
+  await page.mouse.move(0, 0); await page.mouse.up();
+  // And on again.
+  await wakeButton.click();
+  await page.waitForFunction(n => wakeRequests === n + 1 && document.getElementById('wake-toggle').dataset.kind === 'active', askedWhileOn);
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 켬' }).count(), 1);
+  assert.equal((await saved(page)).keepAwake, true);
+  assert.equal(await wakeButton.locator('svg').innerHTML(), iconOn);
+  // A press leaves no hold on the buttons: untouched, they go after five seconds.
+  await page.clock.runFor(6000);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('controls-visible')), false, 'the buttons go after a press too');
 
   // Currency applies at once and the old amount is cleared first.
   // The board is one fixed size: a shorter or longer price, or none yet, does not resize it.
@@ -346,7 +397,14 @@ async function board(browser, base, flags) {
   await tapBoard(page); await page.clock.fastForward(6000);
   // It fades out over 0.6 s (real time, not the test clock).
   await page.locator('#settings-toggle').waitFor({ state: 'hidden', timeout: 3000 });
-  // The tap that reveals the button must not press it.
+  // The tap that reveals the buttons must not press one: not the one keeping the screen on...
+  const wakeAt = await page.locator('#wake-toggle').boundingBox();
+  await page.touchscreen.tap(wakeAt.x + 24, wakeAt.y + 24);
+  assert.equal(await page.locator('#wake-toggle').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#settings-toggle').isVisible(), true);
+  await page.clock.fastForward(6000);
+  await page.locator('#settings-toggle').waitFor({ state: 'hidden', timeout: 3000 });
+  // ...nor settings.
   const corner = { x: 1024 - 40, y: 768 - 40 };
   await page.touchscreen.tap(corner.x, corner.y);
   assert.equal(await page.locator('#settings-toggle').isVisible(), true);
@@ -402,7 +460,7 @@ async function board(browser, base, flags) {
   assert.equal(await brightnessThumb.getAttribute('aria-valuenow'), '50');
   assert.equal(await shownBrightness(page), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: '1d', clock: true });
+  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true, keepAwake: true });
   // Up and down colours: green and red, or the Korean red and blue.
   const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
@@ -676,11 +734,19 @@ async function gridBoard(browser, base) {
   assert.equal(await text(page, '#asset-new-error'), '이미 표시 중인 자산입니다');
   assert.deepEqual(await assets(), ['BTC:KRW']);
   await page.locator('#asset-new-cancel').click();
-  // Adding takes the first listed coin not yet shown, in the same market. Every card then has a delete button.
+  // Adding takes the first listed coin not yet shown, in the same market. Cards show prices; 편집 gives each a delete button and a handle instead.
   assert.equal(await page.locator('#admin-columns').count(), 0, 'no columns to choose for one asset');
+  assert.equal(await page.locator('#asset-edit').count(), 0, 'nothing to edit with one asset');
   await addNext();
   assert.deepEqual(await assets(), ['BTC:KRW', 'ETH:KRW']);
+  assert.equal(await page.locator('.asset-delete, .asset-handle').count(), 0, 'no delete or handle until 편집');
+  assert.equal(await page.locator('.asset-price').count(), 2);
+  assert.equal((await text(page, '#asset-edit')).trim(), '편집');
+  await page.locator('#asset-edit').click();
+  assert.equal((await text(page, '#asset-edit')).trim(), '완료');
   assert.equal(await page.locator('.asset-delete').count(), 2);
+  assert.equal(await page.locator('.asset-handle').count(), 2);
+  assert.equal(await page.locator('.asset-price').count(), 0, 'editing: the controls take the price\'s place');
   assert.deepEqual(await page.locator('.asset-delete').evaluateAll(els => els.map(el => el.getAttribute('aria-label'))), ['BTC 원화 · 업비트 삭제', 'ETH 원화 · 업비트 삭제']);
   assert.equal(await page.locator('#grid').getAttribute('data-count'), '2');
   // Upbit carries both coins on the same connection: the new coin is subscribed
@@ -737,7 +803,9 @@ async function gridBoard(browser, base) {
   await handles.nth(2).focus(); await page.keyboard.press('ArrowUp');
   await until(page, () => JSON.parse(localStorage.getItem('coinboard-settings')).assets.map(asset => asset.ticker).join() === 'BTC,SOL,BTC');
   assert.deepEqual(await assets(), ['BTC:KRW', 'SOL:USDT-PERP', 'BTC:USDT-PERP']);
-  // Each card shows its asset's live price and change, as on the board.
+  // Done editing, each card shows its asset's live price and change, as on the board.
+  await page.locator('#asset-edit').click();
+  assert.equal(await page.locator('.asset-delete').count(), 0);
   assert.deepEqual(await page.locator('.asset-price').allTextContents(), ['9800만', '180.3', '70,000']);
   // Landscape, three: one row; every cell drawn at one size; the grid inside the screen.
   await page.keyboard.press('Escape');
@@ -818,7 +886,7 @@ async function gridBoard(browser, base) {
   await open(page);
   const countBefore = (await assets()).length;
   const lastName = (await assets()).at(-1);
-  await page.locator('.asset-delete').last().click();
+  await deleteAsset(page, -1);
   assert.equal((await assets()).length, countBefore - 1);
   assert.ok(!(await assets()).includes(lastName));
   await page.keyboard.press('Escape');
@@ -826,8 +894,14 @@ async function gridBoard(browser, base) {
   // Removing down to one goes back to the single board, which picks up where it was.
   await page.setViewportSize({ width: 1024, height: 768 });
   await open(page);
-  while (await page.locator('.asset-delete').count() > 0) await deleteAsset(page, -1);
+  while ((await assets()).length > 1) await deleteAsset(page, -1);
   assert.deepEqual(await assets(), ['BTC:KRW']);
+  // Down to one, editing ends: nothing is left to delete or reorder, and a new asset comes with its price, not a delete button.
+  assert.equal(await page.locator('#asset-edit, .asset-delete').count(), 0);
+  await addNext();
+  assert.equal(await page.locator('.asset-delete').count(), 0);
+  assert.equal((await text(page, '#asset-edit')).trim(), '편집');
+  await deleteAsset(page, -1);
   assert.equal(await page.locator('#grid').count(), 0);
   await page.keyboard.press('Escape');
   await page.clock.runFor(11100); await live(page);
@@ -901,7 +975,8 @@ async function english(browser, base) {
   assert.doesNotMatch(await words(), hangul);
   assert.equal(await text(page, '#admin-title'), 'Settings');
   assert.equal(await page.locator('#settings-toggle').getAttribute('aria-label'), 'Open settings');
-  assert.equal((await text(page, '#wake-label')).trim(), 'Keep Screen On');
+  assert.equal(await page.locator('#wake-toggle').getAttribute('aria-label'), 'Keep Screen On');
+  assert.equal(await page.locator('#wake-toggle').getAttribute('title'), 'Keep Screen On · On');
   // The add form, the columns row and a refusal, in English too.
   await page.locator('#asset-add').click();
   assert.deepEqual(await page.locator('#new-currency option').allTextContents(), ['Upbit · KRW', 'Bithumb · KRW', 'Coinone · KRW', 'Binance · USDT', 'Binance · USDT Perpetual', 'OKX · USDT', 'OKX · USDT Perpetual', 'Bybit · USDT', 'Bybit · USDT Perpetual', 'Coinbase · USD', 'Kraken · USD']);
@@ -913,6 +988,9 @@ async function english(browser, base) {
   assert.equal(await text(page, '#asset-new-error'), 'This asset is already on the board.');
   await choose(page, '#new-currency', 'USDT-PERP'); await page.locator('#new-coin').selectOption('BTC'); await page.locator('#asset-new-confirm').click();
   assert.equal(await page.locator('#admin-columns').count(), 1);
+  assert.equal((await text(page, '#asset-edit')).trim(), 'Edit');
+  await editAssets(page);
+  assert.equal((await text(page, '#asset-edit')).trim(), 'Done');
   assert.equal(await page.locator('.asset-delete').first().getAttribute('aria-label'), 'Delete BTC Upbit · KRW');
   assert.doesNotMatch(await words(), hangul);
   // English is longer: every choice is still readable in its row.
@@ -964,6 +1042,10 @@ async function help(browser, base) {
   assert.equal(await text(page, '#admin-title'), '사용법');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'help-back');
   assert.equal(await page.locator('#help section').count(), 5);
+  // It names the buttons beside the settings button, and where keeping the screen on is switched.
+  const helpText = await page.locator('#help').textContent();
+  assert.match(helpText, /그 옆 버튼/);
+  assert.match(helpText, /줄이 그어져 있으면 화면 켜짐 유지가 꺼진 것/);
   assert.equal(await page.locator('#asset-list').count(), 0);
   assert.equal(await page.locator('#help-guide').getAttribute('href'), 'https://github.com/2jiho/coinboard/blob/main/docs/guide.ko.md');
   assert.ok(await page.locator('#admin-panel').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'help is not cut off');
@@ -1076,7 +1158,7 @@ async function oled(browser, base) {
   assert.equal(await settled('#change', 'opacity'), '1');
   // In settings the switch says what it is for.
   await open(page);
-  assert.equal(await text(page, '#burn-in-hint'), 'OLED 화면에서 켜 두세요. LCD 화면에서는 꺼도 됩니다.');
+  assert.equal(await text(page, '#burn-in-hint'), 'OLED 화면이면 켜 두세요.');
   // Switched off: all of it goes, and the board is as it always was.
   await page.locator('#admin-burn-in').click();
   await page.keyboard.press('Escape');
@@ -1094,13 +1176,21 @@ async function popOut(browser, base) {
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
   const pip = () => page.evaluate(() => { const doc = window.documentPictureInPicture.window?.document; return doc && { price: doc.getElementById('price-main')?.textContent ?? null, head: doc.getElementById('board-head') ? doc.getElementById('coin').textContent + doc.getElementById('unit').textContent : null, cells: doc.querySelectorAll('.cell').length }; });
-  await open(page);
-  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창으로 띄우기');
-  assert.equal(await text(page, '#pip-hint'), '다른 창 위에 늘 떠 있는 작은 창으로 시세를 띄웁니다. 이 탭을 닫으면 함께 닫힙니다.');
+  // A button beside the settings button; settings themselves have none. The click that reveals it does not press it.
+  const pipButton = page.locator('#pip-toggle');
+  const pipAt = await pipButton.boundingBox();
+  await page.mouse.click(pipAt.x + 24, pipAt.y + 24);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('controls-visible')), true);
+  assert.equal(await page.evaluate(() => !!window.documentPictureInPicture.window), false, 'the revealing click opens nothing');
+  const pipIcon = await pipButton.locator('svg').innerHTML();
+  assert.equal(await page.locator('#board-controls #pip-toggle').count(), 1);
+  assert.equal(await pipButton.getAttribute('aria-label'), '작은 창으로 띄우기');
+  assert.equal(await pipButton.getAttribute('title'), '작은 창으로 띄우기', 'named on hover too');
   // A press opens the small window, with the same price as the board.
-  await page.locator('#pip-toggle').click();
+  await pipButton.click();
   await page.waitForFunction(() => !!window.documentPictureInPicture.window?.document.getElementById('container'));
-  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창 닫기');
+  assert.equal(await pipButton.getAttribute('aria-label'), '작은 창 닫기');
+  assert.notEqual(await pipButton.locator('svg').innerHTML(), pipIcon, 'its icon says it closes');
   // The same board as the tab, drawn to the small window.
   assert.deepEqual(await pip(), { price: '9800만', head: 'BTCKRW', cells: 0 });
   assert.equal(await page.evaluate(() => window.documentPictureInPicture.window.document.title), 'Coinboard');
@@ -1108,12 +1198,13 @@ async function popOut(browser, base) {
   await page.evaluate(() => sockets.at(-1).quote({ trade_price: 99000000 }));
   await page.waitForTimeout(3200);
   assert.equal((await pip()).price, '9900만');
-  await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
+  await open(page); await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   await until(page, () => window.documentPictureInPicture.window.document.querySelectorAll('.cell').length === 2);
+  await page.keyboard.press('Escape');
   // The press again closes it.
-  await page.locator('#pip-toggle').click();
+  await pipButton.click();
   await until(page, () => !window.documentPictureInPicture.window);
-  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창으로 띄우기');
+  assert.equal(await pipButton.getAttribute('aria-label'), '작은 창으로 띄우기');
   assert.deepEqual(problems, []);
   await context.close();
   // A browser without small windows (Safari, Firefox, phones and tablets): no button.
@@ -1125,7 +1216,7 @@ async function popOut(browser, base) {
   // In English.
   const en = await browser.newContext({ locale: 'en-US', viewport: { width: 1024, height: 768 } }); await scripted(en);
   const enPage = await en.newPage(); await enPage.goto(base); await live(enPage); await open(enPage);
-  assert.equal((await text(enPage, '#pip-toggle')).trim(), 'Pop Out');
+  assert.equal(await enPage.locator('#pip-toggle').getAttribute('aria-label'), 'Pop Out');
   await en.close();
   console.log('PASS pop-out: the board in a small window on top, following the tab (one asset, then a grid), closed by the same button; no button where the browser cannot');
 }
@@ -1193,18 +1284,26 @@ async function chart(browser, base) {
   await page.evaluate(() => sockets.at(-1).quote({ trade_price: 98590000 }));
   await untilTicking(page, () => document.querySelector('#board-chart .spark-ring')?.className === 'spark-ring down');
   assert.equal(await page.locator('#board-chart .spark-ring').getAttribute('data-strength'), '1', 'a slight move, a small ring');
-  // Another period asks for other candles; off takes the chart away.
+  // A switch turns it off and on; while on, its period is chosen below the switch. Another period asks for other candles.
   await open(page);
-  assert.equal(await chosen(page, '#admin-chart'), '1d');
-  assert.deepEqual(await page.locator('#admin-chart [data-value]').allTextContents(), ['끔', '15분', '1시간', '1일', '1주', '1달']);
-  await choose(page, '#admin-chart', '1w');
+  assert.equal(await page.locator('#admin-chart').getAttribute('aria-checked'), 'true');
+  assert.equal(await chosen(page, '#admin-period'), '1d');
+  assert.deepEqual(await page.locator('#admin-period [data-value]').allTextContents(), ['15분', '1시간', '1일', '1주', '1달']);
+  await choose(page, '#admin-period', '1w');
   await untilTicking(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
   assert.match(asked.at(-1), /candles\/minutes\/60\?market=KRW-BTC&count=169$/);
-  assert.equal((await saved(page)).chart, '1w');
-  await choose(page, '#admin-chart', 'off');
+  const chartSaved = async () => { const { chart, period } = await saved(page); return [chart, period]; };
+  assert.deepEqual(await chartSaved(), [true, '1w']);
+  // Off takes the chart away, and its period with it until it is on again.
+  await page.locator('#admin-chart').click();
   assert.equal(await page.locator('.spark').count(), 0);
+  assert.equal(await page.locator('#admin-period').count(), 0, 'no period to choose while off');
+  assert.deepEqual(await chartSaved(), [false, '1w']);
+  await page.locator('#admin-chart').click();
+  assert.equal(await chosen(page, '#admin-period'), '1w', 'on again: the same period');
+  await untilTicking(page, () => document.querySelector('#board-chart .spark-label')?.textContent === '7D');
   // A grid has one per cell (here only Upbit's can be had).
-  await choose(page, '#admin-chart', '1d');
+  await choose(page, '#admin-period', '1d');
   await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   // The new coin's candles wait their turn behind Upbit's other requests: let the test clock run until they come.
   await untilTicking(page, () => document.querySelectorAll('#chart-grid .spark').length === 2);
@@ -1212,8 +1311,18 @@ async function chart(browser, base) {
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(evidence, 'chart.png') });
   assert.deepEqual(problems, []);
+  // A board saved before the switch with the chart off ("off" was a period): off, and 1일 once switched on.
+  const older = await context.newPage(); const olderProblems = watch(older);
+  await older.addInitScript(() => localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }], chart: 'off' })));
+  await older.goto(base); await live(older);
+  assert.equal(await older.locator('.spark').count(), 0);
+  await open(older);
+  assert.equal(await older.locator('#admin-chart').getAttribute('aria-checked'), 'false');
+  await older.locator('#admin-chart').click();
+  assert.equal(await chosen(older, '#admin-period'), '1d');
+  assert.deepEqual(olderProblems, []);
   await context.close();
-  console.log('PASS chart: past prices behind the board, coloured by the move, a period to choose or none, one per grid cell');
+  console.log('PASS chart: past prices behind the board, coloured by the move, switched on and off with its period kept, one per grid cell');
 }
 
 async function idleUpdate(browser, base, flags) {
@@ -1276,6 +1385,15 @@ async function clockShown(browser, base) {
   await page.locator('#admin-clock').click();
   assert.equal(await text(page, '#clock'), '14:33');
   await page.keyboard.press('Escape');
+  // Floating never takes it off the screen: drifted as far up as the board goes, it is still whole.
+  const up = await context.newPage(); const upProblems = watch(up);
+  await up.addInitScript(() => { Math.random = () => 0; });
+  await up.clock.install({ time: new Date('2026-11-19T14:32:50+09:00') });
+  await up.goto(base); await live(up);
+  await up.clock.runFor(2000);
+  assert.ok(await up.locator('#drift').evaluate(el => Number(el.dataset.roomY) > 0), 'the board has room to float');
+  assert.ok(await up.locator('#clock').evaluate(el => { const y = Number(/translate\([-\d.]+px, ([-\d.]+)px\)/.exec(el.style.transform)[1]); return el.offsetTop + y >= 0; }), 'the clock stays on the screen');
+  assert.deepEqual(upProblems, []);
   // In the grid the cells start below a band as tall as the clock: no coin line meets it, and the charts start with the cells.
   const grid = await context.newPage(); const gridProblems = watch(grid);
   await grid.addInitScript(() => localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT', ticker: 'BTC' }, { currency: 'USDT', ticker: 'ETH' }], clock: true })));
@@ -1289,6 +1407,96 @@ async function clockShown(browser, base) {
   assert.deepEqual(problems, []);
   await context.close();
   console.log('PASS clock: the time at the top centre, from the device clock, renewed on the minute, floating with the board, the grid starting below it, switched off and on in settings');
+}
+
+async function narrowPanel(browser, base) {
+  // A small phone (360 px), Korean and English: nothing in settings is cut off.
+  for (const locale of ['ko-KR', 'en-US']) {
+    const context = await browser.newContext({ locale, viewport: { width: 360, height: 780 }, hasTouch: true }); await scripted(context);
+    await context.addInitScript(() => localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT-PERP', ticker: 'SOL' }, { currency: 'USDT-PERP', ticker: 'ETH' }] })));
+    const page = await context.newPage(); const problems = watch(page);
+    await page.goto(base); await page.waitForFunction(() => document.querySelectorAll('.cell').length === 3); await open(page);
+    await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
+    // Market names whole, with prices and while editing.
+    assert.equal(await page.locator('.asset-market').count(), 3);
+    const whole = () => page.locator('.asset-market').evaluateAll(els => els.filter(el => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1).map(el => el.textContent));
+    assert.deepEqual(await whole(), [], locale + ' market names with prices');
+    await editAssets(page);
+    assert.deepEqual(await whole(), [], locale + ' market names while editing');
+    // The display card: one row style, in this order; every button group the same height, every choice whole.
+    const rows = await page.locator('#section-display').evaluate(heading => [...heading.closest('section').querySelectorAll('#admin-columns, #admin-brightness, #admin-chart, #admin-period, #admin-clock, #admin-palette, #admin-burn-in')].map(el => el.id));
+    assert.deepEqual(rows, ['admin-columns', 'admin-brightness', 'admin-chart', 'admin-period', 'admin-clock', 'admin-palette', 'admin-burn-in'], locale + ' order');
+    const choices = await page.locator('#admin-columns [data-value], #admin-period [data-value], #admin-palette [data-value]').evaluateAll(els => els.map(el => ({ value: el.dataset.value, height: Math.round(el.getBoundingClientRect().height), cut: el.scrollWidth > el.clientWidth + 1 })));
+    assert.equal(choices.length, 7 + 5 + 2);
+    assert.deepEqual(choices.filter(choice => choice.height !== 44 || choice.cut), [], locale + ' every choice 44 px tall (a full touch target) and whole');
+    // The burn-in note is one line.
+    assert.ok(await page.locator('#burn-in-hint').evaluate(el => el.getClientRects().length === 1 && el.getBoundingClientRect().height < 24), locale + ' one-line note');
+    // Deleting by keyboard keeps focus in the list: on the next delete button, then, with one asset left and editing over, on adding one.
+    await page.locator('.asset-delete').last().focus(); await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement.classList.contains('asset-delete')), true, locale + ' focus on the next delete button');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'asset-add', locale + ' focus on adding');
+    assert.deepEqual(problems, []);
+    await context.close();
+  }
+  console.log('PASS narrow panel: at 360 px, in Korean and English, nothing in settings is cut off');
+}
+
+async function resetSettings(browser, base) {
+  // Back to a new board's settings: one press only asks; a second, within a few seconds, does it.
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true }); await scripted(context);
+  await context.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1'); localStorage.setItem('coinboard-hint-seen', '1');
+    localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT', ticker: 'SOL' }],
+      columns: 1, brightness: 40, burnIn: false, palette: 'red-blue', chart: false, period: '1w', clock: false, keepAwake: false }));
+  });
+  const page = await context.newPage(); const problems = watch(page);
+  await page.clock.install(); await page.goto(base);
+  await page.waitForFunction(() => document.querySelectorAll('.cell').length === 3);
+  await open(page);
+  const reset = page.locator('#settings-reset');
+  assert.equal((await text(page, '#settings-reset')).trim(), '설정 초기화');
+  assert.equal(await page.locator('#settings-reset-hint').isVisible(), false);
+  await reset.click();
+  assert.equal((await text(page, '#settings-reset')).trim(), '한 번 더 누르면 초기화');
+  assert.equal(await text(page, '#settings-reset-hint'), '코인 목록과 모든 설정이 처음 상태로 돌아갑니다.');
+  assert.equal((await saved(page)).assets.length, 3, 'one press changes nothing');
+  // Left alone, it asks no more.
+  await page.clock.runFor(4100);
+  assert.equal((await text(page, '#settings-reset')).trim(), '설정 초기화');
+  assert.equal(await page.locator('#settings-reset-hint').isVisible(), false);
+  // While editing, with the add form open, two presses: a new board's settings at once, the panel still open on them.
+  await page.locator('#asset-edit').click();
+  await page.locator('#asset-add').click();
+  await reset.click(); await reset.click();
+  assert.equal(await page.locator('#asset-new').count(), 0, 'the add form is closed');
+  assert.equal(await page.evaluate(() => localStorage.getItem('coinboard-settings')), null, 'nothing saved: the next start is a new board too');
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: '설정을 초기화했습니다' }).count(), 1);
+  assert.equal(await page.locator('#admin-panel').isVisible(), true);
+  assert.deepEqual(await page.locator('.asset-ticker').allTextContents(), ['BTC']);
+  assert.equal(await page.locator('#asset-edit, .asset-delete').count(), 0, 'one asset: nothing to edit');
+  assert.equal(await page.locator('#admin-chart').getAttribute('aria-checked'), 'true');
+  assert.equal(await chosen(page, '#admin-period'), '1d');
+  assert.equal(await page.locator('#admin-clock').getAttribute('aria-checked'), 'true');
+  assert.equal(await page.locator('#admin-burn-in').getAttribute('aria-checked'), 'true');
+  assert.equal(await chosen(page, '#admin-palette'), 'green-red');
+  assert.equal(await text(page, '#brightness-value'), '100%');
+  assert.equal((await text(page, '#settings-reset')).trim(), '설정 초기화');
+  // The board follows: Bitcoin on Binance spot, full brightness, the clock, the screen kept on.
+  await page.keyboard.press('Escape');
+  await page.clock.runFor(3000); await live(page);
+  assert.equal(await text(page, '#price-source'), 'BINANCE · BTC/USDT');
+  assert.equal(await shownBrightness(page), 'brightness(100%)');
+  assert.equal(await page.locator('#clock').count(), 1);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('oled') && document.body.dataset.palette), 'green-red');
+  assert.equal(await page.locator('#wake-toggle').getAttribute('aria-pressed'), 'true');
+  await page.waitForFunction(() => document.getElementById('wake-toggle').dataset.kind === 'active');
+  // Only the settings go: what else the board remembers stays.
+  assert.equal(await page.evaluate(() => localStorage.getItem('coinboard-hint-seen')), '1');
+  assert.deepEqual(problems, []);
+  await context.close();
+  console.log("PASS reset: one press asks, two bring back a new board's settings at once (board, panel, screen kept on); the rest is kept");
 }
 
 async function swipeBrightness(browser, base) {
@@ -1508,7 +1716,7 @@ async function layouts(browser, base) {
     assert.equal(toggle.x + toggle.width, s.width - s.right - 16, s.name + ' button right');
     await page.locator('#settings-toggle').tap();
     // The worst case for height: every optional button showing.
-    await page.evaluate(() => { for (const id of ['wake-lock-retry', 'app-update', 'market-retry']) document.getElementById(id).hidden = false; });
+    await page.evaluate(() => { for (const id of ['market-retry']) document.getElementById(id).hidden = false; });
     await page.locator('#asset-add').tap();
     await page.locator('#new-coin').selectOption('__other');
     // Measure the sheet where it comes to rest, not partway through its entrance.
@@ -1560,7 +1768,7 @@ browser.newContext = (options = {}) => newContext({ locale: 'ko-KR', ...options 
 // Scenarios run side by side, a few at a time (E2E_JOBS, default 4), each
 // against its own server. A failure is reported with the scenario's name;
 // the others still run.
-const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, clockShown, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
+const scenarios = [board, english, help, install, oled, popOut, chart, firstConnection, gridBoard, statusTipOnTouch, swipeBrightness, clockShown, narrowPanel, resetSettings, idleUpdate, lockedStorage, coinList, offlineShell, layouts];
 if (process.env.LIVE_NETWORK === '1') scenarios.push(liveExchanges);
 // E2E_ONLY=chart,board runs just those.
 const only = process.env.E2E_ONLY?.split(',');

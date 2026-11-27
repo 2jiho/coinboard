@@ -15,29 +15,20 @@
   import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from '$lib/components/ui/native-select/index.js';
   import { ToggleGroup, ToggleGroupItem } from '$lib/components/ui/toggle-group/index.js';
   import { HugeiconsIcon } from '@hugeicons/svelte';
-  import { Share03Icon, AddSquareIcon, Download04Icon, PictureInPictureOnIcon, PictureInPictureExitIcon } from '@hugeicons/core-free-icons';
+  import { Share03Icon, AddSquareIcon, Download04Icon } from '@hugeicons/core-free-icons';
   import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
-  let { settings, canAdd, ticks, status, wake, versionLabel, updateReady, install = null, installDismissed = false,
-    onInstall = () => {}, onDismissInstall = () => {}, pipSupported = false, pipOpen = false, onPip = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onClock = () => {}, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+  let { settings, canAdd, ticks, status, versionLabel, install = null, installDismissed = false,
+    onInstall = () => {}, onDismissInstall = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onPeriod = () => {}, onClock = () => {}, onReset = () => {}, onRetryFeed, loadTickers } = $props();
 
   let panel;
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
   let brightness = $state(untrack(() => settings.brightness));
+  // Follows the setting when it changes from elsewhere (a reset).
+  $effect(() => { brightness = settings.brightness; });
   // The new asset's coin is a one-line choice: the listed coins, and
   // "직접 입력…", which opens a field for any other ticker.
   const OTHER = '__other';
-  // The screen-on state in a word, with the colour of the status dot.
-  const WAKE = {
-    active: { label: m.wake_state_active, color: 'bg-[#30d158]' },
-    pending: { label: m.wake_state_pending, color: 'bg-muted-foreground' },
-    waiting: { label: m.wake_state_waiting, color: 'bg-muted-foreground' },
-    released: { label: m.wake_state_off, color: 'bg-[#ffd60a]' },
-    failed: { label: m.wake_state_off, color: 'bg-[#ffd60a]' },
-    unsupported: { label: m.wake_state_unsupported, color: 'bg-muted-foreground' },
-  };
-  // Worth a line only when something is wrong.
-  const wakeTrouble = $derived(['unsupported', 'released', 'failed'].includes(wake.kind));
   // The add form: market and coin for a new asset, added only on 추가. It
   // starts in the market of the last asset, on the first listed coin not yet
   // shown there. An asset is not edited: another coin is added, and the old one deleted.
@@ -67,6 +58,10 @@
   }
 
   // ---- The asset list: a card per asset, with its icon and live price ----
+  // Deleting and reordering are in edit mode (편집), where the delete button and
+  // the handle take the price's place; with one asset there is nothing to edit.
+  let editing = $state(false);
+  $effect(() => { if (settings.assets.length < 2) editing = false; });
   const keyOf = item => `${item.currency}:${item.ticker}`;
   // Each asset's latest price, as on the board.
   const tickOf = $derived(new Map(settings.assets.map((item, index) => [keyOf(item), ticks?.[index] ?? null])));
@@ -85,6 +80,15 @@
   let rows = $state([]);
   let draggingId = $state(null);
   $effect(() => { const next = settings.assets.map(item => ({ id: keyOf(item), asset: item })); if (untrack(() => draggingId) === null) rows = next; });
+  // Deleting takes the focused button with its row: focus moves on to the next
+  // delete button, or, with one asset left and editing over, to adding one.
+  async function remove(index) {
+    onRemove(index);
+    await tick(); await tick();
+    if (panel.contains(document.activeElement)) return;
+    const deletes = panel.querySelectorAll('.asset-delete');
+    (deletes[Math.min(index, deletes.length - 1)] ?? panel.querySelector('#asset-add'))?.focus();
+  }
   function commitOrder() {
     const order = rows.map(row => row.asset);
     if (order.map(keyOf).join() !== settings.assets.map(keyOf).join()) onReorder(order);
@@ -135,15 +139,29 @@
   $effect(() => { columnsChoice = String(settings.columns); });
   let paletteChoice = $state('green-red');
   $effect(() => { paletteChoice = settings.palette; });
-  // The line chart beside the change: off, or its period.
-  const CHARTS = [['off', m.chart_off], ['15m', m.chart_15m], ['1h', m.chart_1h], ['1d', m.chart_1d], ['1w', m.chart_1w], ['1M', m.chart_1M]];
-  let chartChoice = $state('1d');
-  $effect(() => { chartChoice = settings.chart; });
+  // The line chart behind the board: on or off, and the time it covers, kept while it is off.
+  const PERIODS = [['15m', m.chart_15m], ['1h', m.chart_1h], ['1d', m.chart_1d], ['1w', m.chart_1w], ['1M', m.chart_1M]];
+  let periodChoice = $state('1d');
+  $effect(() => { periodChoice = settings.period; });
+  // Every button group looks alike: 44 px buttons (a full touch target) in a dark track.
+  const SEGMENTS = 'grid w-full gap-1 rounded-[14px] bg-black/25 p-1';
+  const SEGMENT = 'h-11 rounded-[10px] px-1 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm';
   // The two colour pairs, as samples of themselves.
   const PALETTES = [
     { key: 'green-red', label: m.palette_green_red, up: 'text-[#30d158]', down: 'text-[#ff453a]' },
     { key: 'red-blue', label: m.palette_red_blue, up: 'text-[#ff453a]', down: 'text-[#4b8dff]' },
   ];
+  // ---- Reset ----
+  // Back to a new board's settings. One press only asks (for a few seconds);
+  // a second does it, and the panel stays open on the defaults.
+  const RESET_CONFIRM_MS = 4000;
+  let confirmingReset = $state(false), resetTimer;
+  function pressReset() {
+    clearTimeout(resetTimer);
+    if (!confirmingReset) { confirmingReset = true; resetTimer = setTimeout(() => { confirmingReset = false; }, RESET_CONFIRM_MS); return; }
+    confirmingReset = false; editing = false; adding = false;
+    onReset();
+  }
   // ---- Help ----
   // A short guide in place of the settings, and back. Focus goes to the way back
   // and returns to the help button, so a keyboard does not lose its place.
@@ -179,7 +197,7 @@
     // The close button is a component: find its element in the panel.
     panel.querySelector('#admin-close')?.focus();
     document.addEventListener('keydown', onKeydown);
-    return () => document.removeEventListener('keydown', onKeydown);
+    return () => { document.removeEventListener('keydown', onKeydown); clearTimeout(resetTimer); };
   });
 </script>
 
@@ -254,10 +272,15 @@
     </section>
   {/if}
   <section class="flex flex-col gap-2.5" aria-labelledby="section-prices">
-    <h3 id="section-prices" class="px-1 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">{m.section_prices()}</h3>
+    <div class="flex min-h-5 items-center justify-between px-1">
+      <h3 id="section-prices" class="text-[13px] font-medium tracking-wide text-muted-foreground uppercase">{m.section_prices()}</h3>
+      {#if settings.assets.length > 1}
+        <button id="asset-edit" type="button" class="-my-3 -mr-3 flex min-h-11 items-center rounded-full px-3 text-[15px] font-medium text-primary outline-none transition-colors hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-ring" aria-controls="asset-list" onclick={() => { editing = !editing; }}>{editing ? m.asset_edit_done() : m.asset_edit()}</button>
+      {/if}
+    </div>
     <!-- What the board shows: one asset large, or several in a grid. A card
-         per asset with its live price; drag the handle to reorder, swipe left
-         to remove, tap to edit. -->
+         per asset with its live price; in edit mode, a delete button and a
+         handle to drag in its place. -->
     <div class="overflow-hidden rounded-2xl bg-card" id="asset-list" role="group" aria-label={m.asset_list()}>
       <div class="relative">
         {#each rows as row (row.id)}
@@ -274,16 +297,19 @@
                 {/if}
                 <span class="flex min-w-0 flex-col">
                   <span class="asset-ticker text-base font-semibold tracking-wide">{item.ticker}</span>
-                  <span class="truncate text-[13px] text-muted-foreground">{EXCHANGES[item.currency].choice}</span>
+                  <!-- The whole market name, on two lines if need be: never cut off. -->
+                  <span class="asset-market text-[13px] leading-snug break-keep text-muted-foreground">{EXCHANGES[item.currency].choice}</span>
                 </span>
-                <span class="ml-auto flex shrink-0 flex-col items-end tabular-nums">
-                  <span class="asset-price text-[15px] font-semibold">{priceOf(item) || '—'}</span>
-                  {#if moved}<span class="text-[13px] font-medium {moved.tone > 0 ? 'text-[var(--up)]' : moved.tone < 0 ? 'text-[var(--down)]' : 'text-muted-foreground'}">{moved.text}</span>{:else}<span class="text-[13px] text-muted-foreground">{m.no_price_yet()}</span>{/if}
-                </span>
+                {#if !editing}
+                  <span class="ml-auto flex shrink-0 flex-col items-end pl-1 tabular-nums">
+                    <span class="asset-price text-[15px] font-semibold">{priceOf(item) || '—'}</span>
+                    {#if moved}<span class="text-[13px] font-medium {moved.tone > 0 ? 'text-[var(--up)]' : moved.tone < 0 ? 'text-[var(--down)]' : 'text-muted-foreground'}">{moved.text}</span>{:else}<span class="text-[13px] text-muted-foreground">{m.no_price_yet()}</span>{/if}
+                  </span>
+                {/if}
               </div>
-              {#if settings.assets.length > 1}
+              {#if editing}
                 <!-- Deleting is one tap; the toast that follows can undo it. The last asset stays. -->
-                <button type="button" class="asset-delete flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring" aria-label={m.asset_remove({ name: assetName(item) })} onclick={() => onRemove(index)}>
+                <button type="button" class="asset-delete flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring" aria-label={m.asset_remove({ name: assetName(item) })} onclick={() => remove(index)}>
                   <HugeiconsIcon icon={Delete02Icon} strokeWidth={1.8} class="size-5" />
                 </button>
                 <span class="asset-handle flex size-11 shrink-0 cursor-grab items-center justify-center rounded-full text-muted-foreground outline-none [touch-action:none] focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing" role="button" tabindex="0" data-drag-handle use:grab={row.id} aria-label={m.asset_reorder({ name: assetName(item) })}>
@@ -338,17 +364,6 @@
       <p id="asset-new-error" class="px-1 text-[13px] text-destructive" role="alert" hidden={!newError}>{newError}</p>
     {/if}
 
-    {#if settings.assets.length > 1}
-      <div class="flex flex-col gap-2 rounded-2xl bg-card p-3">
-        <span id="admin-columns-label" class="px-1 text-[13px] text-muted-foreground">{m.columns()}</span>
-        <ToggleGroup type="single" spacing={1} id="admin-columns" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-7" bind:value={columnsChoice} aria-labelledby="admin-columns-label"
-          onValueChange={value => { if (value) onColumns(Number(value)); else tick().then(() => { columnsChoice = String(settings.columns); }); }}>
-          {#each ['0', '1', '2', '3', '4', '5', '6'] as columns}
-            <ToggleGroupItem value={columns} data-value={columns} class="h-auto min-h-12 flex-col gap-0 rounded-[10px] px-1 py-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm min-h-10 text-[14px] font-semibold">{columns === '0' ? m.columns_auto() : columns}</ToggleGroupItem>
-          {/each}
-        </ToggleGroup>
-      </div>
-    {/if}
     <p id="status-indicator" class="{status.tone} flex items-start gap-2 px-1 text-[13px] leading-normal whitespace-pre-line text-muted-foreground [&.error]:text-destructive" role="status" aria-live="polite" hidden={status.tone === 'connected'}><span class="mt-[0.45em] size-2 shrink-0 rounded-full bg-current" aria-hidden="true"></span>{status.text}</p>
     <p id="overlay-msg" class="px-1 text-[13px] leading-normal whitespace-pre-line text-muted-foreground" hidden={!status.detail}>{status.detail}</p>
     <Button id="market-retry" variant="secondary" size="lg" class="h-11 rounded-xl" hidden={!status.canRetry} onclick={onRetryFeed}>{m.reconnect()}</Button>
@@ -356,70 +371,78 @@
 
   <section class="flex flex-col gap-2.5" aria-labelledby="section-display">
     <h3 id="section-display" class="px-1 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">{m.section_display()}</h3>
-    <div class="overflow-hidden rounded-2xl bg-card">
-      <div class="flex flex-col gap-2 border-b border-border px-4 pt-3 pb-3.5">
+    <!-- One row style: a label with its switch on the right, or a label with its
+         buttons below (each button group 40 px tall). Rows are ruled between. -->
+    <div class="overflow-hidden rounded-2xl bg-card divide-y divide-border">
+      {#if settings.assets.length > 1}
+        <div class="flex flex-col gap-2.5 px-4 py-3.5">
+          <span id="admin-columns-label">{m.columns()}</span>
+          <ToggleGroup type="single" spacing={1} id="admin-columns" class="{SEGMENTS} grid-cols-7" bind:value={columnsChoice} aria-labelledby="admin-columns-label"
+            onValueChange={value => { if (value) onColumns(Number(value)); else tick().then(() => { columnsChoice = String(settings.columns); }); }}>
+            {#each ['0', '1', '2', '3', '4', '5', '6'] as columns}
+              <ToggleGroupItem value={columns} data-value={columns} class={SEGMENT}>{columns === '0' ? m.columns_auto() : columns}</ToggleGroupItem>
+            {/each}
+          </ToggleGroup>
+        </div>
+      {/if}
+      <div class="flex flex-col gap-2.5 px-4 py-3.5">
         <div class="flex items-center justify-between">
           <span id="admin-brightness-label">{m.brightness()}</span>
-          <span id="brightness-value" class="text-sm text-muted-foreground tabular-nums">{brightness}%</span>
+          <span id="brightness-value" class="text-[15px] text-muted-foreground tabular-nums">{brightness}%</span>
         </div>
-        <div class="flex items-center gap-3 text-muted-foreground">
+        <div class="flex min-h-10 items-center gap-3 text-muted-foreground">
           <HugeiconsIcon icon={Sun03Icon} strokeWidth={2} class="size-4 shrink-0" />
           <Slider id="admin-brightness" type="single" min={10} max={100} step={5} bind:value={brightness} aria-labelledby="admin-brightness-label"
             onValueChange={value => onBrightnessPreview(Number(value))} onValueCommit={value => onBrightness(Number(value))} />
           <HugeiconsIcon icon={Sun01Icon} strokeWidth={2} class="size-6 shrink-0" />
         </div>
       </div>
-      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
-        <div class="flex flex-col gap-0.5 py-2.5">
+      <div class="flex flex-col gap-2.5 px-4 {settings.chart ? 'pb-3.5' : ''}">
+        <div class="flex min-h-14 items-center justify-between gap-3">
+          <label for="admin-chart">{m.chart()}</label>
+          <Switch id="admin-chart" size="lg" checked={settings.chart} onCheckedChange={value => onChart(value)} />
+        </div>
+        {#if settings.chart}
+          <ToggleGroup type="single" spacing={1} id="admin-period" class="{SEGMENTS} -mt-1 grid-cols-5" bind:value={periodChoice} aria-label={m.chart_period()}
+            onValueChange={value => { if (value) onPeriod(value); else tick().then(() => { periodChoice = settings.period; }); }}>
+            {#each PERIODS as [value, label]}
+              <ToggleGroupItem {value} data-value={value} class={SEGMENT}>{label()}</ToggleGroupItem>
+            {/each}
+          </ToggleGroup>
+        {/if}
+      </div>
+      <div class="flex min-h-14 items-center justify-between gap-3 px-4">
+        <label for="admin-clock">{m.clock()}</label>
+        <Switch id="admin-clock" size="lg" checked={settings.clock} onCheckedChange={value => onClock(value)} />
+      </div>
+      <div class="flex flex-col gap-2.5 px-4 py-3.5">
+        <span id="admin-palette-label">{m.palette()}</span>
+        <ToggleGroup type="single" spacing={1} id="admin-palette" class="{SEGMENTS} grid-cols-2" bind:value={paletteChoice} aria-labelledby="admin-palette-label"
+          onValueChange={value => { if (value) onPalette(value); else tick().then(() => { paletteChoice = settings.palette; }); }}>
+          {#each PALETTES as palette}
+            <!-- A sample of itself: the up and down marks in their colours, then its name. -->
+            <ToggleGroupItem value={palette.key} data-value={palette.key} aria-label={palette.label()} class="{SEGMENT} gap-2">
+              <span class="flex text-[12px] leading-none" aria-hidden="true"><span class={palette.up}>▲</span><span class={palette.down}>▼</span></span>{palette.label()}
+            </ToggleGroupItem>
+          {/each}
+        </ToggleGroup>
+      </div>
+      <div class="flex min-h-14 items-center justify-between gap-3 px-4">
+        <div class="flex min-w-0 flex-col gap-0.5 py-2.5">
           <label for="admin-burn-in">{m.burn_in()}</label>
           <span id="burn-in-hint" class="text-[13px] leading-snug text-muted-foreground">{m.burn_in_hint()}</span>
         </div>
         <Switch id="admin-burn-in" size="lg" checked={settings.burnIn} onCheckedChange={value => onBurnIn(value)} aria-describedby="burn-in-hint" />
       </div>
-      <!-- Whether the screen is being kept on, always: green while it is. -->
-      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
-        <span id="wake-label">{m.wake_label()}</span>
-        <span id="wake-state" class="flex items-center gap-2 text-[15px] text-muted-foreground" data-kind={wake.kind} role="status" aria-labelledby="wake-label wake-state">
-          <span class="size-2 shrink-0 rounded-full {WAKE[wake.kind]?.color ?? 'bg-muted-foreground'}" aria-hidden="true"></span>{(WAKE[wake.kind]?.label ?? m.wake_state_pending)()}
-        </span>
-      </div>
-      <div class="flex flex-col gap-2 border-b border-border px-4 pt-3 pb-3.5">
-        <span id="admin-chart-label">{m.chart()}</span>
-        <ToggleGroup type="single" spacing={1} id="admin-chart" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-6" bind:value={chartChoice} aria-labelledby="admin-chart-label"
-          onValueChange={value => { if (value) onChart(value); else tick().then(() => { chartChoice = settings.chart; }); }}>
-          {#each CHARTS as [value, label]}
-            <ToggleGroupItem {value} data-value={value} class="h-auto min-h-10 rounded-[10px] px-0.5 py-1.5 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm">{label()}</ToggleGroupItem>
-          {/each}
-        </ToggleGroup>
-      </div>
-      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
-        <label for="admin-clock">{m.clock()}</label>
-        <Switch id="admin-clock" size="lg" checked={settings.clock} onCheckedChange={value => onClock(value)} />
-      </div>
-      <div class="flex flex-col gap-2 px-4 pt-3 pb-3.5">
-        <span id="admin-palette-label">{m.palette()}</span>
-        <ToggleGroup type="single" spacing={1} id="admin-palette" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-2" bind:value={paletteChoice} aria-labelledby="admin-palette-label"
-          onValueChange={value => { if (value) onPalette(value); else tick().then(() => { paletteChoice = settings.palette; }); }}>
-          {#each PALETTES as palette}
-            <ToggleGroupItem value={palette.key} data-value={palette.key} aria-label={palette.label()} class="h-auto min-h-12 flex-col gap-0 rounded-[10px] px-1 py-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm min-h-14 gap-0.5">
-              <span class="flex items-center gap-2.5 text-[15px] font-semibold tabular-nums" aria-hidden="true"><span class={palette.up}>▲ 1.24%</span><span class={palette.down}>▼ 0.85%</span></span>
-              <span class="text-[12px]">{palette.label()}</span>
-            </ToggleGroupItem>
-          {/each}
-        </ToggleGroup>
-      </div>
     </div>
-    {#if pipSupported}
-      <!-- A small window on top of other windows; desktop Chrome and Edge only. -->
-      <Button id="pip-toggle" variant="secondary" size="lg" class="h-12 justify-start gap-3 rounded-2xl bg-card px-4 text-[15px] font-normal hover:bg-[color-mix(in_oklab,var(--card),white_6%)]" aria-describedby="pip-hint" onclick={onPip}>
-        <HugeiconsIcon icon={pipOpen ? PictureInPictureExitIcon : PictureInPictureOnIcon} strokeWidth={1.8} class="size-5 text-muted-foreground" />{pipOpen ? m.pip_close() : m.pip_open()}
-      </Button>
-      <p id="pip-hint" class="-mt-1 px-1 text-[13px] leading-snug text-muted-foreground">{m.pip_hint()}</p>
-    {/if}
-    <p id="wake-lock-status" class="px-1 text-[13px] leading-normal text-muted-foreground" role="status" aria-live="polite" hidden={!wakeTrouble}>{wake.message}</p>
-    <Button id="wake-lock-retry" variant="secondary" size="lg" class="h-11 rounded-xl" hidden={!wake.canRetry} onclick={onRetryWake}>{m.wake_retry()}</Button>
-    <Button id="app-update" size="lg" class="h-11 rounded-xl font-semibold" hidden={!updateReady} onclick={onUpdate}>{m.update_now()}</Button>
   </section>
+
+  <!-- A reset, apart from the settings it undoes. The line below says what goes while it asks. -->
+  <div class="flex flex-col gap-2">
+    <button id="settings-reset" type="button" class="flex min-h-12 w-full items-center justify-center rounded-2xl px-4 text-[15px] font-medium text-destructive outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring {confirmingReset ? 'bg-destructive/15' : 'bg-card hover:bg-[color-mix(in_oklab,var(--card),white_6%)]'}"
+      aria-describedby="settings-reset-hint" onclick={pressReset}>{confirmingReset ? m.settings_reset_confirm() : m.settings_reset()}</button>
+    <p id="settings-reset-hint" class="px-1 text-[13px] leading-snug text-muted-foreground empty:hidden" role="status">{confirmingReset ? m.settings_reset_hint() : ''}</p>
+  </div>
 
   <footer class="flex items-center justify-between px-1">
     <div class="flex items-center gap-2.5">
