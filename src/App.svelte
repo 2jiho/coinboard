@@ -453,7 +453,8 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
   </button>
 </div>
-<Toaster position="bottom-center" />
+<!-- Messages sit above the row of buttons in the corner (48 px, 16 px in), never over them. -->
+<Toaster position="bottom-center" offset={{ bottom: 'calc(80px + var(--safe-bottom))' }} mobileOffset={{ bottom: 'calc(80px + var(--safe-bottom))' }} />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
 <!-- The brightness while swiping, as video players show it: a sun and the level
      in the middle, on a soft shade of their own, so the board shows the brightness

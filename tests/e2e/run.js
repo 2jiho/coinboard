@@ -286,10 +286,19 @@ async function board(browser, base, flags) {
   assert.equal(await page.evaluate(() => testSentinel.released), true);
   assert.equal(await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 꺼짐' }).count(), 1);
   assert.equal((await saved(page)).keepAwake, false);
+  // A message sits above the buttons in the corner, never over them, so the same button can be pressed again at once.
+  await page.waitForTimeout(600);
+  const toastBox = await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 꺼짐' }).boundingBox();
+  assert.ok(toastBox.y + toastBox.height <= (await wakeButton.boundingBox()).y, 'the message clears the buttons');
   assert.equal(await level(), 'ok');
   const askedWhileOn = await page.evaluate(() => wakeRequests);
   await tapBoard(page);
   assert.equal(await page.evaluate(() => wakeRequests), askedWhileOn, 'nothing asked for while off');
+  // A press shows at once: the button gives under the finger.
+  const pressAt = await wakeButton.boundingBox();
+  await page.mouse.move(pressAt.x + 24, pressAt.y + 24); await page.mouse.down(); await page.waitForTimeout(200);
+  assert.notEqual(await wakeButton.evaluate(el => getComputedStyle(el).transform), 'none', 'pressed, it gives');
+  await page.mouse.move(0, 0); await page.mouse.up();
   // And on again.
   await wakeButton.click();
   await page.waitForFunction(n => wakeRequests === n + 1 && document.getElementById('wake-toggle').dataset.kind === 'active', askedWhileOn);
@@ -1020,6 +1029,10 @@ async function help(browser, base) {
   assert.equal(await text(page, '#admin-title'), '사용법');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'help-back');
   assert.equal(await page.locator('#help section').count(), 5);
+  // It names the buttons beside the settings button, and where keeping the screen on is switched.
+  const helpText = await page.locator('#help').textContent();
+  assert.match(helpText, /그 옆 버튼/);
+  assert.match(helpText, /줄이 그어져 있으면 화면 켜짐 유지가 꺼진 것/);
   assert.equal(await page.locator('#asset-list').count(), 0);
   assert.equal(await page.locator('#help-guide').getAttribute('href'), 'https://github.com/2jiho/coinboard/blob/main/docs/guide.ko.md');
   assert.ok(await page.locator('#admin-panel').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'help is not cut off');
@@ -1354,6 +1367,15 @@ async function clockShown(browser, base) {
   await page.locator('#admin-clock').click();
   assert.equal(await text(page, '#clock'), '14:33');
   await page.keyboard.press('Escape');
+  // Floating never takes it off the screen: drifted as far up as the board goes, it is still whole.
+  const up = await context.newPage(); const upProblems = watch(up);
+  await up.addInitScript(() => { Math.random = () => 0; });
+  await up.clock.install({ time: new Date('2026-11-19T14:32:50+09:00') });
+  await up.goto(base); await live(up);
+  await up.clock.runFor(2000);
+  assert.ok(await up.locator('#drift').evaluate(el => Number(el.dataset.roomY) > 0), 'the board has room to float');
+  assert.ok(await up.locator('#clock').evaluate(el => { const y = Number(/translate\([-\d.]+px, ([-\d.]+)px\)/.exec(el.style.transform)[1]); return el.offsetTop + y >= 0; }), 'the clock stays on the screen');
+  assert.deepEqual(upProblems, []);
   // In the grid the cells start below a band as tall as the clock: no coin line meets it, and the charts start with the cells.
   const grid = await context.newPage(); const gridProblems = watch(grid);
   await grid.addInitScript(() => localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'KRW', ticker: 'ETH' }, { currency: 'USDT', ticker: 'BTC' }, { currency: 'USDT', ticker: 'ETH' }], clock: true })));

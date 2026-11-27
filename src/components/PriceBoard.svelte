@@ -128,6 +128,9 @@
   let scale = $state(1);
   let room = { x: 0, y: 0 };
   let offset = $state({ x: 0, y: 0 });
+  // The clock floats with the board, but never further up than the gap above it:
+  // it sits near the top edge, and the board may rise further than that.
+  let clock = $state(null), clockRoom = $state(0);
   // Floating is slow on purpose; a correction after a resize must be instant.
   let gliding = $state(false);
   const within = (value, limit) => Math.max(-limit, Math.min(limit, value));
@@ -135,6 +138,7 @@
   // Scale the board to the screen, and work out how far it may float.
   function fit() {
     if (!container) return;
+    clockRoom = clock?.offsetTop ?? 0;
     const style = view.getComputedStyle(view.document.documentElement);
     const inset = side => parseFloat(style.getPropertyValue('--safe-' + side)) || 0;
     const width = view.innerWidth - inset('left') - inset('right');
@@ -296,7 +300,7 @@
   <!-- The time, centred at the top. It floats with the
        board against burn-in, and is dimmed with it. -->
   {#if settings.clock}
-    <time id="clock" style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {offset.y}px)">{now}</time>
+    <time id="clock" bind:this={clock} style:transition={gliding ? null : 'none'} style:transform="translate({offset.x}px, {Math.max(offset.y, -clockRoom)}px)">{now}</time>
   {/if}
   <!-- Brightness: a black veil over the whole board, charts and all. Only its
        opacity changes, which the screen composes without redrawing the board,

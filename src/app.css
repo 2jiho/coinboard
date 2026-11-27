@@ -359,10 +359,13 @@ body.settings-open #status-dot { visibility: hidden; }
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08); box-sizing: border-box;
   cursor: pointer; pointer-events: auto; -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.1s, background 0.1s;
 }
 .board-button svg { width: 22px; height: 22px; display: block; margin: auto; }
 .board-button:focus-visible { outline: 2px solid #f2f2f7; outline-offset: 3px; }
+/* A press shows at once: the button gives a little under the finger. */
+.board-button:active { transform: scale(0.92); background: rgba(90, 90, 97, 0.7); }
+@media (prefers-reduced-motion: reduce) { .board-button:active { transform: none; } }
 /* A new version, ready: the one button in colour. */
 #app-update { color: #30d158; }
 /* Keeping the screen on, switched off: the crossed-out screen, dimmer. */
