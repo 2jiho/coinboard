@@ -1132,7 +1132,7 @@ async function oled(browser, base) {
   assert.equal(await settled('#change', 'opacity'), '1');
   // In settings the switch says what it is for.
   await open(page);
-  assert.equal(await text(page, '#burn-in-hint'), 'OLED 화면에서 켜 두세요. LCD 화면에서는 꺼도 됩니다.');
+  assert.equal(await text(page, '#burn-in-hint'), 'OLED 화면이면 켜 두세요.');
   // Switched off: all of it goes, and the board is as it always was.
   await page.locator('#admin-burn-in').click();
   await page.keyboard.press('Escape');
@@ -1376,12 +1376,21 @@ async function narrowPanel(browser, base) {
     await context.addInitScript(() => localStorage.setItem('coinboard-settings', JSON.stringify({ assets: [{ currency: 'KRW', ticker: 'BTC' }, { currency: 'USDT-PERP', ticker: 'SOL' }, { currency: 'USDT-PERP', ticker: 'ETH' }] })));
     const page = await context.newPage(); const problems = watch(page);
     await page.goto(base); await page.waitForFunction(() => document.querySelectorAll('.cell').length === 3); await open(page);
+    await page.waitForFunction(() => document.getElementById('admin-panel').getAnimations().every(animation => animation.playState === 'finished'));
     // Market names whole, with prices and while editing.
     assert.equal(await page.locator('.asset-market').count(), 3);
     const whole = () => page.locator('.asset-market').evaluateAll(els => els.filter(el => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1).map(el => el.textContent));
     assert.deepEqual(await whole(), [], locale + ' market names with prices');
     await editAssets(page);
     assert.deepEqual(await whole(), [], locale + ' market names while editing');
+    // The display card: one row style, in this order; every button group the same height, every choice whole.
+    const rows = await page.locator('#section-display').evaluate(heading => [...heading.closest('section').querySelectorAll('#admin-columns, #admin-brightness, #admin-chart, #admin-period, #admin-clock, #admin-palette, #admin-burn-in')].map(el => el.id));
+    assert.deepEqual(rows, ['admin-columns', 'admin-brightness', 'admin-chart', 'admin-period', 'admin-clock', 'admin-palette', 'admin-burn-in'], locale + ' order');
+    const choices = await page.locator('#admin-columns [data-value], #admin-period [data-value], #admin-palette [data-value]').evaluateAll(els => els.map(el => ({ value: el.dataset.value, height: Math.round(el.getBoundingClientRect().height), cut: el.scrollWidth > el.clientWidth + 1 })));
+    assert.equal(choices.length, 7 + 5 + 2);
+    assert.deepEqual(choices.filter(choice => choice.height !== 40 || choice.cut), [], locale + ' every choice 40 px tall and whole');
+    // The burn-in note is one line.
+    assert.ok(await page.locator('#burn-in-hint').evaluate(el => el.getClientRects().length === 1 && el.getBoundingClientRect().height < 24), locale + ' one-line note');
     assert.deepEqual(problems, []);
     await context.close();
   }

@@ -132,6 +132,9 @@
   const PERIODS = [['15m', m.chart_15m], ['1h', m.chart_1h], ['1d', m.chart_1d], ['1w', m.chart_1w], ['1M', m.chart_1M]];
   let periodChoice = $state('1d');
   $effect(() => { periodChoice = settings.period; });
+  // Every button group looks alike: 40 px buttons in a dark track.
+  const SEGMENTS = 'grid w-full gap-1 rounded-[14px] bg-black/25 p-1';
+  const SEGMENT = 'h-10 rounded-[10px] px-1 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm';
   // The two colour pairs, as samples of themselves.
   const PALETTES = [
     { key: 'green-red', label: m.palette_green_red, up: 'text-[#30d158]', down: 'text-[#ff453a]' },
@@ -339,17 +342,6 @@
       <p id="asset-new-error" class="px-1 text-[13px] text-destructive" role="alert" hidden={!newError}>{newError}</p>
     {/if}
 
-    {#if settings.assets.length > 1}
-      <div class="flex flex-col gap-2 rounded-2xl bg-card p-3">
-        <span id="admin-columns-label" class="px-1 text-[13px] text-muted-foreground">{m.columns()}</span>
-        <ToggleGroup type="single" spacing={1} id="admin-columns" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-7" bind:value={columnsChoice} aria-labelledby="admin-columns-label"
-          onValueChange={value => { if (value) onColumns(Number(value)); else tick().then(() => { columnsChoice = String(settings.columns); }); }}>
-          {#each ['0', '1', '2', '3', '4', '5', '6'] as columns}
-            <ToggleGroupItem value={columns} data-value={columns} class="h-auto min-h-12 flex-col gap-0 rounded-[10px] px-1 py-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm min-h-10 text-[14px] font-semibold">{columns === '0' ? m.columns_auto() : columns}</ToggleGroupItem>
-          {/each}
-        </ToggleGroup>
-      </div>
-    {/if}
     <p id="status-indicator" class="{status.tone} flex items-start gap-2 px-1 text-[13px] leading-normal whitespace-pre-line text-muted-foreground [&.error]:text-destructive" role="status" aria-live="polite" hidden={status.tone === 'connected'}><span class="mt-[0.45em] size-2 shrink-0 rounded-full bg-current" aria-hidden="true"></span>{status.text}</p>
     <p id="overlay-msg" class="px-1 text-[13px] leading-normal whitespace-pre-line text-muted-foreground" hidden={!status.detail}>{status.detail}</p>
     <Button id="market-retry" variant="secondary" size="lg" class="h-11 rounded-xl" hidden={!status.canRetry} onclick={onRetryFeed}>{m.reconnect()}</Button>
@@ -357,55 +349,68 @@
 
   <section class="flex flex-col gap-2.5" aria-labelledby="section-display">
     <h3 id="section-display" class="px-1 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">{m.section_display()}</h3>
-    <div class="overflow-hidden rounded-2xl bg-card">
-      <div class="flex flex-col gap-2 border-b border-border px-4 pt-3 pb-3.5">
+    <!-- One row style: a label with its switch on the right, or a label with its
+         buttons below (each button group 40 px tall). Rows are ruled between. -->
+    <div class="overflow-hidden rounded-2xl bg-card divide-y divide-border">
+      {#if settings.assets.length > 1}
+        <div class="flex flex-col gap-2.5 px-4 py-3.5">
+          <span id="admin-columns-label">{m.columns()}</span>
+          <ToggleGroup type="single" spacing={1} id="admin-columns" class="{SEGMENTS} grid-cols-7" bind:value={columnsChoice} aria-labelledby="admin-columns-label"
+            onValueChange={value => { if (value) onColumns(Number(value)); else tick().then(() => { columnsChoice = String(settings.columns); }); }}>
+            {#each ['0', '1', '2', '3', '4', '5', '6'] as columns}
+              <ToggleGroupItem value={columns} data-value={columns} class={SEGMENT}>{columns === '0' ? m.columns_auto() : columns}</ToggleGroupItem>
+            {/each}
+          </ToggleGroup>
+        </div>
+      {/if}
+      <div class="flex flex-col gap-2.5 px-4 py-3.5">
         <div class="flex items-center justify-between">
           <span id="admin-brightness-label">{m.brightness()}</span>
-          <span id="brightness-value" class="text-sm text-muted-foreground tabular-nums">{brightness}%</span>
+          <span id="brightness-value" class="text-[15px] text-muted-foreground tabular-nums">{brightness}%</span>
         </div>
-        <div class="flex items-center gap-3 text-muted-foreground">
+        <div class="flex min-h-10 items-center gap-3 text-muted-foreground">
           <HugeiconsIcon icon={Sun03Icon} strokeWidth={2} class="size-4 shrink-0" />
           <Slider id="admin-brightness" type="single" min={10} max={100} step={5} bind:value={brightness} aria-labelledby="admin-brightness-label"
             onValueChange={value => onBrightnessPreview(Number(value))} onValueCommit={value => onBrightness(Number(value))} />
           <HugeiconsIcon icon={Sun01Icon} strokeWidth={2} class="size-6 shrink-0" />
         </div>
       </div>
-      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
-        <div class="flex flex-col gap-0.5 py-2.5">
-          <label for="admin-burn-in">{m.burn_in()}</label>
-          <span id="burn-in-hint" class="text-[13px] leading-snug text-muted-foreground">{m.burn_in_hint()}</span>
-        </div>
-        <Switch id="admin-burn-in" size="lg" checked={settings.burnIn} onCheckedChange={value => onBurnIn(value)} aria-describedby="burn-in-hint" />
-      </div>
-      <div class="flex flex-col border-b border-border px-4">
+      <div class="flex flex-col gap-2.5 px-4 {settings.chart ? 'pb-3.5' : ''}">
         <div class="flex min-h-14 items-center justify-between gap-3">
           <label for="admin-chart">{m.chart()}</label>
           <Switch id="admin-chart" size="lg" checked={settings.chart} onCheckedChange={value => onChart(value)} />
         </div>
         {#if settings.chart}
-          <ToggleGroup type="single" spacing={1} id="admin-period" class="mb-3.5 grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-5" bind:value={periodChoice} aria-label={m.chart_period()}
+          <ToggleGroup type="single" spacing={1} id="admin-period" class="{SEGMENTS} -mt-1 grid-cols-5" bind:value={periodChoice} aria-label={m.chart_period()}
             onValueChange={value => { if (value) onPeriod(value); else tick().then(() => { periodChoice = settings.period; }); }}>
             {#each PERIODS as [value, label]}
-              <ToggleGroupItem {value} data-value={value} class="h-auto min-h-10 rounded-[10px] px-0.5 py-1.5 text-[14px] font-semibold text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm">{label()}</ToggleGroupItem>
+              <ToggleGroupItem {value} data-value={value} class={SEGMENT}>{label()}</ToggleGroupItem>
             {/each}
           </ToggleGroup>
         {/if}
       </div>
-      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
+      <div class="flex min-h-14 items-center justify-between gap-3 px-4">
         <label for="admin-clock">{m.clock()}</label>
         <Switch id="admin-clock" size="lg" checked={settings.clock} onCheckedChange={value => onClock(value)} />
       </div>
-      <div class="flex flex-col gap-2 px-4 pt-3 pb-3.5">
+      <div class="flex flex-col gap-2.5 px-4 py-3.5">
         <span id="admin-palette-label">{m.palette()}</span>
-        <ToggleGroup type="single" spacing={1} id="admin-palette" class="grid w-full gap-1 rounded-[14px] bg-black/25 p-1 grid-cols-2" bind:value={paletteChoice} aria-labelledby="admin-palette-label"
+        <ToggleGroup type="single" spacing={1} id="admin-palette" class="{SEGMENTS} grid-cols-2" bind:value={paletteChoice} aria-labelledby="admin-palette-label"
           onValueChange={value => { if (value) onPalette(value); else tick().then(() => { paletteChoice = settings.palette; }); }}>
           {#each PALETTES as palette}
-            <ToggleGroupItem value={palette.key} data-value={palette.key} aria-label={palette.label()} class="h-auto min-h-12 flex-col gap-0 rounded-[10px] px-1 py-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground data-[state=on]:bg-white/[0.16] data-[state=on]:text-foreground data-[state=on]:shadow-sm min-h-14 gap-0.5">
-              <span class="flex items-center gap-2.5 text-[15px] font-semibold tabular-nums" aria-hidden="true"><span class={palette.up}>▲ 1.24%</span><span class={palette.down}>▼ 0.85%</span></span>
-              <span class="text-[12px]">{palette.label()}</span>
+            <!-- A sample of itself: the up and down marks in their colours, then its name. -->
+            <ToggleGroupItem value={palette.key} data-value={palette.key} aria-label={palette.label()} class="{SEGMENT} gap-2">
+              <span class="flex text-[12px] leading-none" aria-hidden="true"><span class={palette.up}>▲</span><span class={palette.down}>▼</span></span>{palette.label()}
             </ToggleGroupItem>
           {/each}
         </ToggleGroup>
+      </div>
+      <div class="flex min-h-14 items-center justify-between gap-3 px-4">
+        <div class="flex min-w-0 flex-col gap-0.5 py-2.5">
+          <label for="admin-burn-in">{m.burn_in()}</label>
+          <span id="burn-in-hint" class="text-[13px] leading-snug text-muted-foreground">{m.burn_in_hint()}</span>
+        </div>
+        <Switch id="admin-burn-in" size="lg" checked={settings.burnIn} onCheckedChange={value => onBurnIn(value)} aria-describedby="burn-in-hint" />
       </div>
     </div>
   </section>

@@ -145,7 +145,7 @@
   "install_ios_2": "Choose ‘Add to Home Screen’",
   "install_ios_3": "Tap ‘Add’",
   "help_hint_install": "Settings shows how to add it to your home screen",
-  "burn_in_hint": "Keep it on for an OLED screen. An LCD screen does not need it.",
+  "burn_in_hint": "Keep it on for an OLED screen.",
   "pip_open": "Pop Out",
   "pip_close": "Close Pop-out",
   "exchange_bithumb": "Bithumb",
