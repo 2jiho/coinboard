@@ -80,7 +80,7 @@ On a device set to Korean, won is written the Korean way, in `억` (100 million)
 | Color | Meaning |
 |---|---|
 | Green | All well |
-| Yellow | Connecting, prices delayed, ticker to check, or the screen may sleep |
+| Yellow | Connecting, prices delayed, ticker to check, or the screen may sleep (unless keeping it on was switched off) |
 | Red | Offline, or an error from the exchange |
 
 | Detail | Meaning |
@@ -109,22 +109,28 @@ With two or more assets the whole screen is divided into cells of one size, with
 
 ## Settings
 
-Tap the screen once and the settings button (a gear) appears in the bottom-right corner; it goes away again after five seconds untouched. The tap that brings the button up does not press it, so tap the button once it is showing. On a keyboard, Tab brings it up. The first time the app opens, a line at the bottom of the screen says so (*Tap the screen for settings*); it goes once the screen is touched and does not come back.
+Tap the screen once and a few buttons appear in the bottom-right corner: the settings button (a gear) in the corner itself, and to its left the buttons for what is not a setting (**Beside the settings button**, below). They go away again after five seconds untouched. The tap that brings them up presses none of them, so tap a button once it is showing. On a keyboard, Tab brings them up. The first time the app opens, a line at the bottom of the screen says so (*Tap the screen for settings*); it goes once the screen is touched and does not come back.
 
 **Brightness**: draw one finger up the board to brighten it, down to dim it; about 60% of the screen's height covers the whole range, 10% to 100%, in steps of 5. While the finger moves, the middle shows a sun and the level (`75%`) as in a video app, and the board shows at the brightness it will keep; let go and the level is kept (it is the same as the brightness in settings). A second finger puts it back. With the lights off at night, one finger dims the board. The board does not zoom with a pinch or a double tap.
+
+**Beside the settings button**: settings hold settings only; what is pressed now and then sits beside the settings button. From the left:
+
+- **Update Now** (only when a new version is ready; a green arrow): switches to the new version at once ([Updates](#updates)).
+- **Pop Out** (desktop Chrome and Edge only): opens the board in a small window that stays on top of other windows, drawn to the window's size, with the same prices. Move and resize it as you like; press the button again or close the window to end it. It closes with the tab. Other browsers do not offer such windows, so the button is not shown there.
+- **Keep Screen On** (a screen): the app keeps the screen on (on by default). A press switches it off (the screen crossed out, dimmer) and another on again; a message at the bottom says which. Switched off, the screen sleeps as the device decides, and the status dot does not warn about it. If it is on but the system released or refused it, the button carries a yellow mark; a press then asks again instead of switching it off, and says why. Where the browser cannot keep the screen on, it carries the yellow mark too, and a press says so. Hovering with a mouse gives its state, as in `Keep Screen On · On`.
 
 ![Settings](images/settings.en.png)
 
 Changes apply and are saved at once (only adding an asset waits for **Add**).
 
-The panel has two sections, **Prices** and **Display**.
+The panel has two sections, **Prices** and **Display**, and below them, apart, **Reset Settings**.
 
 **Add to Home Screen**: shown at the top only when the app is open in a browser. On iPhone and iPad it lists the steps (Share, then `Add to Home Screen`, then `Add`); in Chrome, Edge and on Android it is an **Install** button. It shows the icon the app will have there. Dismissed with ✕, it does not come back on that device; Help shows it again under *Keeping It On*. The first-visit hint also says that settings show how.
 
-**Asset list**: a card per asset (a coin in a market), each with the coin's icon, its price now and its change.
+**Asset list**: a card per asset (a coin in a market), each with the coin's icon, its market, its price now and its change. A long market name takes two lines rather than being cut off. With two or more assets, **Edit** appears beside the **Prices** heading: it puts a bin and a handle where the price was, and **Done** brings the prices back.
 
-- Drag the handle (⠿) on the right to reorder: the other cards make room, and the order is saved on release. The grid is filled top left first, in this order. On a keyboard, the up and down arrows on the handle move the card.
-- The bin icon on a card deletes that asset at once. For five seconds the message at the bottom offers **Undo**, which puts it back where it was. The last asset cannot be deleted.
+- While editing, drag the handle (⠿) on the right to reorder: the other cards make room, and the order is saved on release. The grid is filled top left first, in this order. On a keyboard, the up and down arrows on the handle move the card.
+- While editing, the bin icon on a card deletes that asset at once. For five seconds the message at the bottom offers **Undo**, which puts it back where it was. The last asset cannot be deleted.
 - An asset is not edited: to show another coin or market, add the new one and delete the old.
 
 **Add Asset**: unfolds a market and a coin to choose. Choose, then tap **Add**, or **Cancel** to leave it. An asset already shown cannot be added again.
@@ -141,9 +147,15 @@ The change shown is the one each exchange gives: against the previous day's clos
 
 **Coin** (in Add Asset): six common coins are listed (BTC, ETH, XRP, SOL, DOGE, ADA). For any other, choose **Other…**, type its ticker (for example `LINK`) and press Enter or **Add**. While typing, the coins really listed on that exchange are offered, and a ticker it does not list is pointed out. Coinone does not give web pages its coin list, so there is nothing to complete, and a ticker it does not list just stays at `—`.
 
-**Columns**: shown with two or more assets. Tap **Auto** or 1 to 6 cells per row; 1 puts everything in one column.
+**Columns**: shown with two or more assets, at the top of **Display**. Tap **Auto** or 1 to 6 cells per row; 1 puts everything in one column.
 
 **Brightness**: a slider between a small and a large sun. A black veil over the board darkens it (10 to 100%); It does not change the device's own brightness.
+
+**Chart**: the price over a period, as a faint line and fill across the lower part of the screen (of each cell, with several assets), below the price so as not to cover it. A switch turns it on (the default) or off; while it is on, its period is chosen below the switch: **15m**, **1h**, **1d** (the default), **1w** or **1mo**. Switched off and on again, it comes back with the period it had. It is drawn from the exchange's own candles and ends at the live price; it takes the color of the change above it (in the up/down colors chosen), and a small point at its end marks the live price, sending out a ring each time the price changes, wider and longer the bigger the move; so the two never disagree even where the chart's period and the change's reference differ a little. The board writes the period at the chart's top left: `15M`, `1H`, `1D`, `7D`, `30D`. On Upbit and Bithumb the change is against the previous day's close while a `1D` chart covers the last 24 hours, so the two can point different ways. Where an exchange's past prices cannot be had (Binance futures or Bybit in a restricted region), its chart is simply not shown. Coinone does not give web pages its past prices, so its coins have no chart. Upbit lets a browser ask it something only once every ten seconds, so Upbit charts appear one by one, about ten seconds apart, after the prices.
+
+**Clock**: the time centred at the top of the board, in 24-hour form (`14:32`), large enough to read across a room, from the device's own clock and time zone. With several assets the cells start below it. It changes on the minute, floats with the board when burn-in protection is on, and dims with it. On by default; switch it off here.
+
+**Up/Down Colors**: two buttons with the up and down marks (▲▼) in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
 
 **Burn-in Protection**: for an OLED screen, which wears where it stays lit; an LCD screen does not burn in and does not need it. On by default. While it is on:
 
@@ -156,25 +168,18 @@ Nothing else is dimmed: the board stays fully lit, to be read at a glance.
 
 Switched off, the board looks as it always did.
 
-**Keep Screen On**: whether the app is keeping the screen on right now. **On** (green dot) while it is; **Off** (yellow) when it was released, with the reason and a button to try again below; **Waiting** while the app is in the background; **Not supported** where the browser cannot do it.
-
-**Pop Out** (desktop Chrome and Edge only): opens the board in a small window that stays on top of other windows, drawn to the window's size, with the same prices. Move and resize it as you like; press the button again (**Close Pop-out**) or close the window to end it. It closes with the tab. Other browsers do not offer such windows, so the button is not shown there.
-
-**Chart**: the price over a period, as a faint line and fill across the lower part of the screen (of each cell, with several assets), below the price so as not to cover it: **Off**, **15m**, **1h**, **1d** (the default), **1w** or **1mo**. It is drawn from the exchange's own candles and ends at the live price; it takes the color of the change above it (in the up/down colors chosen), and a small point at its end marks the live price, sending out a ring each time the price changes, wider and longer the bigger the move; so the two never disagree even where the chart's period and the change's reference differ a little. The board writes the period at the chart's top left: `15M`, `1H`, `1D`, `7D`, `30D`. On Upbit and Bithumb the change is against the previous day's close while a `1D` chart covers the last 24 hours, so the two can point different ways. Where an exchange's past prices cannot be had (Binance futures or Bybit in a restricted region), its chart is simply not shown. Coinone does not give web pages its past prices, so its coins have no chart. Upbit lets a browser ask it something only once every ten seconds, so Upbit charts appear one by one, about ten seconds apart, after the prices.
-
-**Clock**: the time centred at the top of the board, in 24-hour form (`14:32`), large enough to read across a room, from the device's own clock and time zone. With several assets the cells start below it. It changes on the minute, floats with the board when burn-in protection is on, and dims with it. On by default; switch it off here.
-
-**Up/Down Colors**: two samples drawn in their own colors: **Green · Red** (up green, down red) or the Korean convention **Red · Blue** (up red, down blue).
+**Reset Settings**: in red, below the Display section. A press turns it into **Press Again to Reset**, with a line saying what goes; a second press within four seconds brings back a new board's coin list (Bitcoin on Binance) and every setting (columns, brightness, chart, clock, up/down colors, burn-in protection, keeping the screen on), applied at once. The saved settings go too, so the next start is a new board's as well. Left alone, it goes back after four seconds. The first-visit line and a dismissed home-screen offer stay as they were.
 
 **At the bottom**: the app's icon, name and version, a question mark for **Help**, and a GitHub icon linking to the source code. Help is a short version of this guide inside the app (opening settings, the status dot, several assets, reading the board, keeping it on), with a link to this guide; the arrow at the top goes back to settings.
 
-A reason and a retry button appear only when the connection or keeping the screen on has a problem. Close the panel with its close button, by tapping outside it, or with Escape; it also closes by itself after two minutes untouched.
+A reason and a **Reconnect** button appear below the asset list only when the price connection has a problem. Close the panel with its close button, by tapping outside it, or with Escape; it also closes by itself after two minutes untouched.
 
 ## Keeping it on
 
 For a board that stays up:
 
 - **Open it from the home screen**: it runs full screen, and keeping the screen on works best this way.
+- **Keep Screen On**: if the screen button beside the settings button is crossed out, keeping the screen on is off; press it to switch it on.
 - **Keep it charging**: the screen is on all the time.
 - **Turn Low Power Mode off**: it can refuse to keep the screen on.
 - **Auto-Lock**: the app keeps the screen on, but to be sure set Settings → Display & Brightness → Auto-Lock to **Never**.
@@ -185,7 +190,7 @@ For a board that stays up:
 
 ## Updates
 
-New versions apply themselves. While the screen is on, the app checks every 30 seconds, and on coming back to it, and reloads itself when there is a new version (if the settings panel is open, when it is closed). It usually takes under a minute after a release. To apply one at once, tap **Update Now** when it shows in settings, or close the app and open it again. The current version is at the bottom of the settings panel.
+New versions apply themselves. While the screen is on, the app checks every 30 seconds, and on coming back to it, and reloads itself when there is a new version (if the settings panel is open, when it is closed). It usually takes under a minute after a release. To apply one at once, tap the screen and press the green **Update Now** button beside the settings button when it shows, or close the app and open it again. The current version is at the bottom of the settings panel.
 
 ## Troubleshooting
 
@@ -202,7 +207,7 @@ Binance is restricted in some regions (the United States, for one). Spot prices 
 No prices for more than 15 seconds; the app is reconnecting. The last price stays on screen, dimmed, until prices come back by themselves. If it goes on, check the internet connection.
 
 **`SCREEN MAY SLEEP`**
-Keeping the screen on was released. Tap the screen once and the app asks again. Turn Low Power Mode off if it is on; failing that, set Auto-Lock as in [Keeping it on](#keeping-it-on).
+Keeping the screen on was released. Tap the screen once and the app asks again; the Keep Screen On button beside the settings button (with its yellow mark) also says why. If you switched keeping the screen on off yourself, this warning does not appear. Turn Low Power Mode off if it is on; failing that, set Auto-Lock as in [Keeping it on](#keeping-it-on).
 
 **The settings button does not respond**
 Tap the screen once to bring the button up, then tap the button. The first tap only shows it.

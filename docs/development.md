@@ -34,11 +34,11 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `src/components/PriceBoard.svelte` | The board: one asset large, or a grid of several; layout and sizing; burn-in drift |
 | `src/components/PriceBoard.svelte` (`view`) | Also drawn in the small window on top (Document Picture-in-Picture): App mounts a second board there, `view` being that window, which it measures instead of this one |
 | `src/components/Price.svelte` | One price line: digits that change as in Apple's apps, and a tint by the size of the move |
-| `src/components/SettingsPanel.svelte` | The settings panel |
+| `src/components/SettingsPanel.svelte` | The settings panel (settings only): the asset list and its edit mode, the display card (one row style, every button group 40 px), the reset that takes two presses |
 | `src/lib/feed.js` | Exchange WebSocket connections (one per market, carrying several coins), reconnection, liveness |
 | `src/lib/exchanges/` | Per exchange: addresses (with fallbacks, `hosts`), subscription messages, keep-alive, reading messages (Upbit, Bithumb, Coinone; Binance, OKX and Bybit spot and perpetuals; Coinbase, Kraken). `index.js` lists them and groups them by currency for settings |
 | `src/lib/status.js` | Turns the connection state into the words shown |
-| `src/lib/quiet-controls.js` | Showing and hiding the settings button, first-tap protection, closing a panel left open |
+| `src/lib/quiet-controls.js` | Showing and hiding the row of buttons in the corner (`#board-controls`: update, pop-out, keep screen on, settings), first-tap protection, closing a panel left open |
 | `src/lib/presets.js` | The coins offered in settings |
 | `src/lib/markets.js` | The coins an exchange lists (for ticker completion and checking) |
 | `src/lib/pace.js` | Spacing of requests to an exchange (shared by price connections and coin lists) |
@@ -49,8 +49,8 @@ Svelte 5 and Vite. It is a single page, so there is no SvelteKit.
 | `src/components/Spark.svelte` | The line chart behind the lower board |
 | `src/lib/move.js` | The size of a price move (faint, normal, full tint) |
 | `src/lib/format.js` | Price and change strings |
-| `src/lib/settings.js` | Loading, checking and saving settings |
-| `src/lib/wake-lock.js` | Keeping the screen on |
+| `src/lib/settings.js` | Loading, checking, saving and resetting settings (`reset`: back to the defaults, with the saved entry removed). The chart is saved as `chart` (on or off) and `period` (kept while off); the older form (`chart: "off"` or a period) is read too. `keepAwake` (keep the screen on, on by default) |
+| `src/lib/wake-lock.js` | Keeping the screen on. Switched off with `setEnabled(false)`, it lets the lock go, reports `off` and asks for nothing (tap, retry, coming back) until switched on |
 | `src/lib/install.js` | Whether and how to offer adding to the home screen (steps on iOS, the browser's install prompt elsewhere) |
 | `src/lib/updater.js` | Service worker registration, version checks, applying updates |
 | `src/sw.js` | Source of the offline service worker |
@@ -93,7 +93,7 @@ The modules in `src/lib` are plain JavaScript that knows nothing of Svelte or th
 - **Keeping the screen on**: when the system releases the wake lock, it is asked for once more. If that one is released again within 5 seconds, the app stops and the dot shows `SCREEN MAY SLEEP`; a tap, or coming back to the app, asks again. A device without the feature is reported in settings only.
 - **Updates**: checked every 30 seconds while the screen is visible (each check asks only whether the small worker file changed, bypassing the browser cache: `updateViaCache: "none"`), and on coming back to the app or getting the network back. A new version reloads the page at once, or, if the settings panel is open, once it is closed. With the same version the page reloads itself once per browser session; after that only the `Update Now` (`새 버전 적용`) button is offered.
 - **Burn-in protection** (for OLED; `body.oled` while on): every minute the board glides to a new spot near the centre (within 3% of each side; half that for a grid, whose cells reach the screen's edges). The price is off-white (`--price-white`), the status dot hides while all is well (`.quiet`), and a price that is not current is dimmed further. Switched off, none of this applies and the board sits in the middle.
-- **Settings button and touch**: a tap or Tab shows the button; after 5 seconds untouched it fades out over 0.6 seconds. The tap that shows it does not press it, but a press while it fades goes through (`src/lib/quiet-controls.js`). `touch-action: manipulation` keeps iOS from taking two quick taps as a double-tap zoom, and text selection and the long-press callout are off everywhere except the ticker fields. The settings panel hangs from the top, so a status line appearing or going below does not move the row under the finger.
+- **Settings button and touch**: a tap or Tab shows the settings button and the buttons beside it together; after 5 seconds untouched they fade out over 0.6 seconds. The tap that shows them presses none of them, but a press while it fades goes through (`src/lib/quiet-controls.js`). `touch-action: manipulation` keeps iOS from taking two quick taps as a double-tap zoom, and text selection and the long-press callout are off everywhere except the ticker fields. The settings panel hangs from the top, so a status line appearing or going below does not move the row under the finger.
 - **Offline and start-up**: every built file is stored as one set on installation, and the page opens from that copy at once. A new release is downloaded in the background and applied as above. Prices are never stored.
 - **Font**: [Pretendard](https://github.com/orioncactus/pretendard) (SIL Open Font License) ships with the app so it looks the same on every device: subset files with Latin, digits and the 2,350 common Hangul syllables, three weights (about 800 KB), installed with the other files and available offline.
 - **Coin icons**: icons for 483 coins are in `public/coins/`, so no outside server is needed ([cryptocurrency-icons](https://github.com/spothq/cryptocurrency-icons), CC0). The six coins offered in settings are installed with the app; the rest are fetched and stored the first time they are shown. A coin with no icon is shown without one.
