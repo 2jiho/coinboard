@@ -211,8 +211,11 @@ async function board(browser, base, flags) {
   assert.doesNotMatch((await text(page, '#container')).replace(/[억만]/g, ''), /[가-힣]/);
   await page.screenshot({ path: path.join(evidence, 'board.png') });
 
-  // Keyboard: Tab reveals and focuses the button, Enter opens, focus is kept inside.
+  // Keyboard: Tab reveals the buttons in the corner and focuses the first; settings is the last of them. Enter opens, focus is kept inside.
   await page.keyboard.press('Tab');
+  assert.deepEqual(await page.locator('#board-controls button').evaluateAll(els => els.map(el => el.id)), ['pip-toggle', 'wake-toggle', 'settings-toggle']);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'pip-toggle');
+  await page.keyboard.press('Tab'); await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'settings-toggle');
   await page.clock.fastForward(6000);
   assert.equal(await page.locator('#settings-toggle').isVisible(), true);
@@ -236,7 +239,7 @@ async function board(browser, base, flags) {
   assert.equal(await page.evaluate(() => document.activeElement.id), 'admin-close');
   // Two small section titles, and a healthy board has nothing to report: no status lines, no extra input.
   assert.deepEqual(await page.locator('#admin-panel h3').allTextContents(), ['시세', '화면']);
-  for (const quiet of ['#status-indicator', '#overlay-msg', '#wake-lock-status', '#new-symbol', '#market-retry', '#wake-lock-retry', '#app-update']) {
+  for (const quiet of ['#status-indicator', '#overlay-msg', '#new-symbol', '#market-retry', '#app-update']) {
     assert.equal(await page.locator(quiet).isVisible(), false, quiet + ' is hidden while all is well');
   }
   assert.equal(await page.locator('#admin-debug').count(), 0);
@@ -246,25 +249,50 @@ async function board(browser, base, flags) {
   await page.waitForFunction(label => document.getElementById('app-version').textContent === label, `버전 ${VERSION}`);
   assert.equal(await page.locator('#app-update').isVisible(), false);
 
-  // Wake lock: a system release is recovered; a failed recovery shows under the price.
-  await page.waitForFunction(() => document.getElementById('wake-lock-status').textContent.includes('활성'));
-  // Whether the screen is kept on is always shown in settings, in a word.
-  assert.equal((await text(page, '#wake-state')).trim(), '작동 중');
-  assert.equal(await page.locator('#wake-state').getAttribute('data-kind'), 'active');
+  // Settings hold settings only: the small window and keeping the screen on are buttons beside the settings button.
+  assert.equal(await page.locator('#admin-panel #pip-toggle, #admin-panel #wake-toggle, #wake-state, #wake-lock-status, #wake-lock-retry').count(), 0);
+  // Keeping the screen on: the button says how it is; a system release is recovered.
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.getElementById('wake-toggle')?.dataset.kind === 'active');
+  const wakeButton = page.locator('#wake-toggle');
+  assert.equal(await wakeButton.getAttribute('aria-pressed'), 'true');
+  assert.equal(await wakeButton.getAttribute('aria-label'), '화면 켜짐 유지 · 작동 중');
   await page.evaluate(() => { window.realWakeRequest = navigator.wakeLock.request; });
   await page.clock.runFor(10000);
   await page.evaluate(() => testSentinel.release());
-  await page.waitForFunction(() => wakeRequests === 2 && document.getElementById('wake-lock-status').textContent.includes('활성'));
+  await page.waitForFunction(() => wakeRequests === 2 && document.getElementById('wake-toggle').dataset.kind === 'active');
   assert.equal(await level(), 'ok');
+  // Refused: the dot warns and the button is marked; a press on it tries again (it does not switch it off) and says why.
   await page.clock.runFor(10000);
   await page.evaluate(() => { navigator.wakeLock.request = () => Promise.reject(Object.assign(new Error('Denied'), { name: 'NotAllowedError' })); return testSentinel.release(); });
   await page.waitForFunction(() => document.getElementById('status-dot').dataset.level === 'warn');
   assert.equal(await tip(), 'UPBIT · KRW-BTC\nLIVE\nSCREEN MAY SLEEP');
-  assert.equal((await text(page, '#wake-state')).trim(), '꺼짐');
+  assert.equal(await wakeButton.getAttribute('data-kind'), 'failed');
+  assert.equal(await wakeButton.getAttribute('aria-label'), '화면 켜짐 유지 다시 시도');
   await page.evaluate(() => { navigator.wakeLock.request = window.realWakeRequest; });
-  await page.getByRole('button', { name: '화면 켜짐 유지 다시 시도' }).click();
-  await page.waitForFunction(() => wakeRequests === 3 && document.getElementById('wake-lock-status').textContent.includes('활성'));
+  await page.keyboard.press('Tab');
+  await wakeButton.click();
+  await page.waitForFunction(() => wakeRequests === 3 && document.getElementById('wake-toggle').dataset.kind === 'active');
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: 'NotAllowedError' }).count(), 1, 'the press says why');
   assert.equal(await level(), 'ok');
+  assert.notEqual((await saved(page)).keepAwake, false, 'trying again is not switching off');
+  // Switched off: the lock is let go and not asked for again, not even on a tap; the dot does not warn, since that was chosen.
+  await wakeButton.click();
+  assert.equal(await wakeButton.getAttribute('aria-pressed'), 'false');
+  assert.equal(await wakeButton.getAttribute('data-kind'), 'off');
+  assert.equal(await wakeButton.getAttribute('aria-label'), '화면 켜짐 유지 · 꺼 둠');
+  assert.equal(await page.evaluate(() => testSentinel.released), true);
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 꺼짐' }).count(), 1);
+  assert.equal((await saved(page)).keepAwake, false);
+  assert.equal(await level(), 'ok');
+  const askedWhileOn = await page.evaluate(() => wakeRequests);
+  await tapBoard(page);
+  assert.equal(await page.evaluate(() => wakeRequests), askedWhileOn, 'nothing asked for while off');
+  // And on again.
+  await wakeButton.click();
+  await page.waitForFunction(n => wakeRequests === n + 1 && document.getElementById('wake-toggle').dataset.kind === 'active', askedWhileOn);
+  assert.equal(await page.locator('[data-sonner-toast]', { hasText: '화면 켜짐 유지 켬' }).count(), 1);
+  assert.equal((await saved(page)).keepAwake, true);
 
   // Currency applies at once and the old amount is cleared first.
   // The board is one fixed size: a shorter or longer price, or none yet, does not resize it.
@@ -346,7 +374,14 @@ async function board(browser, base, flags) {
   await tapBoard(page); await page.clock.fastForward(6000);
   // It fades out over 0.6 s (real time, not the test clock).
   await page.locator('#settings-toggle').waitFor({ state: 'hidden', timeout: 3000 });
-  // The tap that reveals the button must not press it.
+  // The tap that reveals the buttons must not press one: not the one keeping the screen on...
+  const wakeAt = await page.locator('#wake-toggle').boundingBox();
+  await page.touchscreen.tap(wakeAt.x + 24, wakeAt.y + 24);
+  assert.equal(await page.locator('#wake-toggle').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#settings-toggle').isVisible(), true);
+  await page.clock.fastForward(6000);
+  await page.locator('#settings-toggle').waitFor({ state: 'hidden', timeout: 3000 });
+  // ...nor settings.
   const corner = { x: 1024 - 40, y: 768 - 40 };
   await page.touchscreen.tap(corner.x, corner.y);
   assert.equal(await page.locator('#settings-toggle').isVisible(), true);
@@ -402,7 +437,7 @@ async function board(browser, base, flags) {
   assert.equal(await brightnessThumb.getAttribute('aria-valuenow'), '50');
   assert.equal(await shownBrightness(page), 'brightness(50%)');
   assert.equal(await text(page, '#brightness-value'), '50%');
-  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true });
+  assert.deepEqual(await saved(page), { assets: [{ currency: 'USDT', ticker: 'ETH' }], columns: 0, brightness: 50, burnIn: true, palette: 'green-red', chart: true, period: '1d', clock: true, keepAwake: true });
   // Up and down colours: green and red, or the Korean red and blue.
   const colourOf = id => page.locator(id).evaluate(el => getComputedStyle(el).color);
   await page.waitForFunction(() => getComputedStyle(document.getElementById('change')).color === 'rgb(48, 209, 88)');
@@ -901,7 +936,7 @@ async function english(browser, base) {
   assert.doesNotMatch(await words(), hangul);
   assert.equal(await text(page, '#admin-title'), 'Settings');
   assert.equal(await page.locator('#settings-toggle').getAttribute('aria-label'), 'Open settings');
-  assert.equal((await text(page, '#wake-label')).trim(), 'Keep Screen On');
+  assert.equal(await page.locator('#wake-toggle').getAttribute('aria-label'), 'Keep Screen On · On');
   // The add form, the columns row and a refusal, in English too.
   await page.locator('#asset-add').click();
   assert.deepEqual(await page.locator('#new-currency option').allTextContents(), ['Upbit · KRW', 'Bithumb · KRW', 'Coinone · KRW', 'Binance · USDT', 'Binance · USDT Perpetual', 'OKX · USDT', 'OKX · USDT Perpetual', 'Bybit · USDT', 'Bybit · USDT Perpetual', 'Coinbase · USD', 'Kraken · USD']);
@@ -1094,13 +1129,16 @@ async function popOut(browser, base) {
   const page = await context.newPage(); const problems = watch(page);
   await page.goto(base); await live(page);
   const pip = () => page.evaluate(() => { const doc = window.documentPictureInPicture.window?.document; return doc && { price: doc.getElementById('price-main')?.textContent ?? null, head: doc.getElementById('board-head') ? doc.getElementById('coin').textContent + doc.getElementById('unit').textContent : null, cells: doc.querySelectorAll('.cell').length }; });
-  await open(page);
-  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창으로 띄우기');
-  assert.equal(await text(page, '#pip-hint'), '다른 창 위에 늘 떠 있는 작은 창으로 시세를 띄웁니다. 이 탭을 닫으면 함께 닫힙니다.');
+  // A button beside the settings button; settings themselves have none.
+  await page.keyboard.press('Tab');
+  const pipButton = page.locator('#pip-toggle');
+  assert.equal(await page.locator('#board-controls #pip-toggle').count(), 1);
+  assert.equal(await pipButton.getAttribute('aria-label'), '작은 창으로 띄우기');
+  assert.equal(await pipButton.getAttribute('title'), '작은 창으로 띄우기', 'named on hover too');
   // A press opens the small window, with the same price as the board.
-  await page.locator('#pip-toggle').click();
+  await pipButton.click();
   await page.waitForFunction(() => !!window.documentPictureInPicture.window?.document.getElementById('container'));
-  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창 닫기');
+  assert.equal(await pipButton.getAttribute('aria-label'), '작은 창 닫기');
   // The same board as the tab, drawn to the small window.
   assert.deepEqual(await pip(), { price: '9800만', head: 'BTCKRW', cells: 0 });
   assert.equal(await page.evaluate(() => window.documentPictureInPicture.window.document.title), 'Coinboard');
@@ -1108,12 +1146,13 @@ async function popOut(browser, base) {
   await page.evaluate(() => sockets.at(-1).quote({ trade_price: 99000000 }));
   await page.waitForTimeout(3200);
   assert.equal((await pip()).price, '9900만');
-  await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
+  await open(page); await page.locator('#asset-add').click(); await page.locator('#asset-new-confirm').click();
   await until(page, () => window.documentPictureInPicture.window.document.querySelectorAll('.cell').length === 2);
+  await page.keyboard.press('Escape');
   // The press again closes it.
-  await page.locator('#pip-toggle').click();
+  await pipButton.click();
   await until(page, () => !window.documentPictureInPicture.window);
-  assert.equal((await text(page, '#pip-toggle')).trim(), '작은 창으로 띄우기');
+  assert.equal(await pipButton.getAttribute('aria-label'), '작은 창으로 띄우기');
   assert.deepEqual(problems, []);
   await context.close();
   // A browser without small windows (Safari, Firefox, phones and tablets): no button.
@@ -1125,7 +1164,7 @@ async function popOut(browser, base) {
   // In English.
   const en = await browser.newContext({ locale: 'en-US', viewport: { width: 1024, height: 768 } }); await scripted(en);
   const enPage = await en.newPage(); await enPage.goto(base); await live(enPage); await open(enPage);
-  assert.equal((await text(enPage, '#pip-toggle')).trim(), 'Pop Out');
+  assert.equal(await enPage.locator('#pip-toggle').getAttribute('aria-label'), 'Pop Out');
   await en.close();
   console.log('PASS pop-out: the board in a small window on top, following the tab (one asset, then a grid), closed by the same button; no button where the browser cannot');
 }
@@ -1526,7 +1565,7 @@ async function layouts(browser, base) {
     assert.equal(toggle.x + toggle.width, s.width - s.right - 16, s.name + ' button right');
     await page.locator('#settings-toggle').tap();
     // The worst case for height: every optional button showing.
-    await page.evaluate(() => { for (const id of ['wake-lock-retry', 'app-update', 'market-retry']) document.getElementById(id).hidden = false; });
+    await page.evaluate(() => { for (const id of ['market-retry']) document.getElementById(id).hidden = false; });
     await page.locator('#asset-add').tap();
     await page.locator('#new-coin').selectOption('__other');
     // Measure the sheet where it comes to rest, not partway through its entrance.

@@ -22,6 +22,8 @@
   import { getLocale } from './paraglide/runtime.js';
   import { Toaster } from '$lib/components/ui/sonner/index.js';
   import { toast } from 'svelte-sonner';
+  import { HugeiconsIcon } from '@hugeicons/svelte';
+  import { PictureInPictureOnIcon, PictureInPictureExitIcon, MonitorIcon, MonitorOffIcon, RefreshIcon } from '@hugeicons/core-free-icons';
 
   const version = __APP_VERSION__;
   // Storage can throw on access (private mode): run on defaults without it.
@@ -186,8 +188,8 @@
     : m.version({ version }));
   // The status dot in the corner: one colour for how things are, and the detail
   // on hover or tap. English, like everything else on the board.
-  // Only a lost or refused wake lock counts; a device without the feature is
-  // reported in the settings panel alone.
+  // Only a lost or refused wake lock counts; a device without the feature, or
+  // keeping the screen on switched off, is told by its own button.
   const wakeLost = $derived(wake.kind === 'released' || wake.kind === 'failed');
   const level = $derived(worst === 'ok' && wakeLost ? 'warn' : worst);
   // One asset: where it comes from and how it is. Several: a line each.
@@ -226,6 +228,27 @@
     const timer = setInterval(() => { now = Date.now(); }, 1000);
     return () => clearInterval(timer);
   });
+
+  // Keeping the screen on, as its button beside the settings button says it:
+  // on (and how it is going), switched off, or in trouble.
+  const WAKE_STATES = { active: m.wake_state_active, pending: m.wake_state_pending, waiting: m.wake_state_waiting, released: m.wake_state_off, failed: m.wake_state_off, unsupported: m.wake_state_unsupported, off: m.wake_state_disabled };
+  const wakeTrouble = $derived(settings.keepAwake && (wake.kind === 'released' || wake.kind === 'failed'));
+  const wakeName = $derived(wakeTrouble ? m.wake_retry() : `${m.wake_label()} · ${(WAKE_STATES[wake.kind] ?? m.wake_state_pending)()}`);
+  // A press switches it on or off. In trouble it tries again instead, and says
+  // why it stopped; where the browser cannot keep the screen on, it says so.
+  // The press's own pointerdown already asks again (wake-lock.js), so the
+  // state is read as it was when the finger came down.
+  let wakeAtPress = null;
+  function pressWake(event) {
+    const before = event.detail > 0 && wakeAtPress ? wakeAtPress : { kind: wake.kind, message: wake.message };
+    wakeAtPress = null;
+    if (before.kind === 'unsupported') { showToast(before.message); return; }
+    if (settings.keepAwake && (before.kind === 'released' || before.kind === 'failed')) { wakeLock.retry(); showToast(before.message); return; }
+    const keepAwake = !settings.keepAwake;
+    save({ keepAwake });
+    wakeLock.setEnabled(keepAwake);
+    showToast(keepAwake ? m.wake_on() : m.wake_off());
+  }
 
   // A short message at the bottom of the screen (a toast).
   function showToast(message) { toast(message, { duration: 2500 }); }
@@ -298,7 +321,7 @@
     applySelection();
     // The price connections have taken their first turn: charts may ask now.
     chartsReady = true;
-    wakeLock = createWakeLock({ navigator, document, window, onChange(next) { wake = next; } });
+    wakeLock = createWakeLock({ navigator, document, window, enabled: settings.keepAwake, onChange(next) { wake = next; } });
     updater = createUpdater({
       navigator, location: window.location, document, version, workerUrl: './sw.js',
       storage: storage('sessionStorage'), clock: { setInterval: window.setInterval.bind(window) }, window,
@@ -310,7 +333,7 @@
     // When the settings button shows, and what a tap outside the panel does.
     controls = createQuietControls({
       // The toasts count as part of the panel: undoing a delete there leaves it open.
-      document, controls: '#settings-toggle, #admin-panel, [data-sonner-toaster]', panel: '#admin-panel, [data-sonner-toaster]',
+      document, controls: '#board-controls, #admin-panel, [data-sonner-toaster]', panel: '#admin-panel, [data-sonner-toaster]',
       isPanelOpen: () => panelOpen,
       onVisible(value) { controlsVisible = value; },
       onOutsideTap() { closePanel(false); },
@@ -356,7 +379,7 @@
     // A finger drawn up the board brightens it, down dims it (the controls and an open panel keep their own touches).
     let swipeBase = settings.brightness;
     const swiper = createSwipeBrightness({
-      target: document, ignore: '#settings-toggle, #admin-panel, #scrim, [data-sonner-toaster], #status-dot',
+      target: document, ignore: '#board-controls, #admin-panel, #scrim, [data-sonner-toaster], #status-dot',
       height: () => window.innerHeight,
       onStart() { clearTimeout(swipeHideTimer); swipeBase = settings.brightness; swipeLevel = swipeBase; swipeShown = true; },
       onChange(share) {
@@ -383,7 +406,7 @@
 
 {#if panelOpen}
   <div id="scrim"></div>
-  <SettingsPanel {settings} {canAdd} {install} {installDismissed} {pipSupported} pipOpen={!!pipWindow} onPip={togglePip} onInstall={runInstall} onDismissInstall={dismissInstall} ticks={assetTicks} {status} {wake} {versionLabel} {updateReady}
+  <SettingsPanel {settings} {canAdd} {install} {installDismissed} onInstall={runInstall} onDismissInstall={dismissInstall} ticks={assetTicks} {status} {versionLabel}
     onClose={closePanel}
     onAdd={addAsset}
     onColumns={columns => save({ columns })}
@@ -397,13 +420,28 @@
     onPeriod={period => save({ period })}
     onClock={clock => save({ clock })}
     onRetryFeed={() => feed.retry()}
-    onRetryWake={() => wakeLock.retry()}
-    onUpdate={() => updater.reload()}
     loadTickers={currency => markets.load(currency)} />
 {/if}
-<button id="settings-toggle" bind:this={toggleButton} type="button" aria-label={m.settings_open()} aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
-</button>
+<!-- The quiet controls, shown together on a tap: what is not a setting sits beside the settings button. -->
+<div id="board-controls">
+  {#if updateReady}
+    <button id="app-update" class="board-button" type="button" aria-label={m.update_now()} title={m.update_now()} onclick={() => updater.reload()}>
+      <HugeiconsIcon icon={RefreshIcon} strokeWidth={1.8} />
+    </button>
+  {/if}
+  {#if pipSupported}
+    <button id="pip-toggle" class="board-button" type="button" aria-label={pipWindow ? m.pip_close() : m.pip_open()} title={pipWindow ? m.pip_close() : m.pip_open()} aria-pressed={!!pipWindow} onclick={togglePip}>
+      <HugeiconsIcon icon={pipWindow ? PictureInPictureExitIcon : PictureInPictureOnIcon} strokeWidth={1.8} />
+    </button>
+  {/if}
+  <button id="wake-toggle" class="board-button" type="button" data-kind={wake.kind} aria-pressed={settings.keepAwake} aria-label={wakeName} title={wakeName}
+    onpointerdown={() => { wakeAtPress = { kind: wake.kind, message: wake.message }; }} onclick={pressWake}>
+    <HugeiconsIcon icon={settings.keepAwake ? MonitorIcon : MonitorOffIcon} strokeWidth={1.8} />
+  </button>
+  <button id="settings-toggle" class="board-button" bind:this={toggleButton} type="button" aria-label={m.settings_open()} title={m.settings_open()} aria-controls="admin-panel" aria-expanded={panelOpen} onclick={openPanel}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.5-2 .9L4.4 6 2 10l1.9 1.8v.4L2 14l2.4 4 2.4-.4 2 .9.7 2.5h5l.7-2.5 2-.9 2.4.4L22 14l-1.9-1.8v-.4L22 10l-2.4-4-2.4.4-2-.9-.7-2.5z"/><circle cx="12" cy="12" r="3"/></svg>
+  </button>
+</div>
 <Toaster position="bottom-center" />
 {#if hint}<p id="first-hint" role="status">{m.help_hint()}{#if install}<span class="hint-more">{m.help_hint_install()}</span>{/if}</p>{/if}
 <!-- The brightness while swiping, as video players show it: a sun and the level

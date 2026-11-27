@@ -15,11 +15,11 @@
   import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from '$lib/components/ui/native-select/index.js';
   import { ToggleGroup, ToggleGroupItem } from '$lib/components/ui/toggle-group/index.js';
   import { HugeiconsIcon } from '@hugeicons/svelte';
-  import { Share03Icon, AddSquareIcon, Download04Icon, PictureInPictureOnIcon, PictureInPictureExitIcon } from '@hugeicons/core-free-icons';
+  import { Share03Icon, AddSquareIcon, Download04Icon } from '@hugeicons/core-free-icons';
   import { Cancel01Icon, Delete02Icon, PlusSignIcon, GithubIcon, DragDropVerticalIcon, Sun01Icon, Sun03Icon, HelpCircleIcon, ArrowLeft01Icon, ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
 
-  let { settings, canAdd, ticks, status, wake, versionLabel, updateReady, install = null, installDismissed = false,
-    onInstall = () => {}, onDismissInstall = () => {}, pipSupported = false, pipOpen = false, onPip = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onPeriod = () => {}, onClock = () => {}, onRetryFeed, onRetryWake, onUpdate, loadTickers } = $props();
+  let { settings, canAdd, ticks, status, versionLabel, install = null, installDismissed = false,
+    onInstall = () => {}, onDismissInstall = () => {}, onClose, onAdd, onRemove, onReorder, onColumns, onBrightnessPreview, onBrightness, onBurnIn, onPalette, onChart = () => {}, onPeriod = () => {}, onClock = () => {}, onRetryFeed, loadTickers } = $props();
 
   let panel;
   const assetName = item => `${item.ticker} ${EXCHANGES[item.currency].choice}`;
@@ -27,17 +27,6 @@
   // The new asset's coin is a one-line choice: the listed coins, and
   // "직접 입력…", which opens a field for any other ticker.
   const OTHER = '__other';
-  // The screen-on state in a word, with the colour of the status dot.
-  const WAKE = {
-    active: { label: m.wake_state_active, color: 'bg-[#30d158]' },
-    pending: { label: m.wake_state_pending, color: 'bg-muted-foreground' },
-    waiting: { label: m.wake_state_waiting, color: 'bg-muted-foreground' },
-    released: { label: m.wake_state_off, color: 'bg-[#ffd60a]' },
-    failed: { label: m.wake_state_off, color: 'bg-[#ffd60a]' },
-    unsupported: { label: m.wake_state_unsupported, color: 'bg-muted-foreground' },
-  };
-  // Worth a line only when something is wrong.
-  const wakeTrouble = $derived(['unsupported', 'released', 'failed'].includes(wake.kind));
   // The add form: market and coin for a new asset, added only on 추가. It
   // starts in the market of the last asset, on the first listed coin not yet
   // shown there. An asset is not edited: another coin is added, and the old one deleted.
@@ -376,13 +365,6 @@
         </div>
         <Switch id="admin-burn-in" size="lg" checked={settings.burnIn} onCheckedChange={value => onBurnIn(value)} aria-describedby="burn-in-hint" />
       </div>
-      <!-- Whether the screen is being kept on, always: green while it is. -->
-      <div class="flex min-h-14 items-center justify-between gap-3 border-b border-border px-4">
-        <span id="wake-label">{m.wake_label()}</span>
-        <span id="wake-state" class="flex items-center gap-2 text-[15px] text-muted-foreground" data-kind={wake.kind} role="status" aria-labelledby="wake-label wake-state">
-          <span class="size-2 shrink-0 rounded-full {WAKE[wake.kind]?.color ?? 'bg-muted-foreground'}" aria-hidden="true"></span>{(WAKE[wake.kind]?.label ?? m.wake_state_pending)()}
-        </span>
-      </div>
       <div class="flex flex-col border-b border-border px-4">
         <div class="flex min-h-14 items-center justify-between gap-3">
           <label for="admin-chart">{m.chart()}</label>
@@ -414,16 +396,6 @@
         </ToggleGroup>
       </div>
     </div>
-    {#if pipSupported}
-      <!-- A small window on top of other windows; desktop Chrome and Edge only. -->
-      <Button id="pip-toggle" variant="secondary" size="lg" class="h-12 justify-start gap-3 rounded-2xl bg-card px-4 text-[15px] font-normal hover:bg-[color-mix(in_oklab,var(--card),white_6%)]" aria-describedby="pip-hint" onclick={onPip}>
-        <HugeiconsIcon icon={pipOpen ? PictureInPictureExitIcon : PictureInPictureOnIcon} strokeWidth={1.8} class="size-5 text-muted-foreground" />{pipOpen ? m.pip_close() : m.pip_open()}
-      </Button>
-      <p id="pip-hint" class="-mt-1 px-1 text-[13px] leading-snug text-muted-foreground">{m.pip_hint()}</p>
-    {/if}
-    <p id="wake-lock-status" class="px-1 text-[13px] leading-normal text-muted-foreground" role="status" aria-live="polite" hidden={!wakeTrouble}>{wake.message}</p>
-    <Button id="wake-lock-retry" variant="secondary" size="lg" class="h-11 rounded-xl" hidden={!wake.canRetry} onclick={onRetryWake}>{m.wake_retry()}</Button>
-    <Button id="app-update" size="lg" class="h-11 rounded-xl font-semibold" hidden={!updateReady} onclick={onUpdate}>{m.update_now()}</Button>
   </section>
 
   <footer class="flex items-center justify-between px-1">
